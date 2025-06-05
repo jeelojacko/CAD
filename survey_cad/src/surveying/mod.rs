@@ -23,6 +23,21 @@ pub fn station_distance(a: &Station, b: &Station) -> f64 {
     geometry::distance(a.position, b.position)
 }
 
+/// Calculates the vertical angle between two stations given their elevations.
+/// The result is returned in radians.
+pub fn vertical_angle(a: &Station, elev_a: f64, b: &Station, elev_b: f64) -> f64 {
+    let horiz = geometry::distance(a.position, b.position);
+    let delta_elev = elev_b - elev_a;
+    delta_elev.atan2(horiz)
+}
+
+/// Performs a simple differential leveling computation returning the new
+/// elevation given a starting elevation, a backsight reading and a foresight
+/// reading.
+pub fn level_elevation(start_elev: f64, backsight: f64, foresight: f64) -> f64 {
+    start_elev + backsight - foresight
+}
+
 /// Represents a closed traverse consisting of multiple survey points.
 #[derive(Debug, Default)]
 pub struct Traverse {
@@ -62,5 +77,20 @@ mod tests {
         ];
         let t = Traverse::new(points);
         assert!((t.area() - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn vertical_angle_works() {
+        let a = Station::new("A", Point::new(0.0, 0.0));
+        let b = Station::new("B", Point::new(3.0, 4.0));
+        let ang = vertical_angle(&a, 10.0, &b, 14.0);
+        let expected = (4.0f64).atan2(5.0);
+        assert!((ang - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn level_elevation_works() {
+        let new_elev = level_elevation(100.0, 1.2, 0.8);
+        assert!((new_elev - 100.4).abs() < 1e-6);
     }
 }
