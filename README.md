@@ -69,3 +69,7 @@ $ cargo run -p survey_cad_cli -- view-points points.csv
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
 and pull request. The workflow fails if clippy reports warnings or any tests
 fail.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
