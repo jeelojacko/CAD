@@ -6,7 +6,10 @@ use survey_cad::{
         write_points_geojson, write_string,
     },
     render::{render_point, render_points},
-    surveying::{level_elevation, station_distance, vertical_angle, Station, Traverse},
+    surveying::{
+        bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle,
+        Station, Traverse,
+    },
 };
 
 fn no_render() -> bool {
@@ -56,6 +59,26 @@ enum Commands {
         x2: f64,
         y2: f64,
         elev_b: f64,
+    },
+    /// Compute the bearing between two points.
+    Bearing { x1: f64, y1: f64, x2: f64, y2: f64 },
+    /// Compute a new point from a start point, bearing and distance.
+    Forward {
+        x: f64,
+        y: f64,
+        bearing: f64,
+        distance: f64,
+    },
+    /// Determine the intersection point of two lines.
+    Intersection {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+        x3: f64,
+        y3: f64,
+        x4: f64,
+        y4: f64,
     },
     /// Compute a new elevation using differential leveling.
     LevelElevation {
@@ -152,6 +175,37 @@ fn main() {
                 a.name, b.name, ang
             );
         }
+        Commands::Bearing { x1, y1, x2, y2 } => {
+            let bng = bearing(Point::new(x1, y1), Point::new(x2, y2));
+            println!("Bearing: {:.3} rad", bng);
+        }
+        Commands::Forward {
+            x,
+            y,
+            bearing: bng,
+            distance,
+        } => {
+            let p = forward(Point::new(x, y), bng, distance);
+            println!("Point: {:.3},{:.3}", p.x, p.y);
+        }
+        Commands::Intersection {
+            x1,
+            y1,
+            x2,
+            y2,
+            x3,
+            y3,
+            x4,
+            y4,
+        } => match line_intersection(
+            Point::new(x1, y1),
+            Point::new(x2, y2),
+            Point::new(x3, y3),
+            Point::new(x4, y4),
+        ) {
+            Some(pt) => println!("Intersection: {:.3},{:.3}", pt.x, pt.y),
+            None => println!("Lines are parallel"),
+        },
         Commands::LevelElevation {
             start_elev,
             backsight,
