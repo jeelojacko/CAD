@@ -41,3 +41,15 @@ $ cargo run -p survey_cad_cli -- copy src.txt dest.txt
 ```bash
 $ cargo run -p survey_cad_cli -- render-point 1.0 2.0
 ```
+
+### Export points to GeoJSON
+
+```bash
+$ cargo run -p survey_cad_cli -- export-geojson points.csv points.geojson
+```
+
+### View points from CSV
+
+```bash
+$ cargo run -p survey_cad_cli -- view-points points.csv
+```

@@ -64,6 +64,81 @@ pub fn write_points_csv(path: &str, points: &[Point]) -> io::Result<()> {
     Ok(())
 }
 
+/// Reads a GeoJSON file containing Point features into a list of [`Point`]s.
+pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
+    let contents = read_to_string(path)?;
+    let geojson: geojson::GeoJson = contents
+        .parse()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    match geojson {
+        geojson::GeoJson::FeatureCollection(fc) => {
+            let mut pts = Vec::new();
+            for feature in fc.features {
+                if let Some(geojson::Geometry {
+                    value: geojson::Value::Point(coord),
+                    ..
+                }) = feature.geometry
+                {
+                    if coord.len() >= 2 {
+                        pts.push(Point::new(coord[0], coord[1]));
+                    }
+                }
+            }
+            Ok(pts)
+        }
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected FeatureCollection",
+        )),
+    }
+}
+
+/// Writes a slice of [`Point`]s to a GeoJSON file as Point features.
+pub fn write_points_geojson(path: &str, points: &[Point]) -> io::Result<()> {
+    use geojson::{Feature, FeatureCollection, GeoJson, Geometry, Value};
+    let features: Vec<Feature> = points
+        .iter()
+        .map(|p| Feature {
+            bbox: None,
+            geometry: Some(Geometry::new(Value::Point(vec![p.x, p.y]))),
+            id: None,
+            properties: None,
+            foreign_members: None,
+        })
+        .collect();
+    let fc = FeatureCollection {
+        bbox: None,
+        features,
+        foreign_members: None,
+    };
+    write_string(path, &GeoJson::FeatureCollection(fc).to_string())
+}
+
+/// Writes a slice of [`Point`]s to a very simple ASCII DXF file containing
+/// `POINT` entities. Only x and y coordinates are written.
+pub fn write_points_dxf(path: &str, points: &[Point]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    writeln!(file, "0")?;
+    writeln!(file, "SECTION")?;
+    writeln!(file, "2")?;
+    writeln!(file, "ENTITIES")?;
+    for p in points {
+        writeln!(file, "0")?;
+        writeln!(file, "POINT")?;
+        writeln!(file, "10")?;
+        writeln!(file, "{}", p.x)?;
+        writeln!(file, "20")?;
+        writeln!(file, "{}", p.y)?;
+        writeln!(file, "30")?;
+        writeln!(file, "0.0")?;
+    }
+    writeln!(file, "0")?;
+    writeln!(file, "ENDSEC")?;
+    writeln!(file, "0")?;
+    writeln!(file, "EOF")?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,5 +163,25 @@ mod tests {
         assert_eq!(read_pts, pts);
         std::fs::remove_file(path).ok();
     }
-}
 
+    #[test]
+    fn write_and_read_geojson() {
+        let path = std::env::temp_dir().join("cad_points.geojson");
+        let path_str = path.to_str().unwrap();
+        let pts = vec![Point::new(5.0, 6.0), Point::new(7.0, 8.0)];
+        write_points_geojson(path_str, &pts).unwrap();
+        let read_pts = read_points_geojson(path_str).unwrap();
+        assert_eq!(read_pts, pts);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_dxf() {
+        let path = std::env::temp_dir().join("cad_points.dxf");
+        let path_str = path.to_str().unwrap();
+        let pts = vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)];
+        write_points_dxf(path_str, &pts).unwrap();
+        assert!(std::fs::metadata(path_str).is_ok());
+        std::fs::remove_file(path).ok();
+    }
+}

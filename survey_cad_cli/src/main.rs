@@ -1,8 +1,11 @@
 use clap::{Parser, Subcommand};
 use survey_cad::{
     geometry::Point,
-    io::{read_points_csv, read_to_string, write_string},
-    render::render_point,
+    io::{
+        read_points_csv, read_points_geojson, read_to_string, write_points_csv, write_points_dxf,
+        write_points_geojson, write_string,
+    },
+    render::{render_point, render_points},
     surveying::{station_distance, Station, Traverse},
 };
 
@@ -31,6 +34,14 @@ enum Commands {
     Copy { src: String, dest: String },
     /// Render a point (prints to stdout).
     RenderPoint { x: f64, y: f64 },
+    /// Export points from a CSV file to GeoJSON.
+    ExportGeojson { input: String, output: String },
+    /// Import points from a GeoJSON file to CSV.
+    ImportGeojson { input: String, output: String },
+    /// Export points from a CSV file to a simple DXF.
+    ExportDxf { input: String, output: String },
+    /// View points from a CSV file.
+    ViewPoints { input: String },
 }
 
 fn main() {
@@ -67,5 +78,32 @@ fn main() {
             let p = Point::new(x, y);
             render_point(p);
         }
+        Commands::ExportGeojson { input, output } => match read_points_csv(&input) {
+            Ok(pts) => match write_points_geojson(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        Commands::ImportGeojson { input, output } => match read_points_geojson(&input) {
+            Ok(pts) => match write_points_csv(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        Commands::ExportDxf { input, output } => match read_points_csv(&input) {
+            Ok(pts) => match write_points_dxf(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        Commands::ViewPoints { input } => match read_points_csv(&input) {
+            Ok(pts) => {
+                render_points(&pts);
+            }
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
     }
 }
