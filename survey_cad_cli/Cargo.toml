@@ -1,0 +1,7 @@
+[package]
+name = "survey_cad_cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+survey_cad = { path = "../survey_cad" }
