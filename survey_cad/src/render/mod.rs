@@ -3,6 +3,7 @@
 use crate::geometry::Point;
 
 use log::error;
+use bevy::prelude::*;
 use pixels::{Pixels, SurfaceTexture};
 use std::sync::Arc;
 use winit::dpi::LogicalSize;
@@ -146,4 +147,20 @@ fn draw_points(frame: &mut [u8], width: usize, height: usize, points: &[Point]) 
             frame[idx + 3] = 0xff;
         }
     }
+}
+
+/// Runs a tiny Bevy application demonstrating ECS usage.
+pub fn bevy_ecs_demo() {
+    #[derive(Resource)]
+    struct Counter(u32);
+
+    fn increment(mut counter: ResMut<Counter>) {
+        counter.0 += 1;
+        println!("Counter: {}", counter.0);
+    }
+
+    let mut app = App::new();
+    app.insert_resource(Counter(0));
+    app.add_systems(Update, increment);
+    app.update();
 }
