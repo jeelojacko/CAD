@@ -1,0 +1,7 @@
+[package]
+name = "cad_import"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+survey_cad = { path = "../survey_cad" }
