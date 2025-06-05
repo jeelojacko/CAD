@@ -4,6 +4,8 @@ pub mod geometry;
 pub mod io;
 pub mod render;
 pub mod surveying;
+#[cfg(feature = "pmetra")]
+pub mod pmetra;
 
 /// Adds two numbers together. Example function.
 #[allow(dead_code)]

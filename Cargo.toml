@@ -1,5 +1,5 @@
 [workspace]
-members = ["survey_cad", "survey_cad_cli"]
+members = ["survey_cad", "survey_cad_cli", "bevy_pmetra"]
 resolver = "2"
 
 [workspace.package]

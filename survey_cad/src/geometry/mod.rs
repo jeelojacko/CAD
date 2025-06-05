@@ -58,6 +58,100 @@ pub fn polygon_area(vertices: &[Point]) -> f64 {
     sum.abs() * 0.5
 }
 
+/// Representation of a 3D point.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Point3 {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+
+impl Point3 {
+    pub fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { x, y, z }
+    }
+}
+
+/// Representation of a 3D line segment between two points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Line3 {
+    pub start: Point3,
+    pub end: Point3,
+}
+
+impl Line3 {
+    /// Creates a new line segment.
+    pub fn new(start: Point3, end: Point3) -> Self {
+        Self { start, end }
+    }
+
+    /// Returns the length of the line segment.
+    pub fn length(&self) -> f64 {
+        distance3(self.start, self.end)
+    }
+
+    /// Returns the midpoint of the line segment.
+    pub fn midpoint(&self) -> Point3 {
+        Point3::new(
+            (self.start.x + self.end.x) / 2.0,
+            (self.start.y + self.end.y) / 2.0,
+            (self.start.z + self.end.z) / 2.0,
+        )
+    }
+}
+
+/// Calculates the Euclidean distance between two 3D points.
+pub fn distance3(a: Point3, b: Point3) -> f64 {
+    ((b.x - a.x).powi(2) + (b.y - a.y).powi(2) + (b.z - a.z).powi(2)).sqrt()
+}
+
+fn cross(a: Point3, b: Point3) -> Point3 {
+    Point3 {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x,
+    }
+}
+
+fn subtract(a: Point3, b: Point3) -> Point3 {
+    Point3::new(a.x - b.x, a.y - b.y, a.z - b.z)
+}
+
+/// Calculates the area of a planar polygon in 3D space.
+pub fn polygon_area3(vertices: &[Point3]) -> f64 {
+    if vertices.len() < 3 {
+        return 0.0;
+    }
+    let mut sum = Point3::new(0.0, 0.0, 0.0);
+    for i in 1..(vertices.len() - 1) {
+        let v0 = subtract(vertices[i], vertices[0]);
+        let v1 = subtract(vertices[i + 1], vertices[0]);
+        let c = cross(v0, v1);
+        sum.x += c.x;
+        sum.y += c.y;
+        sum.z += c.z;
+    }
+    0.5 * (sum.x.powi(2) + sum.y.powi(2) + sum.z.powi(2)).sqrt()
+}
+
+/// Representation of a planar polygonal surface in 3D.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Surface3 {
+    pub boundary: Vec<Point3>,
+}
+
+impl Surface3 {
+    /// Creates a new surface from its boundary vertices.
+    pub fn new(boundary: Vec<Point3>) -> Self {
+        Self { boundary }
+    }
+
+    /// Calculates the area enclosed by the surface boundary.
+    pub fn area(&self) -> f64 {
+        polygon_area3(&self.boundary)
+    }
+}
+
 /// Representation of a circular arc defined by its center, radius and start/end
 /// angles (in radians).
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -177,5 +271,26 @@ mod tests {
         ];
         let s = Surface::new(boundary);
         assert!((s.area() - 4.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn line3_length_midpoint() {
+        let a = Point3::new(0.0, 0.0, 0.0);
+        let b = Point3::new(1.0, 2.0, 2.0);
+        let line = Line3::new(a, b);
+        assert!((line.length() - 3.0).abs() < 1e-6);
+        let mid = line.midpoint();
+        assert_eq!(mid, Point3::new(0.5, 1.0, 1.0));
+    }
+
+    #[test]
+    fn surface3_area_triangle() {
+        let boundary = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let s = Surface3::new(boundary);
+        assert!((s.area() - 0.5).abs() < 1e-6);
     }
 }
