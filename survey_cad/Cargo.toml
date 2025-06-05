@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+pixels = "0.15"
+winit = "0.29"
+log = "0.4"
+env_logger = "0.10"
