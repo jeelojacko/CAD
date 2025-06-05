@@ -64,6 +64,18 @@ View points from a CSV file:
 $ cargo run -p survey_cad_cli -- view-points points.csv
 ```
 
+Compute the vertical angle between two stations:
+
+```bash
+$ cargo run -p survey_cad_cli -- vertical-angle A 0.0 0.0 10.0 B 3.0 4.0 14.0
+```
+
+Calculate a new elevation using differential leveling:
+
+```bash
+$ cargo run -p survey_cad_cli -- level-elevation 100.0 1.2 0.8
+```
+
 ## Continuous Integration
 
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
