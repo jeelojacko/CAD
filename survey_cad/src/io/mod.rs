@@ -35,17 +35,24 @@ pub fn read_points_csv(path: &str) -> io::Result<Vec<Point>> {
     let lines = read_lines(path)?;
     lines
         .iter()
+        .filter(|line| !line.trim().is_empty())
         .map(|line| {
-            let mut parts = line.split(',');
-            let x = parts
-                .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing x"))?
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() != 2 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "expected two comma-separated values, got {} on line: '{}'",
+                        parts.len(),
+                        line
+                    ),
+                ));
+            }
+            let x = parts[0]
                 .trim()
                 .parse::<f64>()
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            let y = parts
-                .next()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "missing y"))?
+            let y = parts[1]
                 .trim()
                 .parse::<f64>()
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -182,6 +189,28 @@ mod tests {
         let pts = vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)];
         write_points_dxf(path_str, &pts).unwrap();
         assert!(std::fs::metadata(path_str).is_ok());
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn read_points_csv_skips_empty_lines() {
+        let path = std::env::temp_dir().join("cad_points_blank.csv");
+        let path_str = path.to_str().unwrap();
+        let contents = "1.0,2.0\n\n3.0,4.0\n";
+        write_string(path_str, contents).unwrap();
+        let pts = read_points_csv(path_str).unwrap();
+        assert_eq!(pts, vec![Point::new(1.0, 2.0), Point::new(3.0, 4.0)]);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn read_points_csv_bad_field_count() {
+        let path = std::env::temp_dir().join("cad_points_bad.csv");
+        let path_str = path.to_str().unwrap();
+        let contents = "1.0\n1.0,2.0,3.0\n";
+        write_string(path_str, contents).unwrap();
+        let err = read_points_csv(path_str).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         std::fs::remove_file(path).ok();
     }
 }
