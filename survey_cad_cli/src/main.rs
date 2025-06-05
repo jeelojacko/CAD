@@ -9,6 +9,10 @@ use survey_cad::{
     surveying::{station_distance, Station, Traverse},
 };
 
+fn no_render() -> bool {
+    std::env::var("SURVEY_CAD_TEST").is_ok()
+}
+
 /// Simple command line interface demonstrating the survey CAD utilities.
 #[derive(Parser)]
 #[command(name = "survey_cad_cli", version)]
@@ -76,7 +80,11 @@ fn main() {
         },
         Commands::RenderPoint { x, y } => {
             let p = Point::new(x, y);
-            render_point(p);
+            if no_render() {
+                println!("Rendering point ({}, {})", p.x, p.y);
+            } else {
+                render_point(p);
+            }
         }
         Commands::ExportGeojson { input, output } => match read_points_csv(&input) {
             Ok(pts) => match write_points_geojson(&output, &pts) {
@@ -101,7 +109,11 @@ fn main() {
         },
         Commands::ViewPoints { input } => match read_points_csv(&input) {
             Ok(pts) => {
-                render_points(&pts);
+                if no_render() {
+                    println!("Rendering {} points", pts.len());
+                } else {
+                    render_points(&pts);
+                }
             }
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },

@@ -40,3 +40,92 @@ fn copy_command() {
     dest.assert("hello world");
     dir.close().unwrap();
 }
+
+#[test]
+fn export_geojson_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let input = dir.child("pts.csv");
+    input
+        .write_str("1.0,2.0\n3.0,4.0\n")
+        .unwrap();
+    let output = dir.child("pts.geojson");
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "export-geojson",
+            input.path().to_str().unwrap(),
+            output.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Wrote"));
+
+    output.assert(predicate::path::exists());
+    dir.close().unwrap();
+}
+
+#[test]
+fn import_geojson_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let input = dir.child("pts.geojson");
+    input
+        .write_str(
+            r#"{ "type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [1.0,2.0]}},
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [3.0,4.0]}}
+        ] }"#,
+        )
+        .unwrap();
+    let output = dir.child("pts.csv");
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "import-geojson",
+            input.path().to_str().unwrap(),
+            output.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Wrote"));
+
+    output.assert(predicate::path::exists());
+    dir.close().unwrap();
+}
+
+#[test]
+fn export_dxf_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let input = dir.child("pts.csv");
+    input.write_str("0.0,0.0\n1.0,1.0\n").unwrap();
+    let output = dir.child("pts.dxf");
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "export-dxf",
+            input.path().to_str().unwrap(),
+            output.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Wrote"));
+
+    output.assert(predicate::path::exists());
+    dir.close().unwrap();
+}
+
+#[test]
+fn view_points_command() {
+    let file = assert_fs::NamedTempFile::new("pts.csv").unwrap();
+    file.write_str("0.0,0.0\n1.0,1.0\n").unwrap();
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .env("SURVEY_CAD_TEST", "1")
+        .args(["view-points", file.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Rendering 2 points"));
+}
