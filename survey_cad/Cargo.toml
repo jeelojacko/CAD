@@ -9,4 +9,6 @@ env_logger = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 geojson = "0.24"
-bevy = { version = "0.16", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11"] }
+bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11"] }
+bevy_editor_cam = "0.5"
+bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"] }

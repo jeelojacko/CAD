@@ -4,6 +4,7 @@ use crate::geometry::Point;
 
 use bevy::prelude::*;
 use bevy::window::{Window, WindowPlugin};
+use bevy_editor_cam::prelude::*;
 
 const WIDTH: f32 = 640.0;
 const HEIGHT: f32 = 480.0;
@@ -13,16 +14,20 @@ pub fn render_point(p: Point) {
     let _ = env_logger::builder().is_test(true).try_init();
 
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                resolution: (WIDTH, HEIGHT).into(),
-                title: "Survey Point".into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    resolution: (WIDTH, HEIGHT).into(),
+                    title: "Survey Point".into(),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            MeshPickingPlugin,
+            DefaultEditorCamPlugins,
+        ))
         .add_systems(Startup, move |mut commands: Commands| {
-            commands.spawn(Camera2d);
+            commands.spawn((Camera3d::default(), EditorCam::default()));
             spawn_point(&mut commands, p);
         })
         .run();
@@ -34,16 +39,20 @@ pub fn render_points(points: &[Point]) {
     let _ = env_logger::builder().is_test(true).try_init();
 
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                resolution: (WIDTH, HEIGHT).into(),
-                title: "Survey Points".into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    resolution: (WIDTH, HEIGHT).into(),
+                    title: "Survey Points".into(),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            MeshPickingPlugin,
+            DefaultEditorCamPlugins,
+        ))
         .add_systems(Startup, move |mut commands: Commands| {
-            commands.spawn(Camera2d);
+            commands.spawn((Camera3d::default(), EditorCam::default()));
             for p in &points {
                 spawn_point(&mut commands, *p);
             }
