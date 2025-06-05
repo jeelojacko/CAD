@@ -63,3 +63,9 @@ View points from a CSV file:
 ```bash
 $ cargo run -p survey_cad_cli -- view-points points.csv
 ```
+
+## Continuous Integration
+
+GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
+and pull request. The workflow fails if clippy reports warnings or any tests
+fail.
