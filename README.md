@@ -4,6 +4,11 @@ Prototype structure for a surveying-specific CAD application written in Rust.
 
 This repository is organized as a Cargo workspace with a core library and a CLI binary.
 
+The library exposes basic geometry types (points and lines) along with more
+advanced primitives like arcs, polylines and polygonal surfaces. Surveying
+utilities cover traverse area calculations as well as vertical angle and
+differential leveling helpers.
+
 ## CLI Examples
 
 The `survey_cad_cli` binary provides several small commands demonstrating the
