@@ -1,9 +1,9 @@
 //! Core library for the Survey CAD application.
 
 pub mod geometry;
-pub mod surveying;
 pub mod io;
 pub mod render;
+pub mod surveying;
 
 /// Adds two numbers together. Example function.
 #[allow(dead_code)]

@@ -5,19 +5,24 @@ use std::process::Command;
 
 #[test]
 fn station_distance_command() {
-    Command::cargo_bin("survey_cad_cli").unwrap()
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
         .args(["station-distance", "A", "0.0", "0.0", "B", "3.0", "4.0"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Distance between A and B is 5.000"));
+        .stdout(predicate::str::contains(
+            "Distance between A and B is 5.000",
+        ));
 }
 
 #[test]
 fn traverse_area_command() {
     let file = assert_fs::NamedTempFile::new("traverse.csv").unwrap();
-    file.write_str("0.0,0.0\n1.0,0.0\n1.0,1.0\n0.0,1.0\n").unwrap();
+    file.write_str("0.0,0.0\n1.0,0.0\n1.0,1.0\n0.0,1.0\n")
+        .unwrap();
 
-    Command::cargo_bin("survey_cad_cli").unwrap()
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
         .args(["traverse-area", file.path().to_str().unwrap()])
         .assert()
         .success()
@@ -31,8 +36,13 @@ fn copy_command() {
     src.write_str("hello world").unwrap();
     let dest = dir.child("dest.txt");
 
-    Command::cargo_bin("survey_cad_cli").unwrap()
-        .args(["copy", src.path().to_str().unwrap(), dest.path().to_str().unwrap()])
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "copy",
+            src.path().to_str().unwrap(),
+            dest.path().to_str().unwrap(),
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("Copied"));
@@ -45,9 +55,7 @@ fn copy_command() {
 fn export_geojson_command() {
     let dir = assert_fs::TempDir::new().unwrap();
     let input = dir.child("pts.csv");
-    input
-        .write_str("1.0,2.0\n3.0,4.0\n")
-        .unwrap();
+    input.write_str("1.0,2.0\n3.0,4.0\n").unwrap();
     let output = dir.child("pts.geojson");
 
     Command::cargo_bin("survey_cad_cli")
@@ -128,4 +136,36 @@ fn view_points_command() {
         .assert()
         .success()
         .stdout(predicate::str::contains("Rendering 2 points"));
+}
+
+#[test]
+fn vertical_angle_command() {
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "vertical-angle",
+            "A",
+            "0.0",
+            "0.0",
+            "10.0",
+            "B",
+            "3.0",
+            "4.0",
+            "14.0",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Vertical angle between A and B is 0.675 rad",
+        ));
+}
+
+#[test]
+fn level_elevation_command() {
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args(["level-elevation", "100.0", "1.2", "0.8"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("New elevation: 100.400"));
 }

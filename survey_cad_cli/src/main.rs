@@ -6,7 +6,7 @@ use survey_cad::{
         write_points_geojson, write_string,
     },
     render::{render_point, render_points},
-    surveying::{station_distance, Station, Traverse},
+    surveying::{level_elevation, station_distance, vertical_angle, Station, Traverse},
 };
 
 fn no_render() -> bool {
@@ -46,6 +46,23 @@ enum Commands {
     ExportDxf { input: String, output: String },
     /// View points from a CSV file.
     ViewPoints { input: String },
+    /// Compute the vertical angle between two stations given their elevations.
+    VerticalAngle {
+        name_a: String,
+        x1: f64,
+        y1: f64,
+        elev_a: f64,
+        name_b: String,
+        x2: f64,
+        y2: f64,
+        elev_b: f64,
+    },
+    /// Compute a new elevation using differential leveling.
+    LevelElevation {
+        start_elev: f64,
+        backsight: f64,
+        foresight: f64,
+    },
 }
 
 fn main() {
@@ -117,5 +134,31 @@ fn main() {
             }
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
+        Commands::VerticalAngle {
+            name_a,
+            x1,
+            y1,
+            elev_a,
+            name_b,
+            x2,
+            y2,
+            elev_b,
+        } => {
+            let a = Station::new(name_a, Point::new(x1, y1));
+            let b = Station::new(name_b, Point::new(x2, y2));
+            let ang = vertical_angle(&a, elev_a, &b, elev_b);
+            println!(
+                "Vertical angle between {} and {} is {:.3} rad",
+                a.name, b.name, ang
+            );
+        }
+        Commands::LevelElevation {
+            start_elev,
+            backsight,
+            foresight,
+        } => {
+            let elev = level_elevation(start_elev, backsight, foresight);
+            println!("New elevation: {:.3}", elev);
+        }
     }
 }
