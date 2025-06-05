@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 survey_cad = { path = "../survey_cad" }
+clap = { version = "4", features = ["derive"] }
