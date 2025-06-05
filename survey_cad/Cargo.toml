@@ -12,3 +12,6 @@ geojson = "0.24"
 bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11"] }
 bevy_editor_cam = "0.5"
 bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"] }
+truck-modeling = "0.6"
+truck-topology = "0.6"
+truck-geometry = "0.5"
