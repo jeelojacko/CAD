@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 survey_cad = { path = "../survey_cad" }
 clap = { version = "4", features = ["derive"] }
+cad_import = { path = "../cad_import" }
 
 [dev-dependencies]
 assert_cmd = "2"
