@@ -12,12 +12,11 @@ pub fn render_box(size: Vec3) {
         .add_plugins(DefaultPlugins)
         .add_plugins(ParametricBox { size })
         .add_systems(Startup, |mut commands: Commands| {
-            commands.spawn(Camera3dBundle::default());
-            commands.spawn(PointLightBundle {
-                point_light: PointLight { intensity: 1500.0, shadows_enabled: true, ..default() },
-                transform: Transform::from_xyz(4.0, 8.0, 4.0),
-                ..default()
-            });
+            commands.spawn(Camera3d::default());
+            commands.spawn((
+                PointLight { intensity: 1500.0, shadows_enabled: true, ..default() },
+                Transform::from_xyz(4.0, 8.0, 4.0),
+            ));
         })
         .run();
 }
