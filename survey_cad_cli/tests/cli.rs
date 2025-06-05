@@ -125,6 +125,29 @@ fn export_dxf_command() {
 }
 
 #[test]
+fn import_points_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let input = dir.child("pts.txt");
+    input.write_str("1,100.0,200.0,50.0,TEST\n").unwrap();
+    let output = dir.child("out.csv");
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "import-points",
+            "pnezd",
+            input.path().to_str().unwrap(),
+            output.path().to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Wrote"));
+
+    output.assert(predicate::path::exists());
+    dir.close().unwrap();
+}
+
+#[test]
 fn view_points_command() {
     let file = assert_fs::NamedTempFile::new("pts.csv").unwrap();
     file.write_str("0.0,0.0\n1.0,1.0\n").unwrap();

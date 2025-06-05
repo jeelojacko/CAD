@@ -3713,6 +3713,7 @@ version = "0.1.0"
 dependencies = [
  "assert_cmd",
  "assert_fs",
+ "cad_import",
  "clap",
  "predicates",
  "survey_cad",
