@@ -2,6 +2,9 @@
 
 use crate::geometry::{self, Point};
 
+pub mod cogo;
+pub use cogo::{bearing, forward, line_intersection};
+
 /// Representation of a simple survey station.
 #[derive(Debug)]
 pub struct Station {

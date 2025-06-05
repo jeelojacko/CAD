@@ -169,3 +169,43 @@ fn level_elevation_command() {
         .success()
         .stdout(predicate::str::contains("New elevation: 100.400"));
 }
+
+#[test]
+fn bearing_command() {
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args(["bearing", "0.0", "0.0", "1.0", "1.0"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Bearing:"));
+}
+
+#[test]
+fn forward_command() {
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args(["forward", "0.0", "0.0", "1.57079632679", "2.0"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Point:"));
+}
+
+#[test]
+fn intersection_command() {
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "intersection",
+            "0.0",
+            "0.0",
+            "1.0",
+            "1.0",
+            "0.0",
+            "1.0",
+            "1.0",
+            "0.0",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Intersection:"));
+}
