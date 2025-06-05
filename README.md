@@ -52,6 +52,12 @@ Render a single point using Bevy (opens a window):
 $ cargo run -p survey_cad_cli -- render-point 1.0 2.0
 ```
 
+Run the parametric box example (requires the `pmetra` feature):
+
+```bash
+$ cargo run -p survey_cad --example parametric_box --features pmetra
+```
+
 Export survey points to GeoJSON:
 
 ```bash
