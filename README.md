@@ -46,7 +46,7 @@ Copy a file using the CLI:
 $ cargo run -p survey_cad_cli -- copy src.txt dest.txt
 ```
 
-Render a single point (opens a window):
+Render a single point using Bevy (opens a window):
 
 ```bash
 $ cargo run -p survey_cad_cli -- render-point 1.0 2.0
@@ -58,7 +58,7 @@ Export survey points to GeoJSON:
 $ cargo run -p survey_cad_cli -- export-geojson points.csv points.geojson
 ```
 
-View points from a CSV file:
+View points from a CSV file using Bevy:
 
 ```bash
 $ cargo run -p survey_cad_cli -- view-points points.csv
