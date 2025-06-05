@@ -4,8 +4,12 @@ pub mod geometry;
 pub mod io;
 pub mod render;
 pub mod surveying;
+<<<<<<< HEAD
 #[cfg(feature = "pmetra")]
 pub mod pmetra;
+=======
+pub mod truck_integration;
+>>>>>>> origin/main
 
 /// Adds two numbers together. Example function.
 #[allow(dead_code)]
