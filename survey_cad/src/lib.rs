@@ -4,6 +4,7 @@ pub mod geometry;
 pub mod io;
 pub mod render;
 pub mod surveying;
+pub mod truck_integration;
 
 /// Adds two numbers together. Example function.
 #[allow(dead_code)]
