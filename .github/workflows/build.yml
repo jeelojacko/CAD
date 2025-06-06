@@ -19,7 +19,7 @@ jobs:
       - name: Build survey_cad_cli
         run: cargo build -p survey_cad_cli --release
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: survey_cad_cli
           path: target/release/survey_cad_cli
