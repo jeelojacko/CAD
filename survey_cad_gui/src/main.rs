@@ -1,9 +1,9 @@
 #![allow(deprecated)]
 use bevy::prelude::*;
 use clap::Parser;
-use survey_cad::{crs::Crs, geometry::Point};
-
+use std::collections::HashMap;
 use survey_cad::geometry::Point3;
+use survey_cad::{crs::Crs, geometry::Point};
 
 #[derive(Parser)]
 struct Args {
@@ -38,6 +38,9 @@ struct AlignmentData {
 #[derive(Resource, Default)]
 struct SurfaceData {
     vertices: Vec<Point3>,
+    breaklines: Vec<(usize, usize)>,
+    holes: Vec<Vec<usize>>,
+    point_map: HashMap<Entity, usize>,
 }
 
 #[derive(Component)]
@@ -45,6 +48,12 @@ struct AddAlignmentButton;
 
 #[derive(Component)]
 struct AddSurfaceButton;
+
+#[derive(Component)]
+struct AddBreaklineButton;
+
+#[derive(Component)]
+struct AddHoleButton;
 
 #[derive(Component)]
 struct CorridorButton(CorridorControl);
@@ -104,6 +113,8 @@ fn main() {
                 update_lines,
                 handle_add_alignment,
                 handle_add_surface,
+                handle_add_breakline,
+                handle_add_hole,
                 handle_corridor_buttons,
             ),
         )
@@ -192,18 +203,21 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                 TextColor::WHITE,
                 TextSpan::new("Alignment Editor"),
             ));
-            parent.spawn(ButtonBundle::default()).with_children(|b| {
-                b.spawn((
-                    TextLayout::default(),
-                    TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 12.0,
-                        ..default()
-                    },
-                    TextColor::WHITE,
-                    TextSpan::new("Add Selected"),
-                ));
-            }).insert(AddAlignmentButton);
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Add Selected"),
+                    ));
+                })
+                .insert(AddAlignmentButton);
 
             parent.spawn((
                 TextLayout::default(),
@@ -215,18 +229,53 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                 TextColor::WHITE,
                 TextSpan::new("Surface Editor"),
             ));
-            parent.spawn(ButtonBundle::default()).with_children(|b| {
-                b.spawn((
-                    TextLayout::default(),
-                    TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 12.0,
-                        ..default()
-                    },
-                    TextColor::WHITE,
-                    TextSpan::new("Add Points"),
-                ));
-            }).insert(AddSurfaceButton);
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Add Points"),
+                    ));
+                })
+                .insert(AddSurfaceButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Add Breakline"),
+                    ));
+                })
+                .insert(AddBreaklineButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Add Hole"),
+                    ));
+                })
+                .insert(AddHoleButton);
 
             parent.spawn((
                 TextLayout::default(),
@@ -388,7 +437,10 @@ fn update_lines(
 }
 
 fn handle_add_alignment(
-    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddAlignmentButton>)>,
+    interaction: Query<
+        &Interaction,
+        (Changed<Interaction>, With<Button>, With<AddAlignmentButton>),
+    >,
     mut data: ResMut<AlignmentData>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
@@ -396,7 +448,8 @@ fn handle_add_alignment(
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         for e in &selected.0 {
             if let Ok(t) = points.get(*e) {
-                data.points.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                data.points
+                    .push(Point::new(t.translation.x as f64, t.translation.y as f64));
             }
         }
     }
@@ -411,8 +464,76 @@ fn handle_add_surface(
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         for e in &selected.0 {
             if let Ok(t) = points.get(*e) {
-                data.vertices.push(Point3::new(t.translation.x as f64, t.translation.y as f64, 0.0));
+                let idx = data.vertices.len();
+                data.vertices.push(Point3::new(
+                    t.translation.x as f64,
+                    t.translation.y as f64,
+                    0.0,
+                ));
+                data.point_map.insert(*e, idx);
             }
+        }
+    }
+}
+
+fn get_vertex_index(data: &mut SurfaceData, e: Entity, t: &Transform) -> usize {
+    if let Some(&idx) = data.point_map.get(&e) {
+        idx
+    } else {
+        let idx = data.vertices.len();
+        data.vertices.push(Point3::new(
+            t.translation.x as f64,
+            t.translation.y as f64,
+            0.0,
+        ));
+        data.point_map.insert(e, idx);
+        idx
+    }
+}
+
+fn handle_add_breakline(
+    interaction: Query<
+        &Interaction,
+        (Changed<Interaction>, With<Button>, With<AddBreaklineButton>),
+    >,
+    mut data: ResMut<SurfaceData>,
+    points: Query<&Transform, With<CadPoint>>,
+    selected: Res<SelectedPoints>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if selected.0.len() >= 2 {
+            let a = selected.0[0];
+            let b = selected.0[1];
+            if let (Ok(t1), Ok(t2)) = (points.get(a), points.get(b)) {
+                let i1 = get_vertex_index(&mut data, a, t1);
+                let i2 = get_vertex_index(&mut data, b, t2);
+                data.breaklines.push((i1, i2));
+                println!("Added breakline between {} and {}", i1, i2);
+            }
+        }
+    }
+}
+
+fn handle_add_hole(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddHoleButton>)>,
+    mut data: ResMut<SurfaceData>,
+    points: Query<&Transform, With<CadPoint>>,
+    selected: Res<SelectedPoints>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if selected.0.len() >= 3 {
+            let mut hole = Vec::new();
+            for e in &selected.0 {
+                if let Ok(t) = points.get(*e) {
+                    let idx = get_vertex_index(&mut data, *e, t);
+                    hole.push(idx);
+                }
+            }
+            data.holes.push(hole);
+            println!(
+                "Added hole with {} vertices",
+                data.holes.last().unwrap().len()
+            );
         }
     }
 }

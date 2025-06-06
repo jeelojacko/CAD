@@ -85,12 +85,53 @@ impl Tin {
         }
     }
 
+    /// Builds a constrained TIN with optional breaklines, outer boundary and
+    /// interior hole boundaries. Holes are provided as a slice of index
+    /// polygons. Each hole polygon should be closed (first and last index may
+    /// repeat or will be closed automatically).
+    pub fn from_points_constrained_with_holes(
+        points: Vec<Point3>,
+        breaklines: Option<&[(usize, usize)]>,
+        outer_boundary: Option<&[usize]>,
+        holes: &[Vec<usize>],
+    ) -> Self {
+        let coords: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        if let Some(bl) = breaklines {
+            edges.extend_from_slice(bl);
+        }
+        if let Some(bound) = outer_boundary {
+            if bound.len() > 1 {
+                for w in bound.windows(2) {
+                    edges.push((w[0], w[1]));
+                }
+                edges.push((*bound.last().unwrap(), bound[0]));
+            }
+        }
+        for hole in holes {
+            if hole.len() > 1 {
+                for w in hole.windows(2) {
+                    edges.push((w[0], w[1]));
+                }
+                edges.push((*hole.last().unwrap(), hole[0]));
+            }
+        }
+
+        let tris = if edges.is_empty() {
+            cdt::triangulate_points(&coords).unwrap()
+        } else {
+            cdt::triangulate_with_edges(&coords, &edges).unwrap()
+        };
+        let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
+        Self {
+            vertices: points,
+            triangles,
+        }
+    }
+
     /// Generates contour line segments at the specified interval. Optional
     /// `include` and `exclude` polygons can limit where contours are created.
-    pub fn contour_segments(
-        &self,
-        interval: f64,
-    ) -> Vec<(Point3, Point3)> {
+    pub fn contour_segments(&self, interval: f64) -> Vec<(Point3, Point3)> {
         self.contour_segments_bounded(interval, None, &[])
     }
 
@@ -256,7 +297,10 @@ mod tests {
         let boundary = vec![0usize, 1, 2, 3];
         let breaklines = vec![(0usize, 2usize)];
         let tin = Tin::from_points_constrained(pts, Some(&breaklines), Some(&boundary));
-        assert!(tin.triangles.iter().any(|t| t.contains(&0) && t.contains(&2)));
+        assert!(tin
+            .triangles
+            .iter()
+            .any(|t| t.contains(&0) && t.contains(&2)));
     }
 
     #[test]
