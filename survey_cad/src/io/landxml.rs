@@ -3,7 +3,7 @@ use std::io;
 
 use roxmltree::Document;
 
-use crate::alignment::HorizontalAlignment;
+use crate::alignment::{HorizontalAlignment, HorizontalElement};
 use crate::dtm::Tin;
 use crate::geometry::{Point, Point3};
 
@@ -64,7 +64,8 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
             v.x,
             v.y,
             v.z
-        ).unwrap();
+        )
+        .unwrap();
     }
     writeln!(&mut xml, "        </Pnts>").unwrap();
     writeln!(&mut xml, "        <Faces>").unwrap();
@@ -75,7 +76,8 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
             t[0] + 1,
             t[1] + 1,
             t[2] + 1
-        ).unwrap();
+        )
+        .unwrap();
     }
     writeln!(&mut xml, "        </Faces>").unwrap();
     writeln!(&mut xml, "      </Definition>").unwrap();
@@ -89,21 +91,175 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
 pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
     let xml = read_to_string(path)?;
     let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let mut vertices = Vec::new();
-    if let Some(list) = doc.descendants().find(|n| n.has_tag_name("PntList2D")) {
-        if let Some(text) = list.text() {
-            let nums: Vec<f64> = text
-                .split_whitespace()
-                .filter_map(|s| s.parse().ok())
-                .collect();
-            for chunk in nums.chunks(2) {
-                if chunk.len() == 2 {
-                    vertices.push(Point::new(chunk[0], chunk[1]));
+    let mut elements = Vec::new();
+    if let Some(coord) = doc.descendants().find(|n| n.has_tag_name("CoordGeom")) {
+        for child in coord.children().filter(|c| c.is_element()) {
+            match child.tag_name().name() {
+                "PntList2D" => {
+                    if let Some(text) = child.text() {
+                        let nums: Vec<f64> = text
+                            .split_whitespace()
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+                        for pair in nums.chunks(2).collect::<Vec<_>>().windows(2) {
+                            if let ([a, b], [c, d]) = (pair[0], pair[1]) {
+                                elements.push(HorizontalElement::Tangent {
+                                    start: Point::new(*a, *b),
+                                    end: Point::new(*c, *d),
+                                });
+                            }
+                        }
+                    }
+                }
+                "Line" => {
+                    let mut start = None;
+                    let mut end = None;
+                    for n in child.children().filter(|c| c.is_element()) {
+                        match n.tag_name().name() {
+                            "Start" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        start = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            "End" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        end = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(s), Some(e)) = (start, end) {
+                        elements.push(HorizontalElement::Tangent { start: s, end: e });
+                    }
+                }
+                "Curve" => {
+                    let mut start = None;
+                    let mut end = None;
+                    let mut center = None;
+                    let mut radius = None;
+                    for attr in child.attributes() {
+                        if attr.name() == "radius" {
+                            radius = attr.value().parse().ok();
+                        }
+                    }
+                    for n in child.children().filter(|c| c.is_element()) {
+                        match n.tag_name().name() {
+                            "Start" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        start = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            "End" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        end = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            "Center" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        center = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(c), Some(s), Some(e), Some(r)) = (center, start, end, radius) {
+                        let sa = (s.y - c.y).atan2(s.x - c.x);
+                        let ea = (e.y - c.y).atan2(e.x - c.x);
+                        let arc = Arc::new(c, r, sa, ea);
+                        elements.push(HorizontalElement::Curve { arc });
+                    }
+                }
+                "Spiral" => {
+                    let mut start = None;
+                    let mut end = None;
+                    for n in child.children().filter(|c| c.is_element()) {
+                        match n.tag_name().name() {
+                            "Start" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        start = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            "End" => {
+                                if let Some(t) = n.text() {
+                                    let vals: Vec<f64> = t
+                                        .split_whitespace()
+                                        .filter_map(|s| s.parse().ok())
+                                        .collect();
+                                    if vals.len() >= 2 {
+                                        end = Some(Point::new(vals[0], vals[1]));
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let (Some(s), Some(e)) = (start, end) {
+                        let pl = Polyline::new(vec![s, e]);
+                        elements.push(HorizontalElement::Spiral { polyline: pl });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if elements.is_empty() {
+        // fallback to legacy <PntList2D> only structure
+        let mut vertices = Vec::new();
+        if let Some(list) = doc.descendants().find(|n| n.has_tag_name("PntList2D")) {
+            if let Some(text) = list.text() {
+                let nums: Vec<f64> = text
+                    .split_whitespace()
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                for pair in nums.chunks(2).collect::<Vec<_>>().windows(2) {
+                    if let ([a, b], [c, d]) = (pair[0], pair[1]) {
+                        elements.push(HorizontalElement::Tangent {
+                            start: Point::new(*a, *b),
+                            end: Point::new(*c, *d),
+                        });
+                    }
                 }
             }
         }
     }
-    Ok(HorizontalAlignment::new(vertices))
+    Ok(HorizontalAlignment { elements })
 }
 
 /// Writes a [`HorizontalAlignment`] to a simple LandXML file using `<PntList2D>`.
@@ -114,14 +270,44 @@ pub fn write_landxml_alignment(path: &str, alignment: &HorizontalAlignment) -> i
     writeln!(&mut xml, "  <Alignments>").unwrap();
     writeln!(&mut xml, "    <Alignment name=\"HAL\">").unwrap();
     writeln!(&mut xml, "      <CoordGeom>").unwrap();
-    write!(&mut xml, "        <PntList2D>").unwrap();
-    for (i, p) in alignment.centerline.vertices.iter().enumerate() {
-        if i > 0 {
-            write!(&mut xml, " ").unwrap();
+    for elem in &alignment.elements {
+        match elem {
+            HorizontalElement::Tangent { start, end } => {
+                writeln!(&mut xml, "        <Line>").unwrap();
+                writeln!(&mut xml, "          <Start>{} {}</Start>", start.x, start.y).unwrap();
+                writeln!(&mut xml, "          <End>{} {}</End>", end.x, end.y).unwrap();
+                writeln!(&mut xml, "        </Line>").unwrap();
+            }
+            HorizontalElement::Curve { arc } => {
+                writeln!(&mut xml, "        <Curve radius=\"{}\">", arc.radius).unwrap();
+                let sp = Point::new(
+                    arc.center.x + arc.radius * arc.start_angle.cos(),
+                    arc.center.y + arc.radius * arc.start_angle.sin(),
+                );
+                let ep = Point::new(
+                    arc.center.x + arc.radius * arc.end_angle.cos(),
+                    arc.center.y + arc.radius * arc.end_angle.sin(),
+                );
+                writeln!(&mut xml, "          <Start>{} {}</Start>", sp.x, sp.y).unwrap();
+                writeln!(&mut xml, "          <End>{} {}</End>", ep.x, ep.y).unwrap();
+                writeln!(
+                    &mut xml,
+                    "          <Center>{} {}</Center>",
+                    arc.center.x, arc.center.y
+                )
+                .unwrap();
+                writeln!(&mut xml, "        </Curve>").unwrap();
+            }
+            HorizontalElement::Spiral { polyline } => {
+                if let (Some(s), Some(e)) = (polyline.vertices.first(), polyline.vertices.last()) {
+                    writeln!(&mut xml, "        <Spiral>").unwrap();
+                    writeln!(&mut xml, "          <Start>{} {}</Start>", s.x, s.y).unwrap();
+                    writeln!(&mut xml, "          <End>{} {}</End>", e.x, e.y).unwrap();
+                    writeln!(&mut xml, "        </Spiral>").unwrap();
+                }
+            }
         }
-        write!(&mut xml, "{} {}", p.x, p.y).unwrap();
     }
-    writeln!(&mut xml, "</PntList2D>").unwrap();
     writeln!(&mut xml, "      </CoordGeom>").unwrap();
     writeln!(&mut xml, "    </Alignment>").unwrap();
     writeln!(&mut xml, "  </Alignments>").unwrap();
