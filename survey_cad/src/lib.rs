@@ -5,12 +5,13 @@ pub mod corridor;
 pub mod crs;
 pub mod dtm;
 pub mod geometry;
+pub mod intersection;
 pub mod io;
 #[cfg(feature = "pmetra")]
 pub mod pmetra;
 #[cfg(feature = "render")]
 pub mod render;
 pub mod superelevation;
-pub mod variable_offset;
 pub mod surveying;
 pub mod truck_integration;
+pub mod variable_offset;

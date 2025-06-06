@@ -207,6 +207,12 @@ enum Commands {
         #[arg(long, default_value_t = 1.0)]
         offset_step: f64,
     },
+    /// Create a curb return intersection between two alignments defined by CSV files.
+    CreateIntersection {
+        align_a: String,
+        align_b: String,
+        radius: f64,
+    },
 }
 
 fn main() {
@@ -536,6 +542,35 @@ fn main() {
                 (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),
                 (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign, e),
                 (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign, e),
+            }
+        }
+        Commands::CreateIntersection {
+            align_a,
+            align_b,
+            radius,
+        } => {
+            match (
+                read_points_csv(&align_a, None, None),
+                read_points_csv(&align_b, None, None),
+            ) {
+                (Ok(a_pts), Ok(b_pts)) => {
+                    let a = HorizontalAlignment::new(a_pts);
+                    let b = HorizontalAlignment::new(b_pts);
+                    if let Some(res) =
+                        survey_cad::intersection::curb_return_between_alignments(&a, &b, radius)
+                    {
+                        println!("tangent_a: {:.3},{:.3}", res.start.x, res.start.y);
+                        println!("tangent_b: {:.3},{:.3}", res.end.x, res.end.y);
+                        println!(
+                            "center: {:.3},{:.3} radius: {:.3}",
+                            res.arc.center.x, res.arc.center.y, res.arc.radius
+                        );
+                    } else {
+                        println!("No intersection");
+                    }
+                }
+                (Err(e), _) => eprintln!("Error reading {}: {}", align_a, e),
+                (_, Err(e)) => eprintln!("Error reading {}: {}", align_b, e),
             }
         }
     }

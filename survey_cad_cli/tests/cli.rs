@@ -232,3 +232,24 @@ fn intersection_command() {
         .success()
         .stdout(predicate::str::contains("Intersection:"));
 }
+
+#[test]
+fn create_intersection_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let a = dir.child("a.csv");
+    a.write_str("-10.0,0.0\n0.0,0.0\n").unwrap();
+    let b = dir.child("b.csv");
+    b.write_str("0.0,-10.0\n0.0,0.0\n").unwrap();
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "create-intersection",
+            a.path().to_str().unwrap(),
+            b.path().to_str().unwrap(),
+            "5.0",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("center:"));
+    dir.close().unwrap();
+}
