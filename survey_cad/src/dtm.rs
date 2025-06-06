@@ -191,6 +191,24 @@ impl Tin {
         }
         volume
     }
+
+    /// Calculates the net volume difference between two TIN surfaces using the
+    /// lowest elevation of both as the base plane. Positive values indicate the
+    /// `self` surface lies above `other` on average.
+    pub fn volume_between(&self, other: &Tin) -> f64 {
+        let min_self = self
+            .vertices
+            .iter()
+            .map(|p| p.z)
+            .fold(f64::INFINITY, f64::min);
+        let min_other = other
+            .vertices
+            .iter()
+            .map(|p| p.z)
+            .fold(f64::INFINITY, f64::min);
+        let base = min_self.min(min_other);
+        self.volume_to_elevation(base) - other.volume_to_elevation(base)
+    }
 }
 
 fn intersect_edge(a: Point3, b: Point3, level: f64) -> Option<Point3> {
@@ -257,5 +275,25 @@ mod tests {
         ];
         let vol = tin.volume_to_elevation_bounded(0.0, Some(&include), &[]);
         assert!((vol - 0.25).abs() < 1e-6);
+    }
+
+    #[test]
+    fn volume_between_surfaces_flat() {
+        let design_pts = vec![
+            Point3::new(0.0, -1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+            Point3::new(10.0, -1.0, 1.0),
+            Point3::new(10.0, 1.0, 1.0),
+        ];
+        let ground_pts = vec![
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(10.0, -1.0, 0.0),
+            Point3::new(10.0, 1.0, 0.0),
+        ];
+        let design = Tin::from_points(design_pts);
+        let ground = Tin::from_points(ground_pts);
+        let vol = design.volume_between(&ground);
+        assert!((vol - 20.0).abs() < 1e-6);
     }
 }

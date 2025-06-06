@@ -15,6 +15,21 @@ impl CrossSection {
     }
 }
 
+/// Representation of a cross-section shape relative to an alignment centerline.
+/// Each tuple in `profile` contains `(offset, elevation)` values where `offset`
+/// is measured perpendicular to the alignment and `elevation` is relative to
+/// the alignment grade line.
+#[derive(Debug, Clone)]
+pub struct Subassembly {
+    pub profile: Vec<(f64, f64)>,
+}
+
+impl Subassembly {
+    pub fn new(profile: Vec<(f64, f64)>) -> Self {
+        Self { profile }
+    }
+}
+
 impl Tin {
     /// Returns the interpolated elevation at (x,y) if the point lies within the TIN.
     pub fn elevation_at(&self, x: f64, y: f64) -> Option<f64> {
@@ -76,6 +91,37 @@ pub fn extract_cross_sections(
     sections
 }
 
+/// Builds a design surface by applying cross-section subassemblies along an
+/// alignment at the specified station `interval`.
+pub fn build_design_surface(
+    alignment: &Alignment,
+    subs: &[Subassembly],
+    interval: f64,
+) -> Tin {
+    let mut pts = Vec::new();
+    let length = alignment.horizontal.length();
+    let mut station = 0.0;
+    while station <= length {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(station),
+            alignment.horizontal.direction_at(station),
+            alignment.vertical.elevation_at(station),
+        ) {
+            let normal = (-dir.1, dir.0);
+            for sub in subs {
+                for (offset, elev) in &sub.profile {
+                    let x = center.x + offset * normal.0;
+                    let y = center.y + offset * normal.1;
+                    let z = grade + elev;
+                    pts.push(Point3::new(x, y, z));
+                }
+            }
+        }
+        station += interval;
+    }
+    Tin::from_points(pts)
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -104,5 +150,15 @@ mod tests {
                 assert!((p.z - 0.0).abs() < 1e-6);
             }
         }
+    }
+
+    #[test]
+    fn build_design_surface_simple() {
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
+        let align = Alignment::new(halign, valign);
+        let sub = Subassembly::new(vec![(-1.0, 1.0), (1.0, 1.0)]);
+        let tin = build_design_surface(&align, &[sub], 10.0);
+        assert_eq!(tin.vertices.len(), 4);
     }
 }
