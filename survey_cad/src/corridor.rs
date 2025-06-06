@@ -1,6 +1,8 @@
 use crate::alignment::Alignment;
 use crate::dtm::Tin;
 use crate::geometry::{Point, Point3};
+use crate::superelevation::{slopes_at, SuperelevationTable};
+use crate::variable_offset::offset_at;
 
 /// 3D cross-section sampled at a station along a corridor.
 #[derive(Debug, Clone)]
@@ -22,11 +24,12 @@ impl CrossSection {
 #[derive(Debug, Clone)]
 pub struct Subassembly {
     pub profile: Vec<(f64, f64)>,
+    pub offsets: Option<crate::variable_offset::OffsetTable>,
 }
 
 impl Subassembly {
     pub fn new(profile: Vec<(f64, f64)>) -> Self {
-        Self { profile }
+        Self { profile, offsets: None }
     }
 }
 
@@ -113,6 +116,47 @@ pub fn build_design_surface(
                     let x = center.x + offset * normal.0;
                     let y = center.y + offset * normal.1;
                     let z = grade + elev;
+                    pts.push(Point3::new(x, y, z));
+                }
+            }
+        }
+        station += interval;
+    }
+    Tin::from_points(pts)
+}
+
+/// Builds a design surface using superelevation and variable offsets.
+pub fn build_design_surface_dynamic(
+    alignment: &Alignment,
+    subs: &[Subassembly],
+    superelevation: Option<&SuperelevationTable>,
+    interval: f64,
+) -> Tin {
+    let mut pts = Vec::new();
+    let length = alignment.horizontal.length();
+    let mut station = 0.0;
+    while station <= length {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(station),
+            alignment.horizontal.direction_at(station),
+            alignment.vertical.elevation_at(station),
+        ) {
+            let (left_slope, right_slope) = superelevation
+                .map(|t| slopes_at(t, station))
+                .unwrap_or((0.0, 0.0));
+            let normal = (-dir.1, dir.0);
+            for sub in subs {
+                let var_off = sub
+                    .offsets
+                    .as_ref()
+                    .map(|t| offset_at(t, station))
+                    .unwrap_or(0.0);
+                for (offset, elev) in &sub.profile {
+                    let o = offset + var_off;
+                    let slope = if o < 0.0 { left_slope } else { right_slope };
+                    let x = center.x + o * normal.0;
+                    let y = center.y + o * normal.1;
+                    let z = grade + elev + o * slope;
                     pts.push(Point3::new(x, y, z));
                 }
             }

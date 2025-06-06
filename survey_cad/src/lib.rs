@@ -11,5 +11,6 @@ pub mod pmetra;
 #[cfg(feature = "render")]
 pub mod render;
 pub mod superelevation;
+pub mod variable_offset;
 pub mod surveying;
 pub mod truck_integration;
