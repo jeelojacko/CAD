@@ -1,5 +1,52 @@
 //! Basic geometry primitives for CAD operations.
 
+/// Available drawing styles for a line entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineType {
+    /// Continuous solid line.
+    Solid,
+    /// Dashed line style.
+    Dashed,
+    /// Dotted line style.
+    Dotted,
+}
+
+/// Symbol used when rendering a point entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointSymbol {
+    Circle,
+    Square,
+    Cross,
+}
+
+impl Default for PointSymbol {
+    fn default() -> Self {
+        PointSymbol::Circle
+    }
+}
+
+/// Representation of a point with optional name and number.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct NamedPoint {
+    pub point: Point,
+    pub name: Option<String>,
+    pub number: Option<u32>,
+    #[serde(skip)]
+    pub symbol: PointSymbol,
+}
+
+impl NamedPoint {
+    /// Creates a new named point.
+    pub fn new(point: Point, name: Option<String>, number: Option<u32>) -> Self {
+        Self {
+            point,
+            name,
+            number,
+            symbol: PointSymbol::Circle,
+        }
+    }
+}
+
 /// Representation of a 2D point.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Point {
@@ -37,6 +84,28 @@ impl Line {
             (self.start.x + self.end.x) / 2.0,
             (self.start.y + self.end.y) / 2.0,
         )
+    }
+
+    /// Returns the azimuth from the start point to the end point in radians.
+    pub fn azimuth(&self) -> f64 {
+        (self.end.y - self.start.y).atan2(self.end.x - self.start.x)
+    }
+}
+
+/// Annotation describing line distance and azimuth.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LineAnnotation {
+    pub distance: f64,
+    pub azimuth: f64,
+}
+
+impl LineAnnotation {
+    /// Creates a new annotation using the properties of `line`.
+    pub fn from_line(line: &Line) -> Self {
+        Self {
+            distance: line.length(),
+            azimuth: line.azimuth(),
+        }
     }
 }
 
@@ -292,5 +361,32 @@ mod tests {
         ];
         let s = Surface3::new(boundary);
         assert!((s.area() - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn line_azimuth() {
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(1.0, 1.0);
+        let line = Line::new(a, b);
+        assert!((line.azimuth() - std::f64::consts::FRAC_PI_4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn line_annotation_from_line() {
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(3.0, 4.0);
+        let line = Line::new(a, b);
+        let ann = LineAnnotation::from_line(&line);
+        assert!((ann.distance - 5.0).abs() < 1e-6);
+        assert!((ann.azimuth - (4.0f64).atan2(3.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn named_point_creation() {
+        let p = Point::new(1.0, 2.0);
+        let np = NamedPoint::new(p, Some("A".into()), Some(1));
+        assert_eq!(np.point, p);
+        assert_eq!(np.name.as_deref(), Some("A"));
+        assert_eq!(np.number, Some(1));
     }
 }
