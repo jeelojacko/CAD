@@ -5,7 +5,7 @@ use roxmltree::Document;
 
 use crate::alignment::{HorizontalAlignment, HorizontalElement};
 use crate::dtm::Tin;
-use crate::geometry::{Point, Point3};
+use crate::geometry::{Arc, Point, Point3, Polyline};
 
 use super::{read_to_string, write_string};
 
