@@ -63,20 +63,23 @@ pub enum PointFileFormat {
     ENZD,
 }
 
-impl PointFileFormat {
+impl std::str::FromStr for PointFileFormat {
+    type Err = ();
+
     /// Parses a string to a [`PointFileFormat`]. Case insensitive.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "pnezd" => Some(Self::PNEZD),
-            "penzd" => Some(Self::PENZD),
-            "pnez" => Some(Self::PNEZ),
-            "penz" => Some(Self::PENZ),
-            "nez" => Some(Self::NEZ),
-            "enz" => Some(Self::ENZ),
-            "nezd" => Some(Self::NEZD),
-            "enzd" => Some(Self::ENZD),
-            _ => None,
-        }
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let fmt = match s.to_ascii_lowercase().as_str() {
+            "pnezd" => Self::PNEZD,
+            "penzd" => Self::PENZD,
+            "pnez" => Self::PNEZ,
+            "penz" => Self::PENZ,
+            "nez" => Self::NEZ,
+            "enz" => Self::ENZ,
+            "nezd" => Self::NEZD,
+            "enzd" => Self::ENZD,
+            _ => return Err(()),
+        };
+        Ok(fmt)
     }
 }
 
@@ -93,12 +96,23 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
         } else {
             line.split_whitespace().collect()
         };
-        let parse_f64 = |s: &str| s.trim().parse::<f64>().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
-        let parse_u32 = |s: &str| s.trim().parse::<u32>().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
+        let parse_f64 = |s: &str| {
+            s.trim()
+                .parse::<f64>()
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        };
+        let parse_u32 = |s: &str| {
+            s.trim()
+                .parse::<u32>()
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        };
         let p = match format {
             PointFileFormat::PNEZD => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected at least 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected at least 4 fields",
+                    ));
                 }
                 let number = parse_u32(fields[0]).ok();
                 let n = parse_f64(fields[1])?;
@@ -109,11 +123,18 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                 } else {
                     None
                 };
-                SurveyPoint { number, point: Point3::new(e, n, z), description: desc }
+                SurveyPoint {
+                    number,
+                    point: Point3::new(e, n, z),
+                    description: desc,
+                }
             }
             PointFileFormat::PENZD => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected at least 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected at least 4 fields",
+                    ));
                 }
                 let number = parse_u32(fields[0]).ok();
                 let e = parse_f64(fields[1])?;
@@ -124,65 +145,111 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                 } else {
                     None
                 };
-                SurveyPoint { number, point: Point3::new(e, n, z), description: desc }
+                SurveyPoint {
+                    number,
+                    point: Point3::new(e, n, z),
+                    description: desc,
+                }
             }
             PointFileFormat::PNEZ => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected 4 fields",
+                    ));
                 }
                 let number = parse_u32(fields[0]).ok();
                 let n = parse_f64(fields[1])?;
                 let e = parse_f64(fields[2])?;
                 let z = parse_f64(fields[3])?;
-                SurveyPoint { number, point: Point3::new(e, n, z), description: None }
+                SurveyPoint {
+                    number,
+                    point: Point3::new(e, n, z),
+                    description: None,
+                }
             }
             PointFileFormat::PENZ => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected 4 fields",
+                    ));
                 }
                 let number = parse_u32(fields[0]).ok();
                 let e = parse_f64(fields[1])?;
                 let n = parse_f64(fields[2])?;
                 let z = parse_f64(fields[3])?;
-                SurveyPoint { number, point: Point3::new(e, n, z), description: None }
+                SurveyPoint {
+                    number,
+                    point: Point3::new(e, n, z),
+                    description: None,
+                }
             }
             PointFileFormat::NEZ => {
                 if fields.len() < 3 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected 3 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected 3 fields",
+                    ));
                 }
                 let n = parse_f64(fields[0])?;
                 let e = parse_f64(fields[1])?;
                 let z = parse_f64(fields[2])?;
-                SurveyPoint { number: None, point: Point3::new(e, n, z), description: None }
+                SurveyPoint {
+                    number: None,
+                    point: Point3::new(e, n, z),
+                    description: None,
+                }
             }
             PointFileFormat::ENZ => {
                 if fields.len() < 3 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected 3 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected 3 fields",
+                    ));
                 }
                 let e = parse_f64(fields[0])?;
                 let n = parse_f64(fields[1])?;
                 let z = parse_f64(fields[2])?;
-                SurveyPoint { number: None, point: Point3::new(e, n, z), description: None }
+                SurveyPoint {
+                    number: None,
+                    point: Point3::new(e, n, z),
+                    description: None,
+                }
             }
             PointFileFormat::NEZD => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected at least 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected at least 4 fields",
+                    ));
                 }
                 let n = parse_f64(fields[0])?;
                 let e = parse_f64(fields[1])?;
                 let z = parse_f64(fields[2])?;
                 let desc = Some(fields[3..].join(" "));
-                SurveyPoint { number: None, point: Point3::new(e, n, z), description: desc }
+                SurveyPoint {
+                    number: None,
+                    point: Point3::new(e, n, z),
+                    description: desc,
+                }
             }
             PointFileFormat::ENZD => {
                 if fields.len() < 4 {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "expected at least 4 fields"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "expected at least 4 fields",
+                    ));
                 }
                 let e = parse_f64(fields[0])?;
                 let n = parse_f64(fields[1])?;
                 let z = parse_f64(fields[2])?;
                 let desc = Some(fields[3..].join(" "));
-                SurveyPoint { number: None, point: Point3::new(e, n, z), description: desc }
+                SurveyPoint {
+                    number: None,
+                    point: Point3::new(e, n, z),
+                    description: desc,
+                }
             }
         };
         pts.push(p);

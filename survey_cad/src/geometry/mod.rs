@@ -12,17 +12,12 @@ pub enum LineType {
 }
 
 /// Symbol used when rendering a point entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PointSymbol {
+    #[default]
     Circle,
     Square,
     Cross,
-}
-
-impl Default for PointSymbol {
-    fn default() -> Self {
-        PointSymbol::Circle
-    }
 }
 
 /// Representation of a point with optional name and number.
