@@ -455,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn write_dxf() {
+    fn write_points_dxf_test() {
         let path = std::env::temp_dir().join("cad_points.dxf");
         let path_str = path.to_str().unwrap();
         let pts = vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)];
