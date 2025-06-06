@@ -1,0 +1,25 @@
+name: Build CLI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - name: Build survey_cad_cli
+        run: cargo build -p survey_cad_cli --release
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: survey_cad_cli
+          path: target/release/survey_cad_cli
