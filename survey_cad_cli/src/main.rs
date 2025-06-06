@@ -154,6 +154,11 @@ enum Commands {
         backsight: f64,
         foresight: f64,
     },
+    /// Adjust a 2D network from CSV files of points and observations.
+    NetworkAdjust {
+        points: String,
+        observations: String,
+    },
     /// Compute cut/fill volume between two surfaces along an alignment.
     CorridorVolume {
         design: String,
@@ -346,6 +351,73 @@ fn main() {
         } => {
             let elev = level_elevation(start_elev, backsight, foresight);
             println!("New elevation: {:.3}", elev);
+        }
+        Commands::NetworkAdjust { points, observations } => {
+            use survey_cad::surveying::{adjust_network, Observation};
+            use std::collections::HashMap;
+            match (read_lines(&points), read_lines(&observations)) {
+                (Ok(p_lines), Ok(o_lines)) => {
+                    let mut names = Vec::new();
+                    let mut pts = Vec::new();
+                    let mut fixed = Vec::new();
+                    for (idx, line) in p_lines.iter().enumerate() {
+                        if line.trim().is_empty() { continue; }
+                        let parts: Vec<&str> = line.split(',').collect();
+                        if parts.len() < 3 {
+                            eprintln!("{} line {} invalid", points, idx + 1);
+                            return;
+                        }
+                        names.push(parts[0].trim().to_string());
+                        let x: f64 = parts[1].trim().parse().unwrap_or(0.0);
+                        let y: f64 = parts[2].trim().parse().unwrap_or(0.0);
+                        if parts.get(3).map_or(false, |v| v.trim() == "1") {
+                            fixed.push(idx);
+                        }
+                        pts.push(Point::new(x, y));
+                    }
+                    let mut index: HashMap<String, usize> = HashMap::new();
+                    for (i, n) in names.iter().enumerate() { index.insert(n.clone(), i); }
+                    let mut obs = Vec::new();
+                    for (idx, line) in o_lines.iter().enumerate() {
+                        if line.trim().is_empty() { continue; }
+                        let parts: Vec<&str> = line.split(',').collect();
+                        if parts.is_empty() { continue; }
+                        match parts[0].trim().to_ascii_lowercase().as_str() {
+                            "dist" | "distance" => {
+                                if parts.len() < 4 { eprintln!("{} line {} invalid", observations, idx + 1); return; }
+                                let from = index[parts[1].trim()];
+                                let to = index[parts[2].trim()];
+                                let val: f64 = parts[3].trim().parse().unwrap_or(0.0);
+                                obs.push(Observation::Distance { from, to, value: val, weight: 1.0 });
+                            }
+                            "angle" => {
+                                if parts.len() < 5 { eprintln!("{} line {} invalid", observations, idx + 1); return; }
+                                let at = index[parts[1].trim()];
+                                let from = index[parts[2].trim()];
+                                let to = index[parts[3].trim()];
+                                let val: f64 = parts[4].trim().parse().unwrap_or(0.0);
+                                obs.push(Observation::Angle { at, from, to, value: val, weight: 1.0 });
+                            }
+                            _ => {
+                                eprintln!("{} line {} unknown obs", observations, idx + 1);
+                                return;
+                            }
+                        }
+                    }
+                    let result = adjust_network(&pts, &fixed, &obs);
+                    for (name, p) in names.iter().zip(result.points.iter()) {
+                        println!("{}, {:.3}, {:.3}", name, p.x, p.y);
+                    }
+                    for (o, v) in obs.iter().zip(result.residuals.iter()) {
+                        match o {
+                            Observation::Distance { .. } => println!("distance residual {:.4}", v),
+                            Observation::Angle { .. } => println!("angle residual {:.6}", v),
+                        }
+                    }
+                }
+                (Err(e), _) => eprintln!("Error reading {}: {}", points, e),
+                (_, Err(e)) => eprintln!("Error reading {}: {}", observations, e),
+            }
         }
         Commands::CorridorVolume {
             design,
