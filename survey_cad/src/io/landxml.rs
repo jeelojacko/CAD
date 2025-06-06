@@ -50,12 +50,12 @@ pub fn read_landxml_surface(path: &str) -> io::Result<Tin> {
 /// Writes a [`Tin`] to a LandXML surface file.
 pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
     let mut xml = String::new();
-    writeln!(&mut xml, "<?xml version=\"1.0\"?>")?;
-    writeln!(&mut xml, "<LandXML>")?;
-    writeln!(&mut xml, "  <Surfaces>")?;
-    writeln!(&mut xml, "    <Surface name=\"TIN\">")?;
-    writeln!(&mut xml, "      <Definition surfType=\"TIN\">")?;
-    writeln!(&mut xml, "        <Pnts>")?;
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    writeln!(&mut xml, "  <Surfaces>").unwrap();
+    writeln!(&mut xml, "    <Surface name=\"TIN\">").unwrap();
+    writeln!(&mut xml, "      <Definition surfType=\"TIN\">").unwrap();
+    writeln!(&mut xml, "        <Pnts>").unwrap();
     for (i, v) in tin.vertices.iter().enumerate() {
         writeln!(
             &mut xml,
@@ -64,10 +64,10 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
             v.x,
             v.y,
             v.z
-        )?;
+        ).unwrap();
     }
-    writeln!(&mut xml, "        </Pnts>")?;
-    writeln!(&mut xml, "        <Faces>")?;
+    writeln!(&mut xml, "        </Pnts>").unwrap();
+    writeln!(&mut xml, "        <Faces>").unwrap();
     for t in &tin.triangles {
         writeln!(
             &mut xml,
@@ -75,13 +75,13 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
             t[0] + 1,
             t[1] + 1,
             t[2] + 1
-        )?;
+        ).unwrap();
     }
-    writeln!(&mut xml, "        </Faces>")?;
-    writeln!(&mut xml, "      </Definition>")?;
-    writeln!(&mut xml, "    </Surface>")?;
-    writeln!(&mut xml, "  </Surfaces>")?;
-    writeln!(&mut xml, "</LandXML>")?;
+    writeln!(&mut xml, "        </Faces>").unwrap();
+    writeln!(&mut xml, "      </Definition>").unwrap();
+    writeln!(&mut xml, "    </Surface>").unwrap();
+    writeln!(&mut xml, "  </Surfaces>").unwrap();
+    writeln!(&mut xml, "</LandXML>").unwrap();
     write_string(path, &xml)
 }
 
@@ -109,22 +109,22 @@ pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
 /// Writes a [`HorizontalAlignment`] to a simple LandXML file using `<PntList2D>`.
 pub fn write_landxml_alignment(path: &str, alignment: &HorizontalAlignment) -> io::Result<()> {
     let mut xml = String::new();
-    writeln!(&mut xml, "<?xml version=\"1.0\"?>")?;
-    writeln!(&mut xml, "<LandXML>")?;
-    writeln!(&mut xml, "  <Alignments>")?;
-    writeln!(&mut xml, "    <Alignment name=\"HAL\">")?;
-    writeln!(&mut xml, "      <CoordGeom>")?;
-    write!(&mut xml, "        <PntList2D>")?;
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    writeln!(&mut xml, "  <Alignments>").unwrap();
+    writeln!(&mut xml, "    <Alignment name=\"HAL\">").unwrap();
+    writeln!(&mut xml, "      <CoordGeom>").unwrap();
+    write!(&mut xml, "        <PntList2D>").unwrap();
     for (i, p) in alignment.centerline.vertices.iter().enumerate() {
         if i > 0 {
-            write!(&mut xml, " ")?;
+            write!(&mut xml, " ").unwrap();
         }
-        write!(&mut xml, "{} {}", p.x, p.y)?;
+        write!(&mut xml, "{} {}", p.x, p.y).unwrap();
     }
-    writeln!(&mut xml, "</PntList2D>")?;
-    writeln!(&mut xml, "      </CoordGeom>")?;
-    writeln!(&mut xml, "    </Alignment>")?;
-    writeln!(&mut xml, "  </Alignments>")?;
-    writeln!(&mut xml, "</LandXML>")?;
+    writeln!(&mut xml, "</PntList2D>").unwrap();
+    writeln!(&mut xml, "      </CoordGeom>").unwrap();
+    writeln!(&mut xml, "    </Alignment>").unwrap();
+    writeln!(&mut xml, "  </Alignments>").unwrap();
+    writeln!(&mut xml, "</LandXML>").unwrap();
     write_string(path, &xml)
 }
