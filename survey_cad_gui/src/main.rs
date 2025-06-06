@@ -1,7 +1,14 @@
 #![allow(deprecated)]
 use bevy::prelude::*;
-use bevy_input::prelude::*;
-use survey_cad::geometry::Point;
+use clap::Parser;
+use survey_cad::{crs::Crs, geometry::Point};
+
+#[derive(Parser)]
+struct Args {
+    /// EPSG code for the working coordinate system
+    #[arg(long, default_value_t = 4326)]
+    epsg: u32,
+}
 
 #[derive(Resource, Default)]
 struct SelectedPoints(Vec<Entity>);
@@ -18,8 +25,14 @@ struct CadLine {
     end: Entity,
 }
 
+#[derive(Resource)]
+struct WorkingCrs(Crs);
+
 fn main() {
+    let args = Args::parse();
+    println!("Using EPSG {}", args.epsg);
     App::new()
+        .insert_resource(WorkingCrs(Crs::from_epsg(args.epsg)))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Survey CAD GUI".into(),
@@ -31,11 +44,15 @@ fn main() {
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, (handle_mouse_clicks, drag_point, create_line, update_lines))
+        .add_systems(
+            Update,
+            (handle_mouse_clicks, drag_point, create_line, update_lines),
+        )
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<WorkingCrs>) {
+    println!("GUI working CRS EPSG: {}", working.0.epsg());
     commands.spawn(Camera2dBundle::default());
     spawn_toolbar(&mut commands, &asset_server);
     // Example content
@@ -91,15 +108,16 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
 fn spawn_point(commands: &mut Commands, p: Point) {
     commands.spawn((
         SpriteBundle {
-        sprite: Sprite {
-            color: Color::srgb(1.0, 0.0, 0.0),
-            custom_size: Some(Vec2::splat(5.0)),
+            sprite: Sprite {
+                color: Color::srgb(1.0, 0.0, 0.0),
+                custom_size: Some(Vec2::splat(5.0)),
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
-        ..default()
-    },
-    CadPoint));
+        CadPoint,
+    ));
 }
 
 fn cursor_world_pos(
@@ -118,14 +136,14 @@ fn handle_mouse_clicks(
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
-    mut points: Query<(Entity, &Transform, &mut Sprite), With<CadPoint>>,
+    points: Query<(Entity, &Transform), With<CadPoint>>,
     mut selected: ResMut<SelectedPoints>,
     mut dragging: ResMut<Dragging>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if let Some(pos) = cursor_world_pos(windows, camera_q) {
             let mut hit = None;
-            for (e, t, _) in &points {
+            for (e, t) in &points {
                 if t.translation.truncate().distance(pos) < 5.0 {
                     hit = Some(e);
                     break;
@@ -188,7 +206,10 @@ fn create_line(
                     .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
                 ..default()
             },
-            CadLine { start: selected.0[0], end: selected.0[1] },
+            CadLine {
+                start: selected.0[0],
+                end: selected.0[1],
+            },
         ));
     }
 }

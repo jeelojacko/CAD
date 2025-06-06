@@ -2,6 +2,7 @@ use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
 use survey_cad::{
+    crs::Crs,
     geometry::Point,
     io::{
         read_points_csv, read_points_geojson, read_to_string, write_points_csv, write_points_dxf,
@@ -22,6 +23,9 @@ fn no_render() -> bool {
 #[derive(Parser)]
 #[command(name = "survey_cad_cli", version)]
 struct Cli {
+    /// EPSG code for the working coordinate system
+    #[arg(long, default_value_t = 4326, global = true)]
+    epsg: u32,
     #[command(subcommand)]
     command: Commands,
 }
@@ -119,6 +123,8 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
+    let _working_crs = Crs::from_epsg(cli.epsg);
+    println!("Using EPSG {}", cli.epsg);
     match cli.command {
         Commands::StationDistance {
             name_a,
