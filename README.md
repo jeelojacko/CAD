@@ -27,6 +27,14 @@ Each module in the library is focused on a specific set of tasks and can be used
 independently within other Rust projects. Heavy rendering dependencies are
 optional and enabled with the `render` feature.
 
+The command line tool depends on these rendering crates by default. To build a
+lightweight binary without them, disable default features:
+
+```bash
+$ cargo run -p survey_cad_cli --no-default-features -- <command>
+```
+Enable rendering explicitly with `--features render` when needed.
+
 ## CLI Tutorial
 
 Build the workspace and view available commands:

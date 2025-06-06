@@ -3,10 +3,15 @@ name = "survey_cad_cli"
 version = "0.1.0"
 edition = "2021"
 
+
 [dependencies]
-survey_cad = { path = "../survey_cad", features = ["render"] }
+survey_cad = { path = "../survey_cad", default-features = false }
 clap = { version = "4", features = ["derive"] }
 cad_import = { path = "../cad_import" }
+
+[features]
+default = ["render"]
+render = ["survey_cad/render"]
 
 [dev-dependencies]
 assert_cmd = "2"

@@ -11,6 +11,7 @@ use survey_cad::{
         landxml::read_landxml_surface, read_lines, read_points_csv, read_points_geojson,
         read_to_string, write_points_csv, write_points_dxf, write_points_geojson, write_string,
     },
+    #[cfg(feature = "render")]
     render::{render_point, render_points},
     surveying::{
         bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle,
@@ -81,6 +82,7 @@ enum Commands {
     /// Copy a text file from src to dest.
     Copy { src: String, dest: String },
     /// Render a point (prints to stdout).
+    #[cfg(feature = "render")]
     RenderPoint { x: f64, y: f64 },
     /// Export points from a CSV file to GeoJSON.
     ExportGeojson {
@@ -116,6 +118,7 @@ enum Commands {
         dst_epsg: Option<u32>,
     },
     /// View points from a CSV file.
+    #[cfg(feature = "render")]
     ViewPoints { input: String },
     /// Compute the vertical angle between two stations given their elevations.
     VerticalAngle {
@@ -205,6 +208,7 @@ fn main() {
             },
             Err(e) => eprintln!("Error reading {}: {}", src, e),
         },
+        #[cfg(feature = "render")]
         Commands::RenderPoint { x, y } => {
             let p = Point::new(x, y);
             if no_render() {
@@ -285,6 +289,7 @@ fn main() {
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
+        #[cfg(feature = "render")]
         Commands::ViewPoints { input } => match read_points_csv(&input, None, None) {
             Ok(pts) => {
                 if no_render() {
