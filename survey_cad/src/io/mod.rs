@@ -420,13 +420,12 @@ pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
 mod tests {
     use super::*;
     use crate::alignment::{
-        HorizontalAlignment,
-        HorizontalElement,
-        VerticalAlignment,
-        VerticalElement,
+        HorizontalAlignment, HorizontalElement, VerticalAlignment, VerticalElement,
     };
+    use crate::corridor::CrossSection;
     use crate::dtm::Tin;
     use crate::geometry::Point3;
+    use crate::superelevation::SuperelevationPoint;
 
     #[test]
     fn write_and_read_string() {
@@ -598,6 +597,46 @@ mod tests {
         landxml::write_landxml_profile(path.to_str().unwrap(), &valign).unwrap();
         let read = landxml::read_landxml_profile(path.to_str().unwrap()).unwrap();
         assert_eq!(read.elements.len(), 2);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_and_read_landxml_cross_sections() {
+        let path = std::env::temp_dir().join("cross.xml");
+        let secs = vec![
+            CrossSection::new(
+                0.0,
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+            ),
+            CrossSection::new(
+                10.0,
+                vec![Point3::new(0.0, 1.0, 0.0), Point3::new(1.0, 1.0, 0.0)],
+            ),
+        ];
+        landxml::write_landxml_cross_sections(path.to_str().unwrap(), &secs).unwrap();
+        let read = landxml::read_landxml_cross_sections(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.len(), 2);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_and_read_landxml_superelevation() {
+        let path = std::env::temp_dir().join("sup.xml");
+        let table = vec![
+            SuperelevationPoint {
+                station: 0.0,
+                left_slope: 0.02,
+                right_slope: -0.02,
+            },
+            SuperelevationPoint {
+                station: 10.0,
+                left_slope: 0.03,
+                right_slope: -0.03,
+            },
+        ];
+        landxml::write_landxml_superelevation(path.to_str().unwrap(), &table).unwrap();
+        let read = landxml::read_landxml_superelevation(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.len(), 2);
         std::fs::remove_file(path).ok();
     }
 }

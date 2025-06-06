@@ -4,8 +4,10 @@ use std::io;
 use roxmltree::Document;
 
 use crate::alignment::{HorizontalAlignment, HorizontalElement};
+use crate::corridor::CrossSection;
 use crate::dtm::Tin;
 use crate::geometry::{Arc, Point, Point3, Polyline};
+use crate::superelevation::SuperelevationPoint;
 
 use super::{read_to_string, write_string};
 
@@ -361,7 +363,8 @@ pub fn read_landxml_profile(path: &str) -> io::Result<crate::alignment::Vertical
                             _ => {}
                         }
                     }
-                    if let (Some(ss), Some(es), Some(se), Some(sg), Some(eg)) = (ss, es, se, sg, eg) {
+                    if let (Some(ss), Some(es), Some(se), Some(sg), Some(eg)) = (ss, es, se, sg, eg)
+                    {
                         elements.push(crate::alignment::VerticalElement::Parabola {
                             start_station: ss,
                             end_station: es,
@@ -379,7 +382,10 @@ pub fn read_landxml_profile(path: &str) -> io::Result<crate::alignment::Vertical
 }
 
 /// Writes a [`VerticalAlignment`] to a LandXML file.
-pub fn write_landxml_profile(path: &str, profile: &crate::alignment::VerticalAlignment) -> io::Result<()> {
+pub fn write_landxml_profile(
+    path: &str,
+    profile: &crate::alignment::VerticalAlignment,
+) -> io::Result<()> {
     let mut xml = String::new();
     writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
     writeln!(&mut xml, "<LandXML>").unwrap();
@@ -388,7 +394,12 @@ pub fn write_landxml_profile(path: &str, profile: &crate::alignment::VerticalAli
     writeln!(&mut xml, "      <Profile>").unwrap();
     for elem in &profile.elements {
         match elem {
-            crate::alignment::VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+            crate::alignment::VerticalElement::Grade {
+                start_station,
+                end_station,
+                start_elev,
+                end_elev,
+            } => {
                 writeln!(
                     &mut xml,
                     "        <Grade startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" endElev=\"{}\"/>",
@@ -398,7 +409,13 @@ pub fn write_landxml_profile(path: &str, profile: &crate::alignment::VerticalAli
                     end_elev
                 ).unwrap();
             }
-            crate::alignment::VerticalElement::Parabola { start_station, end_station, start_elev, start_grade, end_grade } => {
+            crate::alignment::VerticalElement::Parabola {
+                start_station,
+                end_station,
+                start_elev,
+                start_grade,
+                end_grade,
+            } => {
                 writeln!(
                     &mut xml,
                     "        <Parabola startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>",
@@ -414,6 +431,112 @@ pub fn write_landxml_profile(path: &str, profile: &crate::alignment::VerticalAli
     writeln!(&mut xml, "      </Profile>").unwrap();
     writeln!(&mut xml, "    </Alignment>").unwrap();
     writeln!(&mut xml, "  </Alignments>").unwrap();
+    writeln!(&mut xml, "</LandXML>").unwrap();
+    write_string(path, &xml)
+}
+
+/// Reads a LandXML file containing corridor cross sections.
+pub fn read_landxml_cross_sections(path: &str) -> io::Result<Vec<CrossSection>> {
+    let xml = read_to_string(path)?;
+    let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut sections = Vec::new();
+    for cs in doc.descendants().filter(|n| n.has_tag_name("CrossSection")) {
+        let station = cs
+            .attribute("sta")
+            .or_else(|| cs.attribute("station"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0);
+        if let Some(list) = cs.children().find(|n| n.has_tag_name("PntList3D")) {
+            if let Some(text) = list.text() {
+                let nums: Vec<f64> = text
+                    .split_whitespace()
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                let mut pts = Vec::new();
+                for chunk in nums.chunks(3) {
+                    if chunk.len() == 3 {
+                        pts.push(Point3::new(chunk[0], chunk[1], chunk[2]));
+                    }
+                }
+                sections.push(CrossSection::new(station, pts));
+            }
+        }
+    }
+    Ok(sections)
+}
+
+/// Writes corridor cross sections to a LandXML file.
+pub fn write_landxml_cross_sections(path: &str, sections: &[CrossSection]) -> io::Result<()> {
+    let mut xml = String::new();
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    writeln!(&mut xml, "  <CrossSections>").unwrap();
+    for sec in sections {
+        writeln!(&mut xml, "    <CrossSection sta=\"{}\">", sec.station).unwrap();
+        let coords: Vec<String> = sec
+            .points
+            .iter()
+            .map(|p| format!("{} {} {}", p.x, p.y, p.z))
+            .collect();
+        writeln!(
+            &mut xml,
+            "      <PntList3D>{}</PntList3D>",
+            coords.join(" ")
+        )
+        .unwrap();
+        writeln!(&mut xml, "    </CrossSection>").unwrap();
+    }
+    writeln!(&mut xml, "  </CrossSections>").unwrap();
+    writeln!(&mut xml, "</LandXML>").unwrap();
+    write_string(path, &xml)
+}
+
+/// Reads a LandXML superelevation table.
+pub fn read_landxml_superelevation(path: &str) -> io::Result<Vec<SuperelevationPoint>> {
+    let xml = read_to_string(path)?;
+    let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut table = Vec::new();
+    for sp in doc
+        .descendants()
+        .filter(|n| n.has_tag_name("SuperelevationPoint"))
+    {
+        let station = sp
+            .attribute("sta")
+            .or_else(|| sp.attribute("station"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0);
+        let left = sp
+            .attribute("left")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0);
+        let right = sp
+            .attribute("right")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0);
+        table.push(SuperelevationPoint {
+            station,
+            left_slope: left,
+            right_slope: right,
+        });
+    }
+    Ok(table)
+}
+
+/// Writes a superelevation table to a LandXML file.
+pub fn write_landxml_superelevation(path: &str, table: &[SuperelevationPoint]) -> io::Result<()> {
+    let mut xml = String::new();
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    writeln!(&mut xml, "  <Superelevation>").unwrap();
+    for pt in table {
+        writeln!(
+            &mut xml,
+            "    <SuperelevationPoint sta=\"{}\" left=\"{}\" right=\"{}\"/>",
+            pt.station, pt.left_slope, pt.right_slope
+        )
+        .unwrap();
+    }
+    writeln!(&mut xml, "  </Superelevation>").unwrap();
     writeln!(&mut xml, "</LandXML>").unwrap();
     write_string(path, &xml)
 }
