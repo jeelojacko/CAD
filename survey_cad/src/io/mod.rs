@@ -3,7 +3,9 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Write};
 
-use crate::geometry::Point;
+use crate::geometry::{Arc, Point, Polyline};
+
+pub mod landxml;
 
 /// Reads a file to string.
 pub fn read_to_string(path: &str) -> io::Result<String> {
@@ -146,9 +148,203 @@ pub fn write_points_dxf(path: &str, points: &[Point]) -> io::Result<()> {
     Ok(())
 }
 
+/// Basic DXF entity types supported by the simple reader and writer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DxfEntity {
+    Point {
+        point: Point,
+        layer: Option<String>,
+    },
+    Polyline {
+        polyline: Polyline,
+        layer: Option<String>,
+    },
+    Arc {
+        arc: Arc,
+        layer: Option<String>,
+    },
+}
+
+/// Writes a collection of [`DxfEntity`] instances to a very simple DXF file.
+pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    writeln!(file, "0")?;
+    writeln!(file, "SECTION")?;
+    writeln!(file, "2")?;
+    writeln!(file, "ENTITIES")?;
+    for e in entities {
+        match e {
+            DxfEntity::Point { point, layer } => {
+                writeln!(file, "0")?;
+                writeln!(file, "POINT")?;
+                if let Some(l) = layer {
+                    writeln!(file, "8")?;
+                    writeln!(file, "{}", l)?;
+                }
+                writeln!(file, "10")?;
+                writeln!(file, "{}", point.x)?;
+                writeln!(file, "20")?;
+                writeln!(file, "{}", point.y)?;
+                writeln!(file, "30")?;
+                writeln!(file, "0.0")?;
+            }
+            DxfEntity::Polyline { polyline, layer } => {
+                writeln!(file, "0")?;
+                writeln!(file, "POLYLINE")?;
+                if let Some(l) = layer {
+                    writeln!(file, "8")?;
+                    writeln!(file, "{}", l)?;
+                }
+                writeln!(file, "66")?;
+                writeln!(file, "1")?;
+                writeln!(file, "70")?;
+                writeln!(file, "0")?;
+                for v in &polyline.vertices {
+                    writeln!(file, "0")?;
+                    writeln!(file, "VERTEX")?;
+                    if let Some(l) = layer {
+                        writeln!(file, "8")?;
+                        writeln!(file, "{}", l)?;
+                    }
+                    writeln!(file, "10")?;
+                    writeln!(file, "{}", v.x)?;
+                    writeln!(file, "20")?;
+                    writeln!(file, "{}", v.y)?;
+                    writeln!(file, "30")?;
+                    writeln!(file, "0.0")?;
+                }
+                writeln!(file, "0")?;
+                writeln!(file, "SEQEND")?;
+            }
+            DxfEntity::Arc { arc, layer } => {
+                writeln!(file, "0")?;
+                writeln!(file, "ARC")?;
+                if let Some(l) = layer {
+                    writeln!(file, "8")?;
+                    writeln!(file, "{}", l)?;
+                }
+                writeln!(file, "10")?;
+                writeln!(file, "{}", arc.center.x)?;
+                writeln!(file, "20")?;
+                writeln!(file, "{}", arc.center.y)?;
+                writeln!(file, "40")?;
+                writeln!(file, "{}", arc.radius)?;
+                writeln!(file, "50")?;
+                writeln!(file, "{}", arc.start_angle.to_degrees())?;
+                writeln!(file, "51")?;
+                writeln!(file, "{}", arc.end_angle.to_degrees())?;
+            }
+        }
+    }
+    writeln!(file, "0")?;
+    writeln!(file, "ENDSEC")?;
+    writeln!(file, "0")?;
+    writeln!(file, "EOF")?;
+    Ok(())
+}
+
+/// Reads a very simple DXF file and returns any supported [`DxfEntity`] values.
+pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
+    let lines = read_lines(path)?;
+    let mut iter = lines.iter();
+    let mut entities = Vec::new();
+    while let (Some(code), Some(value)) = (iter.next(), iter.next()) {
+        if code.trim() != "0" {
+            continue;
+        }
+        match value.trim() {
+            "POINT" => {
+                let mut x = None;
+                let mut y = None;
+                let mut layer = None;
+                while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
+                    match c.trim() {
+                        "8" => layer = Some(v.trim().to_string()),
+                        "10" => x = v.trim().parse().ok(),
+                        "20" => y = v.trim().parse().ok(),
+                        "30" => break,
+                        _ => {}
+                    }
+                }
+                if let (Some(x), Some(y)) = (x, y) {
+                    entities.push(DxfEntity::Point {
+                        point: Point::new(x, y),
+                        layer,
+                    });
+                }
+            }
+            "POLYLINE" => {
+                let mut verts = Vec::new();
+                let mut layer = None;
+                while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
+                    match c.trim() {
+                        "8" => layer = Some(v.trim().to_string()),
+                        "0" if v.trim() == "VERTEX" => {
+                            let mut vx = None;
+                            let mut vy = None;
+                            while let (Some(c2), Some(v2)) = (iter.next(), iter.next()) {
+                                match c2.trim() {
+                                    "10" => vx = v2.trim().parse().ok(),
+                                    "20" => vy = v2.trim().parse().ok(),
+                                    "30" => break,
+                                    _ => {}
+                                }
+                            }
+                            if let (Some(x), Some(y)) = (vx, vy) {
+                                verts.push(Point::new(x, y));
+                            }
+                        }
+                        "0" if v.trim() == "SEQEND" => break,
+                        _ => {}
+                    }
+                }
+                if !verts.is_empty() {
+                    entities.push(DxfEntity::Polyline {
+                        polyline: Polyline::new(verts),
+                        layer,
+                    });
+                }
+            }
+            "ARC" => {
+                let mut cx = None;
+                let mut cy = None;
+                let mut radius = None;
+                let mut start = None;
+                let mut end = None;
+                let mut layer = None;
+                while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
+                    match c.trim() {
+                        "8" => layer = Some(v.trim().to_string()),
+                        "10" => cx = v.trim().parse().ok(),
+                        "20" => cy = v.trim().parse().ok(),
+                        "40" => radius = v.trim().parse().ok(),
+                        "50" => start = v.trim().parse::<f64>().ok().map(|d| d.to_radians()),
+                        "51" => {
+                            end = v.trim().parse::<f64>().ok().map(|d| d.to_radians());
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                if let (Some(cx), Some(cy), Some(r), Some(sa), Some(ea)) =
+                    (cx, cy, radius, start, end)
+                {
+                    let arc = Arc::new(Point::new(cx, cy), r, sa, ea);
+                    entities.push(DxfEntity::Arc { arc, layer });
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(entities)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::alignment::HorizontalAlignment;
+    use crate::dtm::Tin;
+    use crate::geometry::Point3;
 
     #[test]
     fn write_and_read_string() {
@@ -193,6 +389,30 @@ mod tests {
     }
 
     #[test]
+    fn write_and_read_dxf_entities() {
+        let path = std::env::temp_dir().join("entities.dxf");
+        let path_str = path.to_str().unwrap();
+        let entities = vec![
+            DxfEntity::Point {
+                point: Point::new(0.0, 0.0),
+                layer: Some("P".into()),
+            },
+            DxfEntity::Polyline {
+                polyline: Polyline::new(vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)]),
+                layer: Some("L".into()),
+            },
+            DxfEntity::Arc {
+                arc: Arc::new(Point::new(3.0, 3.0), 1.0, 0.0, std::f64::consts::FRAC_PI_2),
+                layer: None,
+            },
+        ];
+        write_dxf(path_str, &entities).unwrap();
+        let read = read_dxf(path_str).unwrap();
+        assert_eq!(read.len(), 3);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
     fn read_points_csv_skips_empty_lines() {
         let path = std::env::temp_dir().join("cad_points_blank.csv");
         let path_str = path.to_str().unwrap();
@@ -211,6 +431,34 @@ mod tests {
         write_string(path_str, contents).unwrap();
         let err = read_points_csv(path_str).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_and_read_landxml_surface() {
+        let path = std::env::temp_dir().join("surf.xml");
+        let tin = Tin {
+            vertices: vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            triangles: vec![[0, 1, 2]],
+        };
+        landxml::write_landxml_surface(path.to_str().unwrap(), &tin).unwrap();
+        let read = landxml::read_landxml_surface(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.vertices.len(), 3);
+        assert_eq!(read.triangles.len(), 1);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_and_read_landxml_alignment() {
+        let path = std::env::temp_dir().join("align.xml");
+        let hal = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
+        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal).unwrap();
+        let read = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.centerline.vertices.len(), 2);
         std::fs::remove_file(path).ok();
     }
 }

@@ -3,7 +3,10 @@ use std::io;
 use survey_cad::{
     geometry::Point,
     geometry::Point3,
-    io::{read_lines, read_points_csv as sc_read_csv, read_points_geojson as sc_read_geojson},
+    io::{
+        read_dxf, read_lines, read_points_csv as sc_read_csv,
+        read_points_geojson as sc_read_geojson, DxfEntity,
+    },
 };
 
 /// Reads a CSV file of `x,y` pairs into [`Point`]s.
@@ -16,30 +19,16 @@ pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
     sc_read_geojson(path)
 }
 
-/// Reads a very simple ASCII DXF file containing only `POINT` entities and
-/// returns their coordinates as [`Point`]s.
+/// Reads a DXF file and extracts all `POINT` entities.
 pub fn read_points_dxf(path: &str) -> io::Result<Vec<Point>> {
-    let lines = read_lines(path)?;
-    let mut pts = Vec::new();
-    let mut iter = lines.iter();
-    while let (Some(code), Some(value)) = (iter.next(), iter.next()) {
-        if code.trim() == "0" && value.trim() == "POINT" {
-            let mut x = None;
-            let mut y = None;
-            while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
-                match c.trim() {
-                    "10" => x = v.trim().parse().ok(),
-                    "20" => y = v.trim().parse().ok(),
-                    "30" => break,
-                    _ => {}
-                }
-            }
-            if let (Some(x), Some(y)) = (x, y) {
-                pts.push(Point::new(x, y));
-            }
-        }
-    }
-    Ok(pts)
+    let entities = read_dxf(path)?;
+    Ok(entities
+        .into_iter()
+        .filter_map(|e| match e {
+            DxfEntity::Point { point, .. } => Some(point),
+            _ => None,
+        })
+        .collect())
 }
 
 /// Representation of a survey point with optional point number and description.
