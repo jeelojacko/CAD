@@ -1,5 +1,71 @@
 use crate::geometry::{distance, Arc, Point, Point3, Polyline};
 
+/// Euler spiral segment described analytically.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct Spiral {
+    pub start: Point,
+    pub orientation: f64,
+    pub length: f64,
+    pub start_radius: f64,
+    pub end_radius: f64,
+}
+
+impl Spiral {
+    fn start_point(&self) -> Point {
+        self.start
+    }
+
+    fn end_point(&self) -> Point {
+        self.point_at(self.length)
+    }
+
+    fn point_at(&self, s: f64) -> Point {
+        let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
+        let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
+        let kp = (k1 - k0) / self.length;
+
+        if kp.abs() < f64::EPSILON {
+            if k0.abs() < f64::EPSILON {
+                return Point::new(
+                    self.start.x + s * self.orientation.cos(),
+                    self.start.y + s * self.orientation.sin(),
+                );
+            }
+            let r = 1.0 / k0;
+            let cx = self.start.x - r * self.orientation.sin();
+            let cy = self.start.y + r * self.orientation.cos();
+            let ang = self.orientation + k0 * s;
+            return Point::new(cx + r * ang.sin(), cy - r * ang.cos());
+        }
+
+        let alpha = kp / 2.0;
+        let beta = k0;
+        let delta = self.orientation - beta * beta / (4.0 * alpha);
+        let sign = alpha.signum();
+        let z = |x: f64| -> f64 {
+            sign * (2.0 * alpha.abs() / std::f64::consts::PI).sqrt() * (x + beta / (2.0 * alpha))
+        };
+        let (s0, c0) = fresnel::fresnl(z(0.0));
+        let (s1, c1) = fresnel::fresnl(z(s));
+        let fac = (std::f64::consts::PI / (2.0 * alpha.abs())).sqrt();
+        let dx = fac * ((c1 - c0) * delta.cos() - sign * (s1 - s0) * delta.sin());
+        let dy = fac * ((s1 - s0) * delta.cos() + sign * (c1 - c0) * delta.sin());
+        Point::new(self.start.x + dx, self.start.y + dy)
+    }
+
+    fn direction_at(&self, s: f64) -> (f64, f64) {
+        let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
+        let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
+        let kp = (k1 - k0) / self.length;
+        let theta = self.orientation + k0 * s + 0.5 * kp * s * s;
+        (theta.cos(), theta.sin())
+    }
+
+    fn length(&self) -> f64 {
+        self.length
+    }
+}
+
 /// Individual elements of a horizontal alignment.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum HorizontalElement {
@@ -7,8 +73,8 @@ pub enum HorizontalElement {
     Tangent { start: Point, end: Point },
     /// Circular curve described by an [`Arc`].
     Curve { arc: Arc },
-    /// Spiral approximated by a polyline.
-    Spiral { polyline: Polyline },
+    /// Transition spiral described analytically.
+    Spiral { spiral: Spiral },
 }
 
 impl HorizontalElement {
@@ -16,7 +82,7 @@ impl HorizontalElement {
         match self {
             HorizontalElement::Tangent { start, end } => distance(*start, *end),
             HorizontalElement::Curve { arc } => arc.length(),
-            HorizontalElement::Spiral { polyline } => polyline.length(),
+            HorizontalElement::Spiral { spiral } => spiral.length(),
         }
     }
 
@@ -27,7 +93,7 @@ impl HorizontalElement {
                 arc.center.x + arc.radius * arc.start_angle.cos(),
                 arc.center.y + arc.radius * arc.start_angle.sin(),
             ),
-            HorizontalElement::Spiral { polyline } => polyline.vertices.first().copied().unwrap(),
+            HorizontalElement::Spiral { spiral } => spiral.start_point(),
         }
     }
 
@@ -38,7 +104,7 @@ impl HorizontalElement {
                 arc.center.x + arc.radius * arc.end_angle.cos(),
                 arc.center.y + arc.radius * arc.end_angle.sin(),
             ),
-            HorizontalElement::Spiral { polyline } => polyline.vertices.last().copied().unwrap(),
+            HorizontalElement::Spiral { spiral } => spiral.end_point(),
         }
     }
 
@@ -69,27 +135,7 @@ impl HorizontalElement {
                     arc.center.y + arc.radius * ang.sin(),
                 )
             }
-            HorizontalElement::Spiral { polyline } => {
-                // treat as polyline
-                let verts = &polyline.vertices;
-                let mut rem = s;
-                for seg in verts.windows(2) {
-                    let seg_len = distance(seg[0], seg[1]);
-                    if rem <= seg_len {
-                        let t = if seg_len.abs() < f64::EPSILON {
-                            0.0
-                        } else {
-                            rem / seg_len
-                        };
-                        return Point::new(
-                            seg[0].x + t * (seg[1].x - seg[0].x),
-                            seg[0].y + t * (seg[1].y - seg[0].y),
-                        );
-                    }
-                    rem -= seg_len;
-                }
-                *verts.last().unwrap()
-            }
+            HorizontalElement::Spiral { spiral } => spiral.point_at(s),
         }
     }
 
@@ -115,38 +161,7 @@ impl HorizontalElement {
                 let tangent = ang + dir * std::f64::consts::FRAC_PI_2;
                 (tangent.cos(), tangent.sin())
             }
-            HorizontalElement::Spiral { polyline } => {
-                // approximate using local segment
-                let verts = &polyline.vertices;
-                let mut rem = s;
-                for seg in verts.windows(2) {
-                    let seg_len = distance(seg[0], seg[1]);
-                    if rem <= seg_len {
-                        let dx = seg[1].x - seg[0].x;
-                        let dy = seg[1].y - seg[0].y;
-                        let len = (dx * dx + dy * dy).sqrt();
-                        return if len.abs() < f64::EPSILON {
-                            (0.0, 0.0)
-                        } else {
-                            (dx / len, dy / len)
-                        };
-                    }
-                    rem -= seg_len;
-                }
-                // fallback to last segment direction
-                if let Some(seg) = verts.windows(2).last() {
-                    let dx = seg[1].x - seg[0].x;
-                    let dy = seg[1].y - seg[0].y;
-                    let len = (dx * dx + dy * dy).sqrt();
-                    if len.abs() < f64::EPSILON {
-                        (0.0, 0.0)
-                    } else {
-                        (dx / len, dy / len)
-                    }
-                } else {
-                    (0.0, 0.0)
-                }
-            }
+            HorizontalElement::Spiral { spiral } => spiral.direction_at(s),
         }
     }
 }
@@ -357,5 +372,40 @@ mod tests {
         assert!((p.x - 5.0).abs() < 1e-6);
         assert!((p.y - 0.0).abs() < 1e-6);
         assert!((p.z - 2.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn spiral_geometry() {
+        let spiral = Spiral {
+            start: Point::new(0.0, 0.0),
+            orientation: 0.0,
+            length: 50.0,
+            start_radius: f64::INFINITY,
+            end_radius: 100.0,
+        };
+        let end = spiral.end_point();
+        assert!((end.x - 49.6884029).abs() < 1e-6);
+        assert!((end.y - 4.1481024).abs() < 1e-6);
+        let dir = spiral.direction_at(50.0);
+        assert!((dir.0 - 0.9689124).abs() < 1e-6);
+        assert!((dir.1 - 0.2474039).abs() < 1e-6);
+    }
+
+    #[test]
+    fn spiral_in_alignment() {
+        let spiral = Spiral {
+            start: Point::new(0.0, 0.0),
+            orientation: 0.0,
+            length: 50.0,
+            start_radius: f64::INFINITY,
+            end_radius: 100.0,
+        };
+        let halign = HorizontalAlignment { elements: vec![HorizontalElement::Spiral { spiral }] };
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (50.0, 0.0)]);
+        let align = Alignment::new(halign, valign);
+        let p = align.point3_at(25.0).unwrap();
+        let pt = spiral.point_at(25.0);
+        assert!((p.x - pt.x).abs() < 1e-6);
+        assert!((p.y - pt.y).abs() < 1e-6);
     }
 }

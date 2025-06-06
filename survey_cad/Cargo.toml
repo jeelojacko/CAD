@@ -24,6 +24,7 @@ shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
 nalgebra = { version = "0.32", default-features = false, features = ["std"] }
 tempfile = "3.10"
+fresnel = "0.1"
 
 [features]
 default = []
