@@ -1,5 +1,26 @@
 use crate::geometry::{polygon_area, Point, Point3};
 
+/// Returns `true` if point `p` is inside the polygon defined by `poly` using
+/// the ray casting algorithm.
+fn point_in_polygon(p: Point, poly: &[Point]) -> bool {
+    let mut inside = false;
+    if poly.is_empty() {
+        return inside;
+    }
+    let mut j = poly.len() - 1;
+    for i in 0..poly.len() {
+        let pi = poly[i];
+        let pj = poly[j];
+        if ((pi.y > p.y) != (pj.y > p.y))
+            && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x)
+        {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
 /// Triangulated Irregular Network constructed from 3D points.
 #[derive(Debug, Clone)]
 pub struct Tin {
@@ -28,8 +49,58 @@ impl Tin {
         }
     }
 
-    /// Generates contour line segments at the specified interval.
-    pub fn contour_segments(&self, interval: f64) -> Vec<(Point3, Point3)> {
+    /// Builds a constrained TIN using optional breaklines and an optional outer
+    /// boundary. The `breaklines` slice contains index pairs into `points`
+    /// representing fixed edges. When `outer_boundary` is provided it should be
+    /// a closed polygon (first and last index may be equal or will be closed
+    /// automatically).
+    pub fn from_points_constrained(
+        points: Vec<Point3>,
+        breaklines: Option<&[(usize, usize)]>,
+        outer_boundary: Option<&[usize]>,
+    ) -> Self {
+        let coords: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        if let Some(bl) = breaklines {
+            edges.extend_from_slice(bl);
+        }
+        if let Some(bound) = outer_boundary {
+            if bound.len() > 1 {
+                for w in bound.windows(2) {
+                    edges.push((w[0], w[1]));
+                }
+                edges.push((*bound.last().unwrap(), bound[0]));
+            }
+        }
+
+        let tris = if edges.is_empty() {
+            cdt::triangulate_points(&coords).unwrap()
+        } else {
+            cdt::triangulate_with_edges(&coords, &edges).unwrap()
+        };
+        let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
+        Self {
+            vertices: points,
+            triangles,
+        }
+    }
+
+    /// Generates contour line segments at the specified interval. Optional
+    /// `include` and `exclude` polygons can limit where contours are created.
+    pub fn contour_segments(
+        &self,
+        interval: f64,
+    ) -> Vec<(Point3, Point3)> {
+        self.contour_segments_bounded(interval, None, &[])
+    }
+
+    /// Contour generation with inclusion/exclusion boundaries.
+    pub fn contour_segments_bounded(
+        &self,
+        interval: f64,
+        include: Option<&[Point]>,
+        exclude: &[Vec<Point>],
+    ) -> Vec<(Point3, Point3)> {
         if interval <= 0.0 || self.vertices.is_empty() {
             return Vec::new();
         }
@@ -50,6 +121,15 @@ impl Tin {
                 let a = self.vertices[tri[0]];
                 let b = self.vertices[tri[1]];
                 let c = self.vertices[tri[2]];
+                let centroid = Point::new((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0);
+                if let Some(poly) = include {
+                    if !point_in_polygon(centroid, poly) {
+                        continue;
+                    }
+                }
+                if exclude.iter().any(|ex| point_in_polygon(centroid, ex)) {
+                    continue;
+                }
                 let tmin = a.z.min(b.z).min(c.z);
                 let tmax = a.z.max(b.z).max(c.z);
                 if level < tmin || level > tmax {
@@ -76,11 +156,30 @@ impl Tin {
 
     /// Calculates the volume between the TIN surface and a horizontal plane at `base_elev`.
     pub fn volume_to_elevation(&self, base_elev: f64) -> f64 {
+        self.volume_to_elevation_bounded(base_elev, None, &[])
+    }
+
+    /// Calculates volume with optional inclusion/exclusion boundaries.
+    pub fn volume_to_elevation_bounded(
+        &self,
+        base_elev: f64,
+        include: Option<&[Point]>,
+        exclude: &[Vec<Point>],
+    ) -> f64 {
         let mut volume = 0.0;
         for tri in &self.triangles {
             let a = self.vertices[tri[0]];
             let b = self.vertices[tri[1]];
             let c = self.vertices[tri[2]];
+            let centroid = Point::new((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0);
+            if let Some(poly) = include {
+                if !point_in_polygon(centroid, poly) {
+                    continue;
+                }
+            }
+            if exclude.iter().any(|ex| point_in_polygon(centroid, ex)) {
+                continue;
+            }
             let area = polygon_area(&[
                 Point::new(a.x, a.y),
                 Point::new(b.x, b.y),
@@ -124,5 +223,39 @@ mod tests {
         let tin = Tin::from_points(pts);
         let volume = tin.volume_to_elevation(0.0);
         assert!((volume - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn tin_from_points_constrained_breakline() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+        ];
+        let boundary = vec![0usize, 1, 2, 3];
+        let breaklines = vec![(0usize, 2usize)];
+        let tin = Tin::from_points_constrained(pts, Some(&breaklines), Some(&boundary));
+        assert!(tin.triangles.iter().any(|t| t.contains(&0) && t.contains(&2)));
+    }
+
+    #[test]
+    fn volume_with_bounds() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let include = vec![
+            Point::new(0.0, 0.0),
+            Point::new(0.5, 0.0),
+            Point::new(0.5, 0.5),
+            Point::new(0.0, 0.5),
+        ];
+        let vol = tin.volume_to_elevation_bounded(0.0, Some(&include), &[]);
+        assert!((vol - 0.25).abs() < 1e-6);
     }
 }

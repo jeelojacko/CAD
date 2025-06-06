@@ -1395,6 +1395,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdt"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b91b872294f63ef586b32aa94141561681aa35ca2d703960cca4f661f4e18184"
+dependencies = [
+ "geometry-predicates",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "cesu8"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2117,6 +2127,12 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
 ]
+
+[[package]]
+name = "geometry-predicates"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dba84198cf199c11b83f1cb9243eaeb70dc50b719d2835ebf34bf2481bca010"
 
 [[package]]
 name = "gethostname"
@@ -3813,6 +3829,7 @@ dependencies = [
  "bevy_editor_cam",
  "bevy_picking",
  "bevy_pmetra",
+ "cdt",
  "delaunator",
  "env_logger",
  "geojson",
@@ -3843,7 +3860,7 @@ name = "survey_cad_gui"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "bevy_input",
+ "clap",
  "survey_cad",
 ]
 
