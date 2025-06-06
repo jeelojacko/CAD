@@ -4,6 +4,45 @@ use crate::geometry::{Point, Point3};
 use crate::superelevation::{slopes_at, SuperelevationTable};
 use crate::variable_offset::offset_at;
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProfilePoint {
+    pub station: f64,
+    pub profile: Vec<(f64, f64)>,
+}
+
+pub type ProfileTable = Vec<ProfilePoint>;
+
+fn profile_at(table: &ProfileTable, station: f64) -> Vec<(f64, f64)> {
+    if table.is_empty() {
+        return Vec::new();
+    }
+    if station <= table[0].station {
+        return table[0].profile.clone();
+    }
+    for pair in table.windows(2) {
+        let a = &pair[0];
+        let b = &pair[1];
+        if station >= a.station && station <= b.station {
+            let t = if (b.station - a.station).abs() < f64::EPSILON {
+                0.0
+            } else {
+                (station - a.station) / (b.station - a.station)
+            };
+            return a
+                .profile
+                .iter()
+                .zip(&b.profile)
+                .map(|(pa, pb)| {
+                    let off = pa.0 + t * (pb.0 - pa.0);
+                    let elev = pa.1 + t * (pb.1 - pa.1);
+                    (off, elev)
+                })
+                .collect();
+        }
+    }
+    table.last().unwrap().profile.clone()
+}
+
 /// 3D cross-section sampled at a station along a corridor.
 #[derive(Debug, Clone)]
 pub struct CrossSection {
@@ -25,11 +64,18 @@ impl CrossSection {
 pub struct Subassembly {
     pub profile: Vec<(f64, f64)>,
     pub offsets: Option<crate::variable_offset::OffsetTable>,
+    pub superelevation: Option<SuperelevationTable>,
+    pub profile_table: Option<ProfileTable>,
 }
 
 impl Subassembly {
     pub fn new(profile: Vec<(f64, f64)>) -> Self {
-        Self { profile, offsets: None }
+        Self {
+            profile,
+            offsets: None,
+            superelevation: None,
+            profile_table: None,
+        }
     }
 }
 
@@ -94,13 +140,63 @@ pub fn extract_cross_sections(
     sections
 }
 
-/// Builds a design surface by applying cross-section subassemblies along an
-/// alignment at the specified station `interval`.
-pub fn build_design_surface(
+/// Generates design cross-sections from subassemblies with optional
+/// superelevation and variable offsets.
+pub fn extract_design_cross_sections(
     alignment: &Alignment,
     subs: &[Subassembly],
+    superelevation: Option<&SuperelevationTable>,
     interval: f64,
-) -> Tin {
+) -> Vec<CrossSection> {
+    let mut sections = Vec::new();
+    let length = alignment.horizontal.length();
+    let mut station = 0.0;
+    while station <= length {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(station),
+            alignment.horizontal.direction_at(station),
+            alignment.vertical.elevation_at(station),
+        ) {
+            let global_slopes = superelevation
+                .map(|t| slopes_at(t, station))
+                .unwrap_or((0.0, 0.0));
+            let normal = (-dir.1, dir.0);
+            let mut pts = Vec::new();
+            for sub in subs {
+                let var_off = sub
+                    .offsets
+                    .as_ref()
+                    .map(|t| offset_at(t, station))
+                    .unwrap_or(0.0);
+                let profile = sub
+                    .profile_table
+                    .as_ref()
+                    .map(|t| profile_at(t, station))
+                    .unwrap_or_else(|| sub.profile.clone());
+                let slopes = sub
+                    .superelevation
+                    .as_ref()
+                    .map(|t| slopes_at(t, station))
+                    .unwrap_or(global_slopes);
+                for (offset, elev) in profile {
+                    let o = offset + var_off;
+                    let slope = if o < 0.0 { slopes.0 } else { slopes.1 };
+                    let x = center.x + o * normal.0;
+                    let y = center.y + o * normal.1;
+                    let z = grade + elev + o * slope;
+                    pts.push(Point3::new(x, y, z));
+                }
+            }
+            sections.push(CrossSection::new(station, pts));
+        }
+        station += interval;
+    }
+    sections
+}
+
+/// Builds a design surface by applying cross-section subassemblies along an
+/// alignment at the specified station `interval`.
+pub fn build_design_surface(alignment: &Alignment, subs: &[Subassembly], interval: f64) -> Tin {
     let mut pts = Vec::new();
     let length = alignment.horizontal.length();
     let mut station = 0.0;
@@ -141,7 +237,7 @@ pub fn build_design_surface_dynamic(
             alignment.horizontal.direction_at(station),
             alignment.vertical.elevation_at(station),
         ) {
-            let (left_slope, right_slope) = superelevation
+            let global_slopes = superelevation
                 .map(|t| slopes_at(t, station))
                 .unwrap_or((0.0, 0.0));
             let normal = (-dir.1, dir.0);
@@ -151,9 +247,19 @@ pub fn build_design_surface_dynamic(
                     .as_ref()
                     .map(|t| offset_at(t, station))
                     .unwrap_or(0.0);
-                for (offset, elev) in &sub.profile {
+                let profile = sub
+                    .profile_table
+                    .as_ref()
+                    .map(|t| profile_at(t, station))
+                    .unwrap_or_else(|| sub.profile.clone());
+                let slopes = sub
+                    .superelevation
+                    .as_ref()
+                    .map(|t| slopes_at(t, station))
+                    .unwrap_or(global_slopes);
+                for (offset, elev) in profile {
                     let o = offset + var_off;
-                    let slope = if o < 0.0 { left_slope } else { right_slope };
+                    let slope = if o < 0.0 { slopes.0 } else { slopes.1 };
                     let x = center.x + o * normal.0;
                     let y = center.y + o * normal.1;
                     let z = grade + elev + o * slope;
@@ -210,11 +316,10 @@ pub fn corridor_volume(
     volume
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alignment::{HorizontalAlignment, VerticalAlignment, Alignment};
+    use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
     use crate::geometry::{Point, Point3};
 
     #[test]
@@ -248,5 +353,28 @@ mod tests {
         let sub = Subassembly::new(vec![(-1.0, 1.0), (1.0, 1.0)]);
         let tin = build_design_surface(&align, &[sub], 10.0);
         assert_eq!(tin.vertices.len(), 4);
+    }
+
+    #[test]
+    fn dynamic_profile_sections() {
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
+        let align = Alignment::new(halign, valign);
+        let table = vec![
+            ProfilePoint {
+                station: 0.0,
+                profile: vec![(-1.0, 0.0), (1.0, 0.0)],
+            },
+            ProfilePoint {
+                station: 10.0,
+                profile: vec![(-2.0, 0.0), (2.0, 0.0)],
+            },
+        ];
+        let mut sub = Subassembly::new(Vec::new());
+        sub.profile_table = Some(table);
+        let sections = extract_design_cross_sections(&align, &[sub], None, 10.0);
+        assert_eq!(sections.len(), 2);
+        assert!((sections[0].points.first().unwrap().y + 1.0).abs() < 1e-6);
+        assert!((sections[1].points.first().unwrap().y + 2.0).abs() < 1e-6);
     }
 }
