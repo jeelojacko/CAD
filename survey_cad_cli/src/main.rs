@@ -3,10 +3,13 @@ use clap::{Parser, Subcommand};
 use std::str::FromStr;
 use survey_cad::{
     crs::Crs,
-    geometry::Point,
+    geometry::{Point, Point3},
+    alignment::{Alignment, HorizontalAlignment, VerticalAlignment},
+    corridor::corridor_volume,
+    dtm::Tin,
     io::{
-        read_points_csv, read_points_geojson, read_to_string, write_points_csv, write_points_dxf,
-        write_points_geojson, write_string,
+        landxml::read_landxml_surface, read_lines, read_points_csv, read_points_geojson,
+        read_to_string, write_points_csv, write_points_dxf, write_points_geojson, write_string,
     },
     render::{render_point, render_points},
     surveying::{
@@ -17,6 +20,38 @@ use survey_cad::{
 
 fn no_render() -> bool {
     std::env::var("SURVEY_CAD_TEST").is_ok()
+}
+
+fn read_surface(path: &str) -> std::io::Result<Tin> {
+    if path.to_ascii_lowercase().ends_with(".xml") {
+        read_landxml_surface(path)
+    } else {
+        let lines = read_lines(path)?;
+        let mut pts = Vec::new();
+        for (idx, line) in lines.iter().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.split(',').collect();
+            if parts.len() < 3 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("line {}: expected x,y,z", idx + 1),
+                ));
+            }
+            let x: f64 = parts[0].trim().parse().map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            })?;
+            let y: f64 = parts[1].trim().parse().map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            })?;
+            let z: f64 = parts[2].trim().parse().map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            })?;
+            pts.push(Point3::new(x, y, z));
+        }
+        Ok(Tin::from_points(pts))
+    }
 }
 
 /// Simple command line interface demonstrating the survey CAD utilities.
@@ -118,6 +153,18 @@ enum Commands {
         start_elev: f64,
         backsight: f64,
         foresight: f64,
+    },
+    /// Compute cut/fill volume between two surfaces along an alignment.
+    CorridorVolume {
+        design: String,
+        ground: String,
+        halign: String,
+        valign: String,
+        width: f64,
+        #[arg(long, default_value_t = 10.0)]
+        interval: f64,
+        #[arg(long, default_value_t = 1.0)]
+        offset_step: f64,
     },
 }
 
@@ -299,6 +346,35 @@ fn main() {
         } => {
             let elev = level_elevation(start_elev, backsight, foresight);
             println!("New elevation: {:.3}", elev);
+        }
+        Commands::CorridorVolume {
+            design,
+            ground,
+            halign,
+            valign,
+            width,
+            interval,
+            offset_step,
+        } => {
+            match (
+                read_surface(&design),
+                read_surface(&ground),
+                read_points_csv(&halign, None, None),
+                read_points_csv(&valign, None, None),
+            ) {
+                (Ok(des), Ok(grd), Ok(h_pts), Ok(v_pts)) => {
+                    let hal = HorizontalAlignment::new(h_pts);
+                    let v_pairs: Vec<(f64, f64)> = v_pts.iter().map(|p| (p.x, p.y)).collect();
+                    let val = VerticalAlignment::new(v_pairs);
+                    let align = Alignment::new(hal, val);
+                    let vol = corridor_volume(&des, &grd, &align, width, interval, offset_step);
+                    println!("Volume: {:.3}", vol);
+                }
+                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", design, e),
+                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),
+                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign, e),
+                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign, e),
+            }
         }
     }
 }
