@@ -21,6 +21,40 @@ fn point_in_polygon(p: Point, poly: &[Point]) -> bool {
     inside
 }
 
+fn subtract(a: Point3, b: Point3) -> Point3 {
+    Point3::new(a.x - b.x, a.y - b.y, a.z - b.z)
+}
+
+fn cross(a: Point3, b: Point3) -> Point3 {
+    Point3 {
+        x: a.y * b.z - a.z * b.y,
+        y: a.z * b.x - a.x * b.z,
+        z: a.x * b.y - a.y * b.x,
+    }
+}
+
+fn triangle_slope_deg(a: Point3, b: Point3, c: Point3) -> f64 {
+    let ab = subtract(b, a);
+    let ac = subtract(c, a);
+    let n = cross(ab, ac);
+    if n.z.abs() < f64::EPSILON {
+        90.0
+    } else {
+        ((n.x * n.x + n.y * n.y).sqrt() / n.z.abs()).atan().to_degrees()
+    }
+}
+
+fn barycentric(p: Point, a: Point3, b: Point3, c: Point3) -> Option<(f64, f64, f64)> {
+    let det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+    if det.abs() < f64::EPSILON {
+        return None;
+    }
+    let u = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / det;
+    let v = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / det;
+    let w = 1.0 - u - v;
+    Some((u, v, w))
+}
+
 /// Triangulated Irregular Network constructed from 3D points.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Tin {
@@ -127,6 +161,49 @@ impl Tin {
             vertices: points,
             triangles,
         }
+    }
+
+    /// Returns a new TIN with the same vertices but enforcing the provided
+    /// breaklines.
+    pub fn with_breaklines(&self, breaklines: &[(usize, usize)]) -> Self {
+        Tin::from_points_constrained(self.vertices.clone(), Some(breaklines), None)
+    }
+
+    /// Returns the slope in degrees for each triangle in the TIN.
+    pub fn triangle_slopes(&self) -> Vec<f64> {
+        self.triangles
+            .iter()
+            .map(|t| {
+                triangle_slope_deg(
+                    self.vertices[t[0]],
+                    self.vertices[t[1]],
+                    self.vertices[t[2]],
+                )
+            })
+            .collect()
+    }
+
+    /// Returns the slope at (x, y) if the point lies within the TIN.
+    pub fn slope_at(&self, x: f64, y: f64) -> Option<f64> {
+        for tri in &self.triangles {
+            let a = self.vertices[tri[0]];
+            let b = self.vertices[tri[1]];
+            let c = self.vertices[tri[2]];
+            if let Some((u, v, w)) = barycentric(Point::new(x, y), a, b, c) {
+                if u >= 0.0 && v >= 0.0 && w >= 0.0 {
+                    return Some(triangle_slope_deg(a, b, c));
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns the elevation difference between this surface and `other` at
+    /// the provided XY location if both surfaces contain the point.
+    pub fn elevation_difference_at(&self, other: &Tin, x: f64, y: f64) -> Option<f64> {
+        let a = self.elevation_at(x, y)?;
+        let b = other.elevation_at(x, y)?;
+        Some(a - b)
     }
 
     /// Generates contour line segments at the specified interval. Optional
@@ -341,5 +418,53 @@ mod tests {
         let ground = Tin::from_points(ground_pts);
         let vol = design.volume_between(&ground);
         assert!((vol - 20.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn slope_analysis_basic() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let slopes = tin.triangle_slopes();
+        assert_eq!(slopes.len(), 1);
+        assert!((slopes[0] - 45.0).abs() < 1e-6);
+        let s = tin.slope_at(0.25, 0.25).unwrap();
+        assert!((s - 45.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn surface_difference_simple() {
+        let a = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ]);
+        let b = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ]);
+        let diff = a.elevation_difference_at(&b, 0.1, 0.1).unwrap();
+        assert!((diff - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn breakline_editing() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+        ];
+        let tin = Tin::from_points(pts.clone());
+        let edited = tin.with_breaklines(&[(0usize, 2usize)]);
+        assert!(edited
+            .triangles
+            .iter()
+            .any(|t| t.contains(&0) && t.contains(&2)));
     }
 }
