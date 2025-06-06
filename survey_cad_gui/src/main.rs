@@ -32,7 +32,7 @@ struct WorkingCrs(Crs);
 
 #[derive(Resource, Default)]
 struct AlignmentData {
-    points: Vec<Point>,
+    points: Vec<Entity>,
 }
 
 #[derive(Resource, Default)]
@@ -68,6 +68,9 @@ struct SectionLine;
 struct AddAlignmentButton;
 
 #[derive(Component)]
+struct AlignmentLine;
+
+#[derive(Component)]
 struct AddSurfaceButton;
 
 #[derive(Component)]
@@ -95,6 +98,12 @@ struct CorridorParams {
     interval: f64,
     offset_step: f64,
 }
+
+#[derive(Resource, Default)]
+struct ProfileVisible(bool);
+
+#[derive(Resource, Default)]
+struct SectionsVisible(bool);
 
 impl Default for CorridorParams {
     fn default() -> Self {
@@ -125,6 +134,8 @@ fn main() {
         .insert_resource(SurfaceData::default())
         .insert_resource(SurfaceTin::default())
         .insert_resource(CorridorParams::default())
+        .insert_resource(ProfileVisible::default())
+        .insert_resource(SectionsVisible::default())
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -133,6 +144,7 @@ fn main() {
                 drag_point,
                 create_line,
                 update_lines,
+                update_alignment_lines,
                 handle_add_alignment,
                 handle_add_surface,
                 handle_add_breakline,
@@ -141,6 +153,8 @@ fn main() {
                 handle_build_surface,
                 handle_show_profile,
                 handle_show_sections,
+                update_profile_lines,
+                update_section_lines,
             ),
         )
         .run();
@@ -531,9 +545,8 @@ fn handle_add_alignment(
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         for e in &selected.0 {
-            if let Ok(t) = points.get(*e) {
-                data.points
-                    .push(Point::new(t.translation.x as f64, t.translation.y as f64));
+            if points.get(*e).is_ok() && !data.points.contains(e) {
+                data.points.push(*e);
             }
         }
     }
@@ -714,32 +727,10 @@ fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
 
 fn handle_show_profile(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ShowProfileButton>)>,
-    data: Res<AlignmentData>,
-    mut commands: Commands,
-    existing: Query<Entity, With<ProfileLine>>,
+    mut visible: ResMut<ProfileVisible>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        for e in &existing {
-            commands.entity(e).despawn_recursive();
-        }
-        let offset = 50.0f32;
-        for pair in data.points.windows(2) {
-            let a = Vec2::new(pair[0].x as f32, pair[0].y as f32 + offset);
-            let b = Vec2::new(pair[1].x as f32, pair[1].y as f32 + offset);
-            commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: Color::BLUE,
-                        custom_size: Some(Vec2::new(a.distance(b), 2.0)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
-                        .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
-                    ..default()
-                },
-                ProfileLine,
-            ));
-        }
+        visible.0 = !visible.0;
     }
 }
 
@@ -748,57 +739,140 @@ fn handle_show_sections(
         &Interaction,
         (Changed<Interaction>, With<Button>, With<ShowSectionsButton>),
     >,
-    tin_res: Res<SurfaceTin>,
-    data: Res<AlignmentData>,
-    params: Res<CorridorParams>,
-    mut commands: Commands,
-    existing: Query<Entity, With<SectionLine>>,
+    mut visible: ResMut<SectionsVisible>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        visible.0 = !visible.0;
+    }
+}
+
+fn update_alignment_lines(
+    data: Res<AlignmentData>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut commands: Commands,
+    existing: Query<Entity, With<AlignmentLine>>,
+) {
+    if data.is_changed() {
         for e in &existing {
             commands.entity(e).despawn_recursive();
         }
-        if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
-            use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
-            use survey_cad::corridor::extract_cross_sections;
-            let hal = HorizontalAlignment::new(data.points.clone());
-            let v_pairs: Vec<(f64, f64)> = data
-                .points
-                .iter()
-                .enumerate()
-                .map(|(i, p)| (i as f64, p.y))
-                .collect();
-            let val = VerticalAlignment::new(v_pairs);
-            let align = Alignment::new(hal, val);
-            let sections = extract_cross_sections(
-                tin,
-                &align,
-                params.width,
-                params.interval,
-                params.offset_step,
-            );
-            let mut idx = 0f32;
-            for sec in sections {
-                let base = idx * 20.0 - 50.0;
-                for pair in sec.points.windows(2) {
-                    let a = Vec2::new(base + (pair[0].x as f32), pair[0].z as f32);
-                    let b = Vec2::new(base + (pair[1].x as f32), pair[1].z as f32);
-                    commands.spawn((
-                        SpriteBundle {
-                            sprite: Sprite {
-                                color: Color::YELLOW,
-                                custom_size: Some(Vec2::new(a.distance(b), 1.0)),
-                                ..default()
-                            },
-                            transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
-                                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+        for pair in data.points.windows(2) {
+            if let (Ok(t1), Ok(t2)) = (points.get(pair[0]), points.get(pair[1])) {
+                let a = t1.translation;
+                let b = t2.translation;
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::WHITE,
+                            custom_size: Some(Vec2::new(a.distance(b), 2.0)),
                             ..default()
                         },
-                        SectionLine,
-                    ));
-                }
-                idx += 1.0;
+                        transform: Transform::from_translation((a + b) / 2.0)
+                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                        ..default()
+                    },
+                    CadLine {
+                        start: pair[0],
+                        end: pair[1],
+                    },
+                    AlignmentLine,
+                ));
             }
+        }
+    }
+}
+
+fn update_profile_lines(
+    visible: Res<ProfileVisible>,
+    data: Res<AlignmentData>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut commands: Commands,
+    existing: Query<Entity, With<ProfileLine>>,
+) {
+    for e in &existing {
+        commands.entity(e).despawn_recursive();
+    }
+    if visible.0 {
+        let offset = 50.0f32;
+        for pair in data.points.windows(2) {
+            if let (Ok(t1), Ok(t2)) = (points.get(pair[0]), points.get(pair[1])) {
+                let a = Vec2::new(t1.translation.x, t1.translation.y + offset);
+                let b = Vec2::new(t2.translation.x, t2.translation.y + offset);
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::BLUE,
+                            custom_size: Some(Vec2::new(a.distance(b), 2.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                        ..default()
+                    },
+                    ProfileLine,
+                ));
+            }
+        }
+    }
+}
+
+fn update_section_lines(
+    visible: Res<SectionsVisible>,
+    tin_res: Res<SurfaceTin>,
+    data: Res<AlignmentData>,
+    params: Res<CorridorParams>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut commands: Commands,
+    existing: Query<Entity, With<SectionLine>>,
+) {
+    for e in &existing {
+        commands.entity(e).despawn_recursive();
+    }
+    if !visible.0 {
+        return;
+    }
+    if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
+        use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+        use survey_cad::corridor::extract_cross_sections;
+        let mut pts = Vec::new();
+        let mut v_pairs = Vec::new();
+        for (i, e) in data.points.iter().enumerate() {
+            if let Ok(t) = points.get(*e) {
+                pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                v_pairs.push((i as f64, t.translation.y as f64));
+            }
+        }
+        let hal = HorizontalAlignment::new(pts);
+        let val = VerticalAlignment::new(v_pairs);
+        let align = Alignment::new(hal, val);
+        let sections = extract_cross_sections(
+            tin,
+            &align,
+            params.width,
+            params.interval,
+            params.offset_step,
+        );
+        let mut idx = 0f32;
+        for sec in sections {
+            let base = idx * 20.0 - 50.0;
+            for pair in sec.points.windows(2) {
+                let a = Vec2::new(base + pair[0].x as f32, pair[0].z as f32);
+                let b = Vec2::new(base + pair[1].x as f32, pair[1].z as f32);
+                commands.spawn((
+                    SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::YELLOW,
+                            custom_size: Some(Vec2::new(a.distance(b), 1.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                        ..default()
+                    },
+                    SectionLine,
+                ));
+            }
+            idx += 1.0;
         }
     }
 }
