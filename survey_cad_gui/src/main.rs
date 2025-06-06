@@ -80,6 +80,12 @@ struct AddBreaklineButton;
 struct AddHoleButton;
 
 #[derive(Component)]
+struct AddParcelButton;
+
+#[derive(Component)]
+struct GradeButton;
+
+#[derive(Component)]
 struct CorridorButton(CorridorControl);
 
 #[derive(Clone, Copy)]
@@ -104,6 +110,17 @@ struct ProfileVisible(bool);
 
 #[derive(Resource, Default)]
 struct SectionsVisible(bool);
+
+#[derive(Resource, Default)]
+struct ParcelData {
+    parcels: Vec<survey_cad::parcel::Parcel>,
+    text: Option<Entity>,
+}
+
+#[derive(Resource, Default)]
+struct GradeInfo {
+    text: Option<Entity>,
+}
 
 impl Default for CorridorParams {
     fn default() -> Self {
@@ -149,8 +166,10 @@ fn main() {
                 handle_add_surface,
                 handle_add_breakline,
                 handle_add_hole,
+                handle_add_parcel,
                 handle_corridor_buttons,
                 handle_build_surface,
+                handle_grade_button,
                 handle_show_profile,
                 handle_show_sections,
                 update_profile_lines,
@@ -175,7 +194,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
         ..default()
     });
     spawn_toolbar(&mut commands, &asset_server);
-    spawn_edit_panel(&mut commands, &asset_server);
+    let (parcel_text, grade_text) = spawn_edit_panel(&mut commands, &asset_server);
+    commands.insert_resource(ParcelData { parcels: Vec::new(), text: Some(parcel_text) });
+    commands.insert_resource(GradeInfo { text: Some(grade_text) });
     // Example content
     spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
@@ -226,7 +247,9 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
         });
 }
 
-fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) -> (Entity, Entity) {
+    let mut parcel_text = Entity::from_raw(0);
+    let mut grade_text = Entity::from_raw(0);
     commands
         .spawn(NodeBundle {
             node: Node {
@@ -327,6 +350,48 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                 })
                 .insert(AddHoleButton);
 
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Add Parcel"),
+                    ));
+                })
+                .insert(AddParcelButton);
+
+            parcel_text = parent
+                .spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Parcel Area: 0"),
+                ))
+                .id();
+
+            grade_text = parent
+                .spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Grade Result:"),
+                ))
+                .id();
+
             parent.spawn((
                 TextLayout::default(),
                 TextFont {
@@ -389,6 +454,22 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                             ..default()
                         },
                         TextColor::WHITE,
+                        TextSpan::new("Grade Slope"),
+                    ));
+                })
+                .insert(GradeButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
                         TextSpan::new("Show Profile"),
                     ));
                 })
@@ -410,6 +491,7 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                 })
                 .insert(ShowSectionsButton);
         });
+    (parcel_text, grade_text)
 }
 
 fn spawn_point(commands: &mut Commands, p: Point) {
@@ -635,6 +717,34 @@ fn handle_add_hole(
     }
 }
 
+fn handle_add_parcel(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddParcelButton>)>,
+    mut parcels: ResMut<ParcelData>,
+    selected: Res<SelectedPoints>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut texts: Query<&mut TextSpan>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if selected.0.len() >= 3 {
+            let mut pts = Vec::new();
+            for e in &selected.0 {
+                if let Ok(t) = points.get(*e) {
+                    pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                }
+            }
+            let parcel = survey_cad::parcel::Parcel::new(pts);
+            let area = parcel.area();
+            parcels.parcels.push(parcel);
+            if let Some(id) = parcels.text {
+                if let Ok(mut span) = texts.get_mut(id) {
+                    span.0 = format!("Parcel Area: {:.2}", area);
+                }
+            }
+            println!("Parcel area: {:.2}", area);
+        }
+    }
+}
+
 fn handle_corridor_buttons(
     interactions: Query<(&Interaction, &CorridorButton), Changed<Interaction>>,
     mut params: ResMut<CorridorParams>,
@@ -743,6 +853,31 @@ fn handle_show_sections(
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         visible.0 = !visible.0;
+    }
+}
+
+fn handle_grade_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<GradeButton>)>,
+    tin_res: Res<SurfaceTin>,
+    selected: Res<SelectedPoints>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut info: ResMut<GradeInfo>,
+    mut spans: Query<&mut TextSpan>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let (Some(tin), Some(e)) = (tin_res.0.as_ref(), selected.0.first()) {
+            if let Ok(t) = points.get(*e) {
+                let start = Point3::new(t.translation.x as f64, t.translation.y as f64, 0.0);
+                if let Some(p) = tin.slope_projection(start, (1.0, 0.0), -0.1, 1.0, 50.0) {
+                    if let Some(id) = info.text {
+                        if let Ok(mut span) = spans.get_mut(id) {
+                            span.0 = format!("Grade Result: {:.2},{:.2},{:.2}", p.x, p.y, p.z);
+                        }
+                    }
+                    println!("Daylight at ({:.2}, {:.2}, {:.2})", p.x, p.y, p.z);
+                }
+            }
+        }
     }
 }
 
