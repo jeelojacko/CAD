@@ -3741,6 +3741,7 @@ name = "survey_cad_gui"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_input",
  "survey_cad",
 ]
 
