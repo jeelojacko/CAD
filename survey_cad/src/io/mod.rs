@@ -3,6 +3,8 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, Write};
 
+use crate::crs::Crs;
+
 use crate::geometry::{Arc, Point, Polyline};
 
 pub mod landxml;
@@ -33,9 +35,13 @@ pub fn read_lines(path: &str) -> io::Result<Vec<String>> {
 ///
 /// Each line of the CSV file is expected to contain two floating point numbers
 /// separated by a comma.
-pub fn read_points_csv(path: &str) -> io::Result<Vec<Point>> {
+pub fn read_points_csv(
+    path: &str,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<Vec<Point>> {
     let lines = read_lines(path)?;
-    lines
+    let mut pts: Vec<Point> = lines
         .iter()
         .filter(|line| !line.trim().is_empty())
         .map(|line| {
@@ -60,21 +66,51 @@ pub fn read_points_csv(path: &str) -> io::Result<Vec<Point>> {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             Ok(Point::new(x, y))
         })
-        .collect()
+        .collect::<Result<_, _>>()?;
+    if let (Some(src), Some(dst)) = (src_epsg, dst_epsg) {
+        if src != dst {
+            let from = Crs::from_epsg(src);
+            let to = Crs::from_epsg(dst);
+            for p in &mut pts {
+                if let Some((x, y)) = from.transform_point(&to, p.x, p.y) {
+                    p.x = x;
+                    p.y = y;
+                }
+            }
+        }
+    }
+    Ok(pts)
 }
 
 /// Writes a slice of [`Point`]s to a CSV file with each line in the form
 /// `x,y`.
-pub fn write_points_csv(path: &str, points: &[Point]) -> io::Result<()> {
+pub fn write_points_csv(
+    path: &str,
+    points: &[Point],
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<()> {
     let mut file = File::create(path)?;
+    let from = src_epsg.map(Crs::from_epsg);
+    let to = dst_epsg.map(Crs::from_epsg);
     for p in points {
-        writeln!(file, "{},{}", p.x, p.y)?;
+        let (x, y) = match (&from, &to) {
+            (Some(f), Some(t)) if f.epsg() != t.epsg() => {
+                f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y))
+            }
+            _ => (p.x, p.y),
+        };
+        writeln!(file, "{},{}", x, y)?;
     }
     Ok(())
 }
 
 /// Reads a GeoJSON file containing Point features into a list of [`Point`]s.
-pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
+pub fn read_points_geojson(
+    path: &str,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<Vec<Point>> {
     let contents = read_to_string(path)?;
     let geojson: geojson::GeoJson = contents
         .parse()
@@ -93,6 +129,18 @@ pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
                     }
                 }
             }
+            if let (Some(src), Some(dst)) = (src_epsg, dst_epsg) {
+                if src != dst {
+                    let from = Crs::from_epsg(src);
+                    let to = Crs::from_epsg(dst);
+                    for p in &mut pts {
+                        if let Some((x, y)) = from.transform_point(&to, p.x, p.y) {
+                            p.x = x;
+                            p.y = y;
+                        }
+                    }
+                }
+            }
             Ok(pts)
         }
         _ => Err(io::Error::new(
@@ -103,16 +151,31 @@ pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
 }
 
 /// Writes a slice of [`Point`]s to a GeoJSON file as Point features.
-pub fn write_points_geojson(path: &str, points: &[Point]) -> io::Result<()> {
+pub fn write_points_geojson(
+    path: &str,
+    points: &[Point],
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<()> {
     use geojson::{Feature, FeatureCollection, GeoJson, Geometry, Value};
+    let from = src_epsg.map(Crs::from_epsg);
+    let to = dst_epsg.map(Crs::from_epsg);
     let features: Vec<Feature> = points
         .iter()
-        .map(|p| Feature {
-            bbox: None,
-            geometry: Some(Geometry::new(Value::Point(vec![p.x, p.y]))),
-            id: None,
-            properties: None,
-            foreign_members: None,
+        .map(|p| {
+            let (x, y) = match (&from, &to) {
+                (Some(f), Some(t)) if f.epsg() != t.epsg() => {
+                    f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y))
+                }
+                _ => (p.x, p.y),
+            };
+            Feature {
+                bbox: None,
+                geometry: Some(Geometry::new(Value::Point(vec![x, y]))),
+                id: None,
+                properties: None,
+                foreign_members: None,
+            }
         })
         .collect();
     let fc = FeatureCollection {
@@ -125,19 +188,32 @@ pub fn write_points_geojson(path: &str, points: &[Point]) -> io::Result<()> {
 
 /// Writes a slice of [`Point`]s to a very simple ASCII DXF file containing
 /// `POINT` entities. Only x and y coordinates are written.
-pub fn write_points_dxf(path: &str, points: &[Point]) -> io::Result<()> {
+pub fn write_points_dxf(
+    path: &str,
+    points: &[Point],
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<()> {
     let mut file = File::create(path)?;
+    let from = src_epsg.map(Crs::from_epsg);
+    let to = dst_epsg.map(Crs::from_epsg);
     writeln!(file, "0")?;
     writeln!(file, "SECTION")?;
     writeln!(file, "2")?;
     writeln!(file, "ENTITIES")?;
     for p in points {
+        let (x, y) = match (&from, &to) {
+            (Some(f), Some(t)) if f.epsg() != t.epsg() => {
+                f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y))
+            }
+            _ => (p.x, p.y),
+        };
         writeln!(file, "0")?;
         writeln!(file, "POINT")?;
         writeln!(file, "10")?;
-        writeln!(file, "{}", p.x)?;
+        writeln!(file, "{}", x)?;
         writeln!(file, "20")?;
-        writeln!(file, "{}", p.y)?;
+        writeln!(file, "{}", y)?;
         writeln!(file, "30")?;
         writeln!(file, "0.0")?;
     }
@@ -361,8 +437,8 @@ mod tests {
         let path = std::env::temp_dir().join("cad_points.csv");
         let path_str = path.to_str().unwrap();
         let pts = vec![Point::new(1.0, 2.0), Point::new(3.0, 4.0)];
-        write_points_csv(path_str, &pts).unwrap();
-        let read_pts = read_points_csv(path_str).unwrap();
+        write_points_csv(path_str, &pts, None, None).unwrap();
+        let read_pts = read_points_csv(path_str, None, None).unwrap();
         assert_eq!(read_pts, pts);
         std::fs::remove_file(path).ok();
     }
@@ -372,8 +448,8 @@ mod tests {
         let path = std::env::temp_dir().join("cad_points.geojson");
         let path_str = path.to_str().unwrap();
         let pts = vec![Point::new(5.0, 6.0), Point::new(7.0, 8.0)];
-        write_points_geojson(path_str, &pts).unwrap();
-        let read_pts = read_points_geojson(path_str).unwrap();
+        write_points_geojson(path_str, &pts, None, None).unwrap();
+        let read_pts = read_points_geojson(path_str, None, None).unwrap();
         assert_eq!(read_pts, pts);
         std::fs::remove_file(path).ok();
     }
@@ -383,7 +459,7 @@ mod tests {
         let path = std::env::temp_dir().join("cad_points.dxf");
         let path_str = path.to_str().unwrap();
         let pts = vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)];
-        write_points_dxf(path_str, &pts).unwrap();
+        write_points_dxf(path_str, &pts, None, None).unwrap();
         assert!(std::fs::metadata(path_str).is_ok());
         std::fs::remove_file(path).ok();
     }
@@ -418,7 +494,7 @@ mod tests {
         let path_str = path.to_str().unwrap();
         let contents = "1.0,2.0\n\n3.0,4.0\n";
         write_string(path_str, contents).unwrap();
-        let pts = read_points_csv(path_str).unwrap();
+        let pts = read_points_csv(path_str, None, None).unwrap();
         assert_eq!(pts, vec![Point::new(1.0, 2.0), Point::new(3.0, 4.0)]);
         std::fs::remove_file(path).ok();
     }
@@ -429,7 +505,7 @@ mod tests {
         let path_str = path.to_str().unwrap();
         let contents = "1.0\n1.0,2.0,3.0\n";
         write_string(path_str, contents).unwrap();
-        let err = read_points_csv(path_str).unwrap_err();
+        let err = read_points_csv(path_str, None, None).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         std::fs::remove_file(path).ok();
     }

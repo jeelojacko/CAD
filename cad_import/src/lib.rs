@@ -10,13 +10,21 @@ use survey_cad::{
 };
 
 /// Reads a CSV file of `x,y` pairs into [`Point`]s.
-pub fn read_points_csv(path: &str) -> io::Result<Vec<Point>> {
-    sc_read_csv(path)
+pub fn read_points_csv(
+    path: &str,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<Vec<Point>> {
+    sc_read_csv(path, src_epsg, dst_epsg)
 }
 
 /// Reads a GeoJSON file of Point features into [`Point`]s.
-pub fn read_points_geojson(path: &str) -> io::Result<Vec<Point>> {
-    sc_read_geojson(path)
+pub fn read_points_geojson(
+    path: &str,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<Vec<Point>> {
+    sc_read_geojson(path, src_epsg, dst_epsg)
 }
 
 /// Reads a DXF file and extracts all `POINT` entities.
@@ -255,7 +263,7 @@ mod tests {
     fn read_written_dxf_points() {
         let path = std::env::temp_dir().join("import_pts.dxf");
         let pts = vec![Point::new(1.0, 2.0), Point::new(3.0, 4.0)];
-        write_points_dxf(path.to_str().unwrap(), &pts).unwrap();
+        write_points_dxf(path.to_str().unwrap(), &pts, None, None).unwrap();
         let read = read_points_dxf(path.to_str().unwrap()).unwrap();
         assert_eq!(read, pts);
         std::fs::remove_file(path).ok();
