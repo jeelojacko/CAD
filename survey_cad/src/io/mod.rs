@@ -419,7 +419,12 @@ pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alignment::HorizontalAlignment;
+    use crate::alignment::{
+        HorizontalAlignment,
+        HorizontalElement,
+        VerticalAlignment,
+        VerticalElement,
+    };
     use crate::dtm::Tin;
     use crate::geometry::Point3;
 
