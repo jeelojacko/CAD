@@ -12,6 +12,8 @@ cad_import = { path = "../cad_import" }
 [features]
 default = ["render"]
 render = ["survey_cad/render"]
+shapefile = ["survey_cad/shapefile"]
+las = ["survey_cad/las"]
 
 [dev-dependencies]
 assert_cmd = "2"
