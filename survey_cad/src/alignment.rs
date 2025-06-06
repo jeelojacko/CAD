@@ -1,7 +1,7 @@
 use crate::geometry::{distance, Arc, Point, Point3, Polyline};
 
 /// Individual elements of a horizontal alignment.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum HorizontalElement {
     /// Straight tangent between two points.
     Tangent { start: Point, end: Point },
@@ -152,7 +152,7 @@ impl HorizontalElement {
 }
 
 /// Horizontal alignment consisting of tangent, curve and spiral elements.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct HorizontalAlignment {
     pub elements: Vec<HorizontalElement>,
 }
@@ -209,7 +209,7 @@ impl HorizontalAlignment {
 }
 
 /// Types of vertical alignment elements.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum VerticalElement {
     /// Straight grade between two stations.
     Grade {
@@ -228,7 +228,7 @@ pub enum VerticalElement {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VerticalAlignment {
     pub elements: Vec<VerticalElement>,
 }
@@ -321,7 +321,7 @@ impl VerticalAlignment {
 }
 
 /// Combined horizontal and vertical alignment.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Alignment {
     pub horizontal: HorizontalAlignment,
     pub vertical: VerticalAlignment,

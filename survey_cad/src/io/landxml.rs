@@ -314,3 +314,107 @@ pub fn write_landxml_alignment(path: &str, alignment: &HorizontalAlignment) -> i
     writeln!(&mut xml, "</LandXML>").unwrap();
     write_string(path, &xml)
 }
+
+/// Reads a LandXML file containing a vertical profile.
+pub fn read_landxml_profile(path: &str) -> io::Result<crate::alignment::VerticalAlignment> {
+    let xml = read_to_string(path)?;
+    let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut elements = Vec::new();
+    if let Some(profile) = doc.descendants().find(|n| n.has_tag_name("Profile")) {
+        for child in profile.children().filter(|c| c.is_element()) {
+            match child.tag_name().name() {
+                "Grade" => {
+                    let mut ss = None;
+                    let mut es = None;
+                    let mut se = None;
+                    let mut ee = None;
+                    for a in child.attributes() {
+                        match a.name() {
+                            "startSta" | "startStation" => ss = a.value().parse().ok(),
+                            "endSta" | "endStation" => es = a.value().parse().ok(),
+                            "startElev" => se = a.value().parse().ok(),
+                            "endElev" => ee = a.value().parse().ok(),
+                            _ => {}
+                        }
+                    }
+                    if let (Some(ss), Some(es), Some(se), Some(ee)) = (ss, es, se, ee) {
+                        elements.push(crate::alignment::VerticalElement::Grade {
+                            start_station: ss,
+                            end_station: es,
+                            start_elev: se,
+                            end_elev: ee,
+                        });
+                    }
+                }
+                "Parabola" | "Curve" => {
+                    let mut ss = None;
+                    let mut es = None;
+                    let mut se = None;
+                    let mut sg = None;
+                    let mut eg = None;
+                    for a in child.attributes() {
+                        match a.name() {
+                            "startSta" | "startStation" => ss = a.value().parse().ok(),
+                            "endSta" | "endStation" => es = a.value().parse().ok(),
+                            "startElev" => se = a.value().parse().ok(),
+                            "startGrade" => sg = a.value().parse().ok(),
+                            "endGrade" => eg = a.value().parse().ok(),
+                            _ => {}
+                        }
+                    }
+                    if let (Some(ss), Some(es), Some(se), Some(sg), Some(eg)) = (ss, es, se, sg, eg) {
+                        elements.push(crate::alignment::VerticalElement::Parabola {
+                            start_station: ss,
+                            end_station: es,
+                            start_elev: se,
+                            start_grade: sg,
+                            end_grade: eg,
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(crate::alignment::VerticalAlignment { elements })
+}
+
+/// Writes a [`VerticalAlignment`] to a LandXML file.
+pub fn write_landxml_profile(path: &str, profile: &crate::alignment::VerticalAlignment) -> io::Result<()> {
+    let mut xml = String::new();
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    writeln!(&mut xml, "  <Alignments>").unwrap();
+    writeln!(&mut xml, "    <Alignment name=\"VAL\">").unwrap();
+    writeln!(&mut xml, "      <Profile>").unwrap();
+    for elem in &profile.elements {
+        match elem {
+            crate::alignment::VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+                writeln!(
+                    &mut xml,
+                    "        <Grade startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" endElev=\"{}\"/>",
+                    start_station,
+                    end_station,
+                    start_elev,
+                    end_elev
+                ).unwrap();
+            }
+            crate::alignment::VerticalElement::Parabola { start_station, end_station, start_elev, start_grade, end_grade } => {
+                writeln!(
+                    &mut xml,
+                    "        <Parabola startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>",
+                    start_station,
+                    end_station,
+                    start_elev,
+                    start_grade,
+                    end_grade
+                ).unwrap();
+            }
+        }
+    }
+    writeln!(&mut xml, "      </Profile>").unwrap();
+    writeln!(&mut xml, "    </Alignment>").unwrap();
+    writeln!(&mut xml, "  </Alignments>").unwrap();
+    writeln!(&mut xml, "</LandXML>").unwrap();
+    write_string(path, &xml)
+}
