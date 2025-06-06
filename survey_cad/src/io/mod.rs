@@ -43,27 +43,34 @@ pub fn read_points_csv(
     let lines = read_lines(path)?;
     let mut pts: Vec<Point> = lines
         .iter()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| {
+        .enumerate()
+        .filter(|(_, line)| !line.trim().is_empty())
+        .map(|(idx, line)| {
             let parts: Vec<&str> = line.split(',').collect();
             if parts.len() != 2 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "expected two comma-separated values, got {} on line: '{}'",
-                        parts.len(),
-                        line
-                    ),
+                    format!("line {}: expected two comma-separated values", idx + 1),
                 ));
             }
             let x = parts[0]
                 .trim()
                 .parse::<f64>()
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("line {}: {}", idx + 1, e),
+                    )
+                })?;
             let y = parts[1]
                 .trim()
                 .parse::<f64>()
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("line {}: {}", idx + 1, e),
+                    )
+                })?;
             Ok(Point::new(x, y))
         })
         .collect::<Result<_, _>>()?;
@@ -507,6 +514,19 @@ mod tests {
         write_string(path_str, contents).unwrap();
         let err = read_points_csv(path_str, None, None).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("line 1"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn read_points_csv_parse_error_reports_line() {
+        let path = std::env::temp_dir().join("cad_points_parse.csv");
+        let path_str = path.to_str().unwrap();
+        let contents = "1.0,2.0\nabc,3.0\n";
+        write_string(path_str, contents).unwrap();
+        let err = read_points_csv(path_str, None, None).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("line 2"));
         std::fs::remove_file(path).ok();
     }
 
