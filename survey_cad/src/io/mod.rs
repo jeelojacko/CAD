@@ -551,4 +551,48 @@ mod tests {
         assert_eq!(read.elements.len(), 1);
         std::fs::remove_file(path).ok();
     }
+
+    #[test]
+    fn write_and_read_landxml_alignment_with_curve() {
+        use std::f64::consts::PI;
+        let path = std::env::temp_dir().join("align_curve.xml");
+        let mut elements = Vec::new();
+        elements.push(HorizontalElement::Tangent {
+            start: Point::new(0.0, 0.0),
+            end: Point::new(10.0, 0.0),
+        });
+        let arc = Arc::new(Point::new(10.0, 5.0), 5.0, -PI / 2.0, 0.0);
+        elements.push(HorizontalElement::Curve { arc });
+        let hal = HorizontalAlignment { elements };
+        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal).unwrap();
+        let read = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.elements.len(), 2);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_and_read_landxml_profile() {
+        let path = std::env::temp_dir().join("profile.xml");
+        let valign = VerticalAlignment {
+            elements: vec![
+                VerticalElement::Grade {
+                    start_station: 0.0,
+                    end_station: 10.0,
+                    start_elev: 0.0,
+                    end_elev: 5.0,
+                },
+                VerticalElement::Parabola {
+                    start_station: 10.0,
+                    end_station: 20.0,
+                    start_elev: 5.0,
+                    start_grade: 0.5,
+                    end_grade: 0.0,
+                },
+            ],
+        };
+        landxml::write_landxml_profile(path.to_str().unwrap(), &valign).unwrap();
+        let read = landxml::read_landxml_profile(path.to_str().unwrap()).unwrap();
+        assert_eq!(read.elements.len(), 2);
+        std::fs::remove_file(path).ok();
+    }
 }

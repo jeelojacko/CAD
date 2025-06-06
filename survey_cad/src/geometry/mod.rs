@@ -83,7 +83,7 @@ impl Surface3 {
 
 /// Representation of a circular arc defined by its center, radius and start/end
 /// angles (in radians).
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Arc {
     pub center: Point,
     pub radius: f64,
@@ -110,7 +110,7 @@ impl Arc {
 }
 
 /// Representation of a series of connected line segments.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Polyline {
     pub vertices: Vec<Point>,
 }

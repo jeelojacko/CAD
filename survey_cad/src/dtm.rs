@@ -22,7 +22,7 @@ fn point_in_polygon(p: Point, poly: &[Point]) -> bool {
 }
 
 /// Triangulated Irregular Network constructed from 3D points.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Tin {
     /// Vertices of the TIN.
     pub vertices: Vec<Point3>,
