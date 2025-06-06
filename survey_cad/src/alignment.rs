@@ -11,11 +11,13 @@ pub struct Spiral {
 }
 
 impl Spiral {
-    fn start_point(&self) -> Point {
+    /// Returns the starting point of the spiral.
+    pub fn start_point(&self) -> Point {
         self.start
     }
 
-    fn end_point(&self) -> Point {
+    /// Returns the end point of the spiral.
+    pub fn end_point(&self) -> Point {
         self.point_at(self.length)
     }
 
