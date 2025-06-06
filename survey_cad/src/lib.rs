@@ -1,12 +1,13 @@
 //! Core library for the Survey CAD application.
 
+pub mod dtm;
 pub mod geometry;
 pub mod io;
+#[cfg(feature = "pmetra")]
+pub mod pmetra;
 pub mod render;
 pub mod surveying;
 pub mod truck_integration;
-#[cfg(feature = "pmetra")]
-pub mod pmetra;
 
 /// Adds two numbers together. Example function.
 #[allow(dead_code)]

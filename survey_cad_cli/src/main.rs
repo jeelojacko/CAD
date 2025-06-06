@@ -1,4 +1,6 @@
+use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
+use std::str::FromStr;
 use survey_cad::{
     geometry::Point,
     io::{
@@ -11,7 +13,6 @@ use survey_cad::{
         Station, Traverse,
     },
 };
-use cad_import::{read_point_file, PointFileFormat};
 
 fn no_render() -> bool {
     std::env::var("SURVEY_CAD_TEST").is_ok()
@@ -147,34 +148,42 @@ fn main() {
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
-        Commands::ImportPoints { format, input, output } => {
-            match PointFileFormat::from_str(&format) {
-                Some(fmt) => match read_point_file(&input, fmt) {
-                    Ok(pts) => {
-                        use std::io::Write;
-                        match std::fs::File::create(&output) {
-                            Ok(mut file) => {
-                                for p in pts {
-                                    if let Some(n) = p.number {
-                                        if write!(file, "{}", n).is_err() { continue; }
-                                    }
-                                    if write!(file, ",{},{},{},", p.point.x, p.point.y, p.point.z).is_err() { continue; }
-                                    if let Some(desc) = p.description {
-                                        let _ = writeln!(file, "{}", desc);
-                                    } else {
-                                        let _ = writeln!(file);
+        Commands::ImportPoints {
+            format,
+            input,
+            output,
+        } => match PointFileFormat::from_str(&format) {
+            Ok(fmt) => match read_point_file(&input, fmt) {
+                Ok(pts) => {
+                    use std::io::Write;
+                    match std::fs::File::create(&output) {
+                        Ok(mut file) => {
+                            for p in pts {
+                                if let Some(n) = p.number {
+                                    if write!(file, "{}", n).is_err() {
+                                        continue;
                                     }
                                 }
-                                println!("Wrote {}", output);
+                                if write!(file, ",{},{},{},", p.point.x, p.point.y, p.point.z)
+                                    .is_err()
+                                {
+                                    continue;
+                                }
+                                if let Some(desc) = p.description {
+                                    let _ = writeln!(file, "{}", desc);
+                                } else {
+                                    let _ = writeln!(file);
+                                }
                             }
-                            Err(e) => eprintln!("Error writing {}: {}", output, e),
+                            println!("Wrote {}", output);
                         }
+                        Err(e) => eprintln!("Error writing {}: {}", output, e),
                     }
-                    Err(e) => eprintln!("Error reading {}: {}", input, e),
-                },
-                None => eprintln!("Unknown format {}", format),
-            }
-        }
+                }
+                Err(e) => eprintln!("Error reading {}: {}", input, e),
+            },
+            Err(_) => eprintln!("Unknown format {}", format),
+        },
         Commands::ExportDxf { input, output } => match read_points_csv(&input) {
             Ok(pts) => match write_points_dxf(&output, &pts) {
                 Ok(()) => println!("Wrote {}", output),

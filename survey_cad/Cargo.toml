@@ -16,6 +16,7 @@ bevy_pmetra = { path = "../bevy_pmetra", optional = true }
 truck-modeling = "0.6"
 truck-topology = "0.6"
 truck-geometry = "0.5"
+delaunator = "1"
 
 [features]
 pmetra = ["bevy/bevy_pbr", "dep:bevy_pmetra"]

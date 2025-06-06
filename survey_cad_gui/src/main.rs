@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 use bevy::prelude::*;
 use survey_cad::geometry::Point;
 
