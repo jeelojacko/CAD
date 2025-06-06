@@ -8,6 +8,7 @@ pub mod crs;
 pub mod io;
 #[cfg(feature = "pmetra")]
 pub mod pmetra;
+#[cfg(feature = "render")]
 pub mod render;
 pub mod surveying;
 pub mod truck_integration;

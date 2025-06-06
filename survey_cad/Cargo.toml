@@ -9,9 +9,9 @@ env_logger = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 geojson = "0.24"
-bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11"] }
-bevy_editor_cam = "0.5"
-bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"] }
+bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11"], optional = true }
+bevy_editor_cam = { version = "0.5", optional = true }
+bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"], optional = true }
 bevy_pmetra = { path = "../bevy_pmetra", optional = true }
 truck-modeling = "0.6"
 truck-topology = "0.6"
@@ -22,4 +22,6 @@ roxmltree = "0.20"
 proj = "0.30"
 
 [features]
-pmetra = ["bevy/bevy_pbr", "dep:bevy_pmetra"]
+default = []
+render = ["dep:bevy", "dep:bevy_editor_cam", "dep:bevy_picking"]
+pmetra = ["render", "bevy/bevy_pbr", "dep:bevy_pmetra"]

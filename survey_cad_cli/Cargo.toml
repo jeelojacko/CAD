@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-survey_cad = { path = "../survey_cad" }
+survey_cad = { path = "../survey_cad", features = ["render"] }
 clap = { version = "4", features = ["derive"] }
 cad_import = { path = "../cad_import" }
 

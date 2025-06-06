@@ -18,7 +18,8 @@ The workspace contains two crates:
 - `survey_cad_cli` &mdash; small command line tool that demonstrates the library capabilities.
 
 Each module in the library is focused on a specific set of tasks and can be used
-independently within other Rust projects.
+independently within other Rust projects. Heavy rendering dependencies are
+optional and enabled with the `render` feature.
 
 ## CLI Tutorial
 
