@@ -83,6 +83,12 @@ Calculate a new elevation using differential leveling:
 $ cargo run -p survey_cad_cli -- level-elevation 100.0 1.2 0.8
 ```
 
+Compute cut/fill volume along an alignment:
+
+```bash
+$ cargo run -p survey_cad_cli -- corridor-volume design.csv ground.csv halign.csv valign.csv 10.0 --interval 10.0 --offset-step 1.0
+```
+
 ## Continuous Integration
 
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push

@@ -122,6 +122,50 @@ pub fn build_design_surface(
     Tin::from_points(pts)
 }
 
+/// Calculates the volume between a design and ground surface along an alignment
+/// using the average end area method.
+pub fn corridor_volume(
+    design: &Tin,
+    ground: &Tin,
+    alignment: &Alignment,
+    width: f64,
+    station_interval: f64,
+    offset_step: f64,
+) -> f64 {
+    let design_sections =
+        extract_cross_sections(design, alignment, width, station_interval, offset_step);
+    let ground_sections =
+        extract_cross_sections(ground, alignment, width, station_interval, offset_step);
+    let count = design_sections.len().min(ground_sections.len());
+    if count < 2 {
+        return 0.0;
+    }
+
+    let mut areas = Vec::new();
+    for i in 0..count {
+        let d = &design_sections[i];
+        let g = &ground_sections[i];
+        let n = d.points.len().min(g.points.len());
+        if n < 2 {
+            areas.push(0.0);
+            continue;
+        }
+        let mut area = 0.0;
+        for j in 0..(n - 1) {
+            let dz1 = d.points[j].z - g.points[j].z;
+            let dz2 = d.points[j + 1].z - g.points[j + 1].z;
+            area += (dz1 + dz2) * 0.5 * offset_step;
+        }
+        areas.push(area);
+    }
+
+    let mut volume = 0.0;
+    for i in 0..(areas.len() - 1) {
+        volume += (areas[i] + areas[i + 1]) * 0.5 * station_interval;
+    }
+    volume
+}
+
 
 #[cfg(test)]
 mod tests {
