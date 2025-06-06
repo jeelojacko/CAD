@@ -1,108 +1,14 @@
 //! Basic geometry primitives for CAD operations.
 
-/// Available drawing styles for a line entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineType {
-    /// Continuous solid line.
-    Solid,
-    /// Dashed line style.
-    Dashed,
-    /// Dotted line style.
-    Dotted,
-}
+pub mod point;
+pub mod line;
+pub mod point3;
+pub mod line3;
 
-/// Symbol used when rendering a point entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PointSymbol {
-    #[default]
-    Circle,
-    Square,
-    Cross,
-}
-
-/// Representation of a point with optional name and number.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct NamedPoint {
-    pub point: Point,
-    pub name: Option<String>,
-    pub number: Option<u32>,
-    #[serde(skip)]
-    pub symbol: PointSymbol,
-}
-
-impl NamedPoint {
-    /// Creates a new named point.
-    pub fn new(point: Point, name: Option<String>, number: Option<u32>) -> Self {
-        Self {
-            point,
-            name,
-            number,
-            symbol: PointSymbol::Circle,
-        }
-    }
-}
-
-/// Representation of a 2D point.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl Point {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y }
-    }
-}
-
-/// Representation of a 2D line segment between two points.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Line {
-    pub start: Point,
-    pub end: Point,
-}
-
-impl Line {
-    /// Creates a new line segment.
-    pub fn new(start: Point, end: Point) -> Self {
-        Self { start, end }
-    }
-
-    /// Returns the length of the line segment.
-    pub fn length(&self) -> f64 {
-        distance(self.start, self.end)
-    }
-
-    /// Returns the midpoint of the line segment.
-    pub fn midpoint(&self) -> Point {
-        Point::new(
-            (self.start.x + self.end.x) / 2.0,
-            (self.start.y + self.end.y) / 2.0,
-        )
-    }
-
-    /// Returns the azimuth from the start point to the end point in radians.
-    pub fn azimuth(&self) -> f64 {
-        (self.end.y - self.start.y).atan2(self.end.x - self.start.x)
-    }
-}
-
-/// Annotation describing line distance and azimuth.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct LineAnnotation {
-    pub distance: f64,
-    pub azimuth: f64,
-}
-
-impl LineAnnotation {
-    /// Creates a new annotation using the properties of `line`.
-    pub fn from_line(line: &Line) -> Self {
-        Self {
-            distance: line.length(),
-            azimuth: line.azimuth(),
-        }
-    }
-}
+pub use line::{Line, LineAnnotation, LineType};
+pub use line3::Line3;
+pub use point::{NamedPoint, Point, PointSymbol};
+pub use point3::Point3;
 
 /// Calculates the Euclidean distance between two points.
 pub fn distance(a: Point, b: Point) -> f64 {
@@ -122,47 +28,6 @@ pub fn polygon_area(vertices: &[Point]) -> f64 {
     sum.abs() * 0.5
 }
 
-/// Representation of a 3D point.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Point3 {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-}
-
-impl Point3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z }
-    }
-}
-
-/// Representation of a 3D line segment between two points.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Line3 {
-    pub start: Point3,
-    pub end: Point3,
-}
-
-impl Line3 {
-    /// Creates a new line segment.
-    pub fn new(start: Point3, end: Point3) -> Self {
-        Self { start, end }
-    }
-
-    /// Returns the length of the line segment.
-    pub fn length(&self) -> f64 {
-        distance3(self.start, self.end)
-    }
-
-    /// Returns the midpoint of the line segment.
-    pub fn midpoint(&self) -> Point3 {
-        Point3::new(
-            (self.start.x + self.end.x) / 2.0,
-            (self.start.y + self.end.y) / 2.0,
-            (self.start.z + self.end.z) / 2.0,
-        )
-    }
-}
 
 /// Calculates the Euclidean distance between two 3D points.
 pub fn distance3(a: Point3, b: Point3) -> f64 {
