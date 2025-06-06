@@ -20,8 +20,12 @@ delaunator = "1"
 cdt = "0.1"
 roxmltree = "0.20"
 proj = "0.30"
+shapefile = { version = "0.7", optional = true }
+las = { version = "0.9", optional = true }
 
 [features]
 default = []
 render = ["dep:bevy", "dep:bevy_editor_cam", "dep:bevy_picking"]
 pmetra = ["render", "bevy/bevy_pbr", "dep:bevy_pmetra"]
+shapefile = ["dep:shapefile"]
+las = ["dep:las"]
