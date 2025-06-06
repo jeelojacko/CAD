@@ -7,6 +7,7 @@ pub mod dtm;
 pub mod geometry;
 pub mod intersection;
 pub mod io;
+pub mod parcel;
 #[cfg(feature = "pmetra")]
 pub mod pmetra;
 #[cfg(feature = "render")]

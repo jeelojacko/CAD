@@ -206,6 +206,93 @@ impl Tin {
         Some(a - b)
     }
 
+    /// Projects a constant slope from `start` along `dir` onto the surface.
+    /// `slope` is vertical change per unit horizontal distance. The search
+    /// progresses in `step` increments up to `max_dist` and returns the
+    /// daylight point when the projected grade intersects the surface.
+    pub fn slope_projection(
+        &self,
+        start: Point3,
+        dir: (f64, f64),
+        slope: f64,
+        step: f64,
+        max_dist: f64,
+    ) -> Option<Point3> {
+        let len = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
+        if len <= f64::EPSILON || step <= 0.0 {
+            return None;
+        }
+        let dir = (dir.0 / len, dir.1 / len);
+        let mut dist = 0.0;
+        let mut prev = start.z - self.elevation_at(start.x, start.y)?;
+        while dist <= max_dist {
+            let x = start.x + dir.0 * dist;
+            let y = start.y + dir.1 * dist;
+            if let Some(ground) = self.elevation_at(x, y) {
+                let design = start.z + slope * dist;
+                let diff = design - ground;
+                if diff.abs() < 1e-3 {
+                    return Some(Point3::new(x, y, ground));
+                }
+                if diff.signum() != prev.signum() {
+                    let t = prev / (prev - diff);
+                    let xi = x - dir.0 * step * (1.0 - t);
+                    let yi = y - dir.1 * step * (1.0 - t);
+                    if let Some(z) = self.elevation_at(xi, yi) {
+                        return Some(Point3::new(xi, yi, z));
+                    }
+                    return None;
+                }
+                prev = diff;
+            } else {
+                return None;
+            }
+            dist += step;
+        }
+        None
+    }
+
+    /// Generates a daylight line polyline from `start` along `dir` with the
+    /// provided `slope`. Points are spaced at `step` intervals until the
+    /// projected grade meets the surface or `max_dist` is exceeded.
+    pub fn daylight_line(
+        &self,
+        start: Point3,
+        dir: (f64, f64),
+        slope: f64,
+        step: f64,
+        max_dist: f64,
+    ) -> Vec<Point3> {
+        let len = (dir.0 * dir.0 + dir.1 * dir.1).sqrt();
+        if len <= f64::EPSILON || step <= 0.0 {
+            return vec![start];
+        }
+        let dir = (dir.0 / len, dir.1 / len);
+        let mut pts = vec![start];
+        let mut dist = step;
+        let mut prev = start.z - self.elevation_at(start.x, start.y).unwrap_or(start.z);
+        while dist <= max_dist {
+            let x = start.x + dir.0 * dist;
+            let y = start.y + dir.1 * dist;
+            let z = start.z + slope * dist;
+            pts.push(Point3::new(x, y, z));
+            if let Some(ground) = self.elevation_at(x, y) {
+                let diff = z - ground;
+                if diff.signum() != prev.signum() {
+                    if let Some(p) = self.slope_projection(start, dir, slope, step, dist) {
+                        pts.push(p);
+                    }
+                    break;
+                }
+                prev = diff;
+            } else {
+                break;
+            }
+            dist += step;
+        }
+        pts
+    }
+
     /// Generates contour line segments at the specified interval. Optional
     /// `include` and `exclude` polygons can limit where contours are created.
     pub fn contour_segments(&self, interval: f64) -> Vec<(Point3, Point3)> {
@@ -466,5 +553,21 @@ mod tests {
             .triangles
             .iter()
             .any(|t| t.contains(&0) && t.contains(&2)));
+    }
+
+    #[test]
+    fn slope_projection_simple() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let start = Point3::new(5.0, 5.0, 5.0);
+        let p = tin
+            .slope_projection(start, (1.0, 0.0), -1.0, 1.0, 10.0)
+            .unwrap();
+        assert!((p.x - 10.0).abs() < 1.0e-6);
     }
 }
