@@ -8,6 +8,10 @@ use crate::crs::Crs;
 use crate::geometry::{Arc, Point, Polyline};
 
 pub mod landxml;
+#[cfg(feature = "las")]
+pub mod las;
+#[cfg(feature = "shapefile")]
+pub mod shp;
 
 /// Reads a file to string.
 pub fn read_to_string(path: &str) -> io::Result<String> {

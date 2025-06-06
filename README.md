@@ -10,6 +10,12 @@ advanced primitives like arcs, polylines and polygonal surfaces. Surveying
 utilities cover traverse area calculations as well as vertical angle and
 differential leveling helpers.
 
+Supported file formats include CSV, GeoJSON, simple DXF and LandXML. Optional
+features provide shapefile and LAS point cloud readers to ease interoperability
+with other CAD and GIS tools.
+Bridging directly to DWG files remains future work and would further broaden
+compatibility with proprietary CAD ecosystems.
+
 ## Architecture Overview
 
 The workspace contains two crates:
