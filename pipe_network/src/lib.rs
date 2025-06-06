@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::io::{self, Write};
 
+use roxmltree::Document;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +95,34 @@ pub fn write_network_landxml(path: &str, net: &Network) -> io::Result<()> {
     std::fs::write(path, xml)
 }
 
+pub fn read_network_landxml(path: &str) -> io::Result<Network> {
+    let xml = std::fs::read_to_string(path)?;
+    let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut network = Network::default();
+    if let Some(structs) = doc.descendants().find(|n| n.has_tag_name("Structs")) {
+        for s in structs.children().filter(|c| c.has_tag_name("Struct")) {
+            network.structures.push(Structure {
+                id: s.attribute("id").unwrap_or("").to_string(),
+                x: s.attribute("x").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+                y: s.attribute("y").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+                z: s.attribute("z").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+            });
+        }
+    }
+    if let Some(pipes) = doc.descendants().find(|n| n.has_tag_name("Pipes")) {
+        for p in pipes.children().filter(|c| c.has_tag_name("Pipe")) {
+            network.pipes.push(Pipe {
+                id: p.attribute("id").unwrap_or("").to_string(),
+                from: p.attribute("from").unwrap_or("").to_string(),
+                to: p.attribute("to").unwrap_or("").to_string(),
+                diameter: p.attribute("diameter").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+                c: p.attribute("c").and_then(|v| v.parse().ok()).unwrap_or(100.0),
+            });
+        }
+    }
+    Ok(network)
+}
+
 /// Calculates head loss using the Hazen-Williams equation (SI units).
 pub fn hazen_williams_headloss(flow: f64, length: f64, diameter: f64, c: f64) -> f64 {
     if diameter <= 0.0 || c <= 0.0 { return 0.0; }
@@ -107,10 +137,46 @@ pub fn hydraulic_grade(start_elev: f64, headloss: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn headloss_calc() {
         let h = hazen_williams_headloss(0.1, 100.0, 0.3, 120.0);
         assert!(h > 0.0);
+    }
+
+    #[test]
+    fn landxml_round_trip() {
+        let net = Network {
+            structures: vec![
+                Structure { id: "S1".into(), x: 0.0, y: 0.0, z: 0.0 },
+                Structure { id: "S2".into(), x: 1.0, y: 1.0, z: 0.5 },
+            ],
+            pipes: vec![Pipe {
+                id: "P1".into(),
+                from: "S1".into(),
+                to: "S2".into(),
+                diameter: 0.3,
+                c: 120.0,
+            }],
+        };
+        let file = NamedTempFile::new().unwrap();
+        write_network_landxml(file.path().to_str().unwrap(), &net).unwrap();
+        let read = read_network_landxml(file.path().to_str().unwrap()).unwrap();
+        assert_eq!(read.structures.len(), net.structures.len());
+        assert_eq!(read.pipes.len(), net.pipes.len());
+        for (a, b) in read.structures.iter().zip(net.structures.iter()) {
+            assert_eq!(a.id, b.id);
+            assert!((a.x - b.x).abs() < 1e-6);
+            assert!((a.y - b.y).abs() < 1e-6);
+            assert!((a.z - b.z).abs() < 1e-6);
+        }
+        for (a, b) in read.pipes.iter().zip(net.pipes.iter()) {
+            assert_eq!(a.id, b.id);
+            assert_eq!(a.from, b.from);
+            assert_eq!(a.to, b.to);
+            assert!((a.diameter - b.diameter).abs() < 1e-6);
+            assert!((a.c - b.c).abs() < 1e-6);
+        }
     }
 }
