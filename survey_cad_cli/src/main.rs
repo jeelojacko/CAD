@@ -1,18 +1,18 @@
 use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
+#[cfg(feature = "render")]
+use survey_cad::render::{render_point, render_points};
 use survey_cad::{
-    crs::Crs,
-    geometry::{Point, Point3},
     alignment::{Alignment, HorizontalAlignment, VerticalAlignment},
     corridor::corridor_volume,
+    crs::Crs,
     dtm::Tin,
+    geometry::{Point, Point3},
     io::{
         landxml::read_landxml_surface, read_lines, read_points_csv, read_points_geojson,
         read_to_string, write_points_csv, write_points_dxf, write_points_geojson, write_string,
     },
-    #[cfg(feature = "render")]
-    render::{render_point, render_points},
     surveying::{
         bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle,
         Station, Traverse,
@@ -41,13 +41,22 @@ fn read_surface(path: &str) -> std::io::Result<Tin> {
                 ));
             }
             let x: f64 = parts[0].trim().parse().map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("line {}: {}", idx + 1, e),
+                )
             })?;
             let y: f64 = parts[1].trim().parse().map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("line {}: {}", idx + 1, e),
+                )
             })?;
             let z: f64 = parts[2].trim().parse().map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("line {}: {}", idx + 1, e),
+                )
             })?;
             pts.push(Point3::new(x, y, z));
         }
@@ -357,16 +366,21 @@ fn main() {
             let elev = level_elevation(start_elev, backsight, foresight);
             println!("New elevation: {:.3}", elev);
         }
-        Commands::NetworkAdjust { points, observations } => {
-            use survey_cad::surveying::{adjust_network, Observation};
+        Commands::NetworkAdjust {
+            points,
+            observations,
+        } => {
             use std::collections::HashMap;
+            use survey_cad::surveying::{adjust_network, Observation};
             match (read_lines(&points), read_lines(&observations)) {
                 (Ok(p_lines), Ok(o_lines)) => {
                     let mut names = Vec::new();
                     let mut pts = Vec::new();
                     let mut fixed = Vec::new();
                     for (idx, line) in p_lines.iter().enumerate() {
-                        if line.trim().is_empty() { continue; }
+                        if line.trim().is_empty() {
+                            continue;
+                        }
                         let parts: Vec<&str> = line.split(',').collect();
                         if parts.len() < 3 {
                             eprintln!("{} line {} invalid", points, idx + 1);
@@ -381,27 +395,50 @@ fn main() {
                         pts.push(Point::new(x, y));
                     }
                     let mut index: HashMap<String, usize> = HashMap::new();
-                    for (i, n) in names.iter().enumerate() { index.insert(n.clone(), i); }
+                    for (i, n) in names.iter().enumerate() {
+                        index.insert(n.clone(), i);
+                    }
                     let mut obs = Vec::new();
                     for (idx, line) in o_lines.iter().enumerate() {
-                        if line.trim().is_empty() { continue; }
+                        if line.trim().is_empty() {
+                            continue;
+                        }
                         let parts: Vec<&str> = line.split(',').collect();
-                        if parts.is_empty() { continue; }
+                        if parts.is_empty() {
+                            continue;
+                        }
                         match parts[0].trim().to_ascii_lowercase().as_str() {
                             "dist" | "distance" => {
-                                if parts.len() < 4 { eprintln!("{} line {} invalid", observations, idx + 1); return; }
+                                if parts.len() < 4 {
+                                    eprintln!("{} line {} invalid", observations, idx + 1);
+                                    return;
+                                }
                                 let from = index[parts[1].trim()];
                                 let to = index[parts[2].trim()];
                                 let val: f64 = parts[3].trim().parse().unwrap_or(0.0);
-                                obs.push(Observation::Distance { from, to, value: val, weight: 1.0 });
+                                obs.push(Observation::Distance {
+                                    from,
+                                    to,
+                                    value: val,
+                                    weight: 1.0,
+                                });
                             }
                             "angle" => {
-                                if parts.len() < 5 { eprintln!("{} line {} invalid", observations, idx + 1); return; }
+                                if parts.len() < 5 {
+                                    eprintln!("{} line {} invalid", observations, idx + 1);
+                                    return;
+                                }
                                 let at = index[parts[1].trim()];
                                 let from = index[parts[2].trim()];
                                 let to = index[parts[3].trim()];
                                 let val: f64 = parts[4].trim().parse().unwrap_or(0.0);
-                                obs.push(Observation::Angle { at, from, to, value: val, weight: 1.0 });
+                                obs.push(Observation::Angle {
+                                    at,
+                                    from,
+                                    to,
+                                    value: val,
+                                    weight: 1.0,
+                                });
                             }
                             _ => {
                                 eprintln!("{} line {} unknown obs", observations, idx + 1);
