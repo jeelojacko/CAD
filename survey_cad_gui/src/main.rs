@@ -43,6 +43,27 @@ struct SurfaceData {
     point_map: HashMap<Entity, usize>,
 }
 
+#[derive(Resource, Default)]
+struct SurfaceTin(Option<survey_cad::dtm::Tin>);
+
+#[derive(Component)]
+struct SurfaceMesh;
+
+#[derive(Component)]
+struct BuildSurfaceButton;
+
+#[derive(Component)]
+struct ShowProfileButton;
+
+#[derive(Component)]
+struct ShowSectionsButton;
+
+#[derive(Component)]
+struct ProfileLine;
+
+#[derive(Component)]
+struct SectionLine;
+
 #[derive(Component)]
 struct AddAlignmentButton;
 
@@ -102,6 +123,7 @@ fn main() {
         .insert_resource(Dragging::default())
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
+        .insert_resource(SurfaceTin::default())
         .insert_resource(CorridorParams::default())
         .add_systems(Startup, setup)
         .add_systems(
@@ -116,6 +138,9 @@ fn main() {
                 handle_add_breakline,
                 handle_add_hole,
                 handle_corridor_buttons,
+                handle_build_surface,
+                handle_show_profile,
+                handle_show_sections,
             ),
         )
         .run();
@@ -124,6 +149,17 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<WorkingCrs>) {
     println!("GUI working CRS EPSG: {}", working.0.epsg());
     commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
+        ..default()
+    });
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            shadows_enabled: false,
+            ..default()
+        },
+        ..default()
+    });
     spawn_toolbar(&mut commands, &asset_server);
     spawn_edit_panel(&mut commands, &asset_server);
     // Example content
@@ -311,6 +347,54 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                     })
                     .insert(CorridorButton(ctl));
             }
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Build Surface"),
+                    ));
+                })
+                .insert(BuildSurfaceButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Show Profile"),
+                    ));
+                })
+                .insert(ShowProfileButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Show Sections"),
+                    ));
+                })
+                .insert(ShowSectionsButton);
         });
 }
 
@@ -559,6 +643,162 @@ fn handle_corridor_buttons(
                 "Corridor params -> width: {:.1}, interval: {:.1}, offset: {:.1}",
                 params.width, params.interval, params.offset_step
             );
+        }
+    }
+}
+
+fn build_tin(data: &SurfaceData) -> survey_cad::dtm::Tin {
+    survey_cad::dtm::Tin::from_points_constrained_with_holes(
+        data.vertices.clone(),
+        Some(&data.breaklines),
+        None,
+        &data.holes,
+    )
+}
+
+fn handle_build_surface(
+    interaction: Query<
+        &Interaction,
+        (Changed<Interaction>, With<Button>, With<BuildSurfaceButton>),
+    >,
+    data: Res<SurfaceData>,
+    mut tin_res: ResMut<SurfaceTin>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    existing: Query<Entity, With<SurfaceMesh>>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &existing {
+            commands.entity(e).despawn_recursive();
+        }
+        let tin = build_tin(&data);
+        let mesh = build_surface_mesh(&tin);
+        let handle = meshes.add(mesh);
+        let mat = materials.add(StandardMaterial {
+            base_color: Color::GREEN,
+            ..default()
+        });
+        commands
+            .spawn(PbrBundle {
+                mesh: handle,
+                material: mat,
+                ..default()
+            })
+            .insert(SurfaceMesh);
+        tin_res.0 = Some(tin);
+    }
+}
+
+fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
+    use bevy::render::mesh::{Indices, PrimitiveTopology};
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    let positions: Vec<[f32; 3]> = tin
+        .vertices
+        .iter()
+        .map(|p| [p.x as f32, p.y as f32, p.z as f32])
+        .collect();
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+    let uvs = vec![[0.0, 0.0]; positions.len()];
+    let indices: Vec<u32> = tin
+        .triangles
+        .iter()
+        .flat_map(|t| [t[0] as u32, t[1] as u32, t[2] as u32])
+        .collect();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.set_indices(Some(Indices::U32(indices)));
+    mesh
+}
+
+fn handle_show_profile(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ShowProfileButton>)>,
+    data: Res<AlignmentData>,
+    mut commands: Commands,
+    existing: Query<Entity, With<ProfileLine>>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &existing {
+            commands.entity(e).despawn_recursive();
+        }
+        let offset = 50.0f32;
+        for pair in data.points.windows(2) {
+            let a = Vec2::new(pair[0].x as f32, pair[0].y as f32 + offset);
+            let b = Vec2::new(pair[1].x as f32, pair[1].y as f32 + offset);
+            commands.spawn((
+                SpriteBundle {
+                    sprite: Sprite {
+                        color: Color::BLUE,
+                        custom_size: Some(Vec2::new(a.distance(b), 2.0)),
+                        ..default()
+                    },
+                    transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                        .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                    ..default()
+                },
+                ProfileLine,
+            ));
+        }
+    }
+}
+
+fn handle_show_sections(
+    interaction: Query<
+        &Interaction,
+        (Changed<Interaction>, With<Button>, With<ShowSectionsButton>),
+    >,
+    tin_res: Res<SurfaceTin>,
+    data: Res<AlignmentData>,
+    params: Res<CorridorParams>,
+    mut commands: Commands,
+    existing: Query<Entity, With<SectionLine>>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &existing {
+            commands.entity(e).despawn_recursive();
+        }
+        if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
+            use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+            use survey_cad::corridor::extract_cross_sections;
+            let hal = HorizontalAlignment::new(data.points.clone());
+            let v_pairs: Vec<(f64, f64)> = data
+                .points
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (i as f64, p.y))
+                .collect();
+            let val = VerticalAlignment::new(v_pairs);
+            let align = Alignment::new(hal, val);
+            let sections = extract_cross_sections(
+                tin,
+                &align,
+                params.width,
+                params.interval,
+                params.offset_step,
+            );
+            let mut idx = 0f32;
+            for sec in sections {
+                let base = idx * 20.0 - 50.0;
+                for pair in sec.points.windows(2) {
+                    let a = Vec2::new(base + (pair[0].x as f32), pair[0].z as f32);
+                    let b = Vec2::new(base + (pair[1].x as f32), pair[1].z as f32);
+                    commands.spawn((
+                        SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::YELLOW,
+                                custom_size: Some(Vec2::new(a.distance(b), 1.0)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                            ..default()
+                        },
+                        SectionLine,
+                    ));
+                }
+                idx += 1.0;
+            }
         }
     }
 }
