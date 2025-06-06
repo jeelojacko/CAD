@@ -50,11 +50,11 @@ mod tests {
             }
         }
         let tmp_csv = std::env::temp_dir().join("cube_pts.csv");
-        write_points_csv(tmp_csv.to_str().unwrap(), &points).unwrap();
+        write_points_csv(tmp_csv.to_str().unwrap(), &points, None, None).unwrap();
         fs::remove_file(tmp_csv).ok();
 
         let tmp_json = std::env::temp_dir().join("cube_pts.geojson");
-        write_points_geojson(tmp_json.to_str().unwrap(), &points).unwrap();
+        write_points_geojson(tmp_json.to_str().unwrap(), &points, None, None).unwrap();
         fs::remove_file(tmp_json).ok();
     }
 }
