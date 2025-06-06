@@ -4,6 +4,7 @@ pub mod dtm;
 pub mod geometry;
 pub mod alignment;
 pub mod corridor;
+pub mod crs;
 pub mod io;
 #[cfg(feature = "pmetra")]
 pub mod pmetra;

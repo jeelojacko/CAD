@@ -18,6 +18,7 @@ truck-topology = "0.6"
 truck-geometry = "0.5"
 delaunator = "1"
 roxmltree = "0.20"
+proj = "0.30"
 
 [features]
 pmetra = ["bevy/bevy_pbr", "dep:bevy_pmetra"]
