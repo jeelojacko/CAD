@@ -233,8 +233,16 @@ pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
                         }
                     }
                     if let (Some(s), Some(e)) = (start, end) {
-                        let pl = Polyline::new(vec![s, e]);
-                        elements.push(HorizontalElement::Spiral { polyline: pl });
+                        let len = crate::geometry::distance(s, e);
+                        let ori = (e.y - s.y).atan2(e.x - s.x);
+                        let spiral = crate::alignment::Spiral {
+                            start: s,
+                            orientation: ori,
+                            length: len,
+                            start_radius: f64::INFINITY,
+                            end_radius: f64::INFINITY,
+                        };
+                        elements.push(HorizontalElement::Spiral { spiral });
                     }
                 }
                 _ => {}
@@ -299,13 +307,13 @@ pub fn write_landxml_alignment(path: &str, alignment: &HorizontalAlignment) -> i
                 .unwrap();
                 writeln!(&mut xml, "        </Curve>").unwrap();
             }
-            HorizontalElement::Spiral { polyline } => {
-                if let (Some(s), Some(e)) = (polyline.vertices.first(), polyline.vertices.last()) {
-                    writeln!(&mut xml, "        <Spiral>").unwrap();
-                    writeln!(&mut xml, "          <Start>{} {}</Start>", s.x, s.y).unwrap();
-                    writeln!(&mut xml, "          <End>{} {}</End>", e.x, e.y).unwrap();
-                    writeln!(&mut xml, "        </Spiral>").unwrap();
-                }
+            HorizontalElement::Spiral { spiral } => {
+                let s = spiral.start_point();
+                let e = spiral.end_point();
+                writeln!(&mut xml, "        <Spiral>").unwrap();
+                writeln!(&mut xml, "          <Start>{} {}</Start>", s.x, s.y).unwrap();
+                writeln!(&mut xml, "          <End>{} {}</End>", e.x, e.y).unwrap();
+                writeln!(&mut xml, "        </Spiral>").unwrap();
             }
         }
     }
