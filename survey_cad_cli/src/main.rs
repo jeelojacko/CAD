@@ -44,9 +44,23 @@ enum Commands {
     /// Render a point (prints to stdout).
     RenderPoint { x: f64, y: f64 },
     /// Export points from a CSV file to GeoJSON.
-    ExportGeojson { input: String, output: String },
+    ExportGeojson {
+        input: String,
+        output: String,
+        #[arg(long)]
+        src_epsg: Option<u32>,
+        #[arg(long)]
+        dst_epsg: Option<u32>,
+    },
     /// Import points from a GeoJSON file to CSV.
-    ImportGeojson { input: String, output: String },
+    ImportGeojson {
+        input: String,
+        output: String,
+        #[arg(long)]
+        src_epsg: Option<u32>,
+        #[arg(long)]
+        dst_epsg: Option<u32>,
+    },
     /// Import survey points from a text file in a given format to CSV.
     ImportPoints {
         format: String,
@@ -54,7 +68,14 @@ enum Commands {
         output: String,
     },
     /// Export points from a CSV file to a simple DXF.
-    ExportDxf { input: String, output: String },
+    ExportDxf {
+        input: String,
+        output: String,
+        #[arg(long)]
+        src_epsg: Option<u32>,
+        #[arg(long)]
+        dst_epsg: Option<u32>,
+    },
     /// View points from a CSV file.
     ViewPoints { input: String },
     /// Compute the vertical angle between two stations given their elevations.
@@ -112,7 +133,7 @@ fn main() {
             let dist = station_distance(&a, &b);
             println!("Distance between {} and {} is {:.3}", a.name, b.name, dist);
         }
-        Commands::TraverseArea { path } => match read_points_csv(&path) {
+        Commands::TraverseArea { path } => match read_points_csv(&path, None, None) {
             Ok(pts) => {
                 let traverse = Traverse::new(pts);
                 println!("Area: {:.3}", traverse.area());
@@ -134,15 +155,25 @@ fn main() {
                 render_point(p);
             }
         }
-        Commands::ExportGeojson { input, output } => match read_points_csv(&input) {
-            Ok(pts) => match write_points_geojson(&output, &pts) {
+        Commands::ExportGeojson {
+            input,
+            output,
+            src_epsg,
+            dst_epsg,
+        } => match read_points_csv(&input, src_epsg, dst_epsg) {
+            Ok(pts) => match write_points_geojson(&output, &pts, None, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
-        Commands::ImportGeojson { input, output } => match read_points_geojson(&input) {
-            Ok(pts) => match write_points_csv(&output, &pts) {
+        Commands::ImportGeojson {
+            input,
+            output,
+            src_epsg,
+            dst_epsg,
+        } => match read_points_geojson(&input, src_epsg, dst_epsg) {
+            Ok(pts) => match write_points_csv(&output, &pts, None, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
@@ -184,14 +215,19 @@ fn main() {
             },
             Err(_) => eprintln!("Unknown format {}", format),
         },
-        Commands::ExportDxf { input, output } => match read_points_csv(&input) {
-            Ok(pts) => match write_points_dxf(&output, &pts) {
+        Commands::ExportDxf {
+            input,
+            output,
+            src_epsg,
+            dst_epsg,
+        } => match read_points_csv(&input, src_epsg, dst_epsg) {
+            Ok(pts) => match write_points_dxf(&output, &pts, None, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
-        Commands::ViewPoints { input } => match read_points_csv(&input) {
+        Commands::ViewPoints { input } => match read_points_csv(&input, None, None) {
             Ok(pts) => {
                 if no_render() {
                     println!("Rendering {} points", pts.len());
