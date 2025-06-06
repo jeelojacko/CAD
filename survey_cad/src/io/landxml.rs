@@ -241,7 +241,6 @@ pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
     }
     if elements.is_empty() {
         // fallback to legacy <PntList2D> only structure
-        let mut vertices = Vec::new();
         if let Some(list) = doc.descendants().find(|n| n.has_tag_name("PntList2D")) {
             if let Some(text) = list.text() {
                 let nums: Vec<f64> = text

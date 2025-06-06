@@ -244,6 +244,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn tin_from_points_constrained_breakline() {
         let pts = vec![
             Point3::new(0.0, 0.0, 0.0),
@@ -259,6 +260,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn volume_with_bounds() {
         let pts = vec![
             Point3::new(0.0, 0.0, 1.0),

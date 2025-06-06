@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use clap::Parser;
 use survey_cad::{crs::Crs, geometry::Point};
 
+use survey_cad::geometry::Point3;
+
 #[derive(Parser)]
 struct Args {
     /// EPSG code for the working coordinate system
@@ -28,6 +30,52 @@ struct CadLine {
 #[derive(Resource)]
 struct WorkingCrs(Crs);
 
+#[derive(Resource, Default)]
+struct AlignmentData {
+    points: Vec<Point>,
+}
+
+#[derive(Resource, Default)]
+struct SurfaceData {
+    vertices: Vec<Point3>,
+}
+
+#[derive(Component)]
+struct AddAlignmentButton;
+
+#[derive(Component)]
+struct AddSurfaceButton;
+
+#[derive(Component)]
+struct CorridorButton(CorridorControl);
+
+#[derive(Clone, Copy)]
+enum CorridorControl {
+    WidthInc,
+    WidthDec,
+    IntervalInc,
+    IntervalDec,
+    OffsetInc,
+    OffsetDec,
+}
+
+#[derive(Resource)]
+struct CorridorParams {
+    width: f64,
+    interval: f64,
+    offset_step: f64,
+}
+
+impl Default for CorridorParams {
+    fn default() -> Self {
+        Self {
+            width: 5.0,
+            interval: 10.0,
+            offset_step: 2.5,
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
     println!("Using EPSG {}", args.epsg);
@@ -43,10 +91,21 @@ fn main() {
         }))
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
+        .insert_resource(AlignmentData::default())
+        .insert_resource(SurfaceData::default())
+        .insert_resource(CorridorParams::default())
         .add_systems(Startup, setup)
         .add_systems(
             Update,
-            (handle_mouse_clicks, drag_point, create_line, update_lines),
+            (
+                handle_mouse_clicks,
+                drag_point,
+                create_line,
+                update_lines,
+                handle_add_alignment,
+                handle_add_surface,
+                handle_corridor_buttons,
+            ),
         )
         .run();
 }
@@ -55,6 +114,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
     println!("GUI working CRS EPSG: {}", working.0.epsg());
     commands.spawn(Camera2dBundle::default());
     spawn_toolbar(&mut commands, &asset_server);
+    spawn_edit_panel(&mut commands, &asset_server);
     // Example content
     spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
@@ -101,6 +161,106 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                             TextSpan::new(label),
                         ));
                     });
+            }
+        });
+}
+
+fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+    commands
+        .spawn(NodeBundle {
+            node: Node {
+                position_type: PositionType::Absolute,
+                right: Val::Px(0.0),
+                top: Val::Px(30.0),
+                width: Val::Px(200.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::FlexStart,
+                ..default()
+            },
+            background_color: BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent.spawn((
+                TextLayout::default(),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+                TextSpan::new("Alignment Editor"),
+            ));
+            parent.spawn(ButtonBundle::default()).with_children(|b| {
+                b.spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Add Selected"),
+                ));
+            }).insert(AddAlignmentButton);
+
+            parent.spawn((
+                TextLayout::default(),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+                TextSpan::new("Surface Editor"),
+            ));
+            parent.spawn(ButtonBundle::default()).with_children(|b| {
+                b.spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Add Points"),
+                ));
+            }).insert(AddSurfaceButton);
+
+            parent.spawn((
+                TextLayout::default(),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+                TextSpan::new("Corridor Params"),
+            ));
+            for (label, ctl) in [
+                ("Width -", CorridorControl::WidthDec),
+                ("Width +", CorridorControl::WidthInc),
+                ("Interval -", CorridorControl::IntervalDec),
+                ("Interval +", CorridorControl::IntervalInc),
+                ("Offset -", CorridorControl::OffsetDec),
+                ("Offset +", CorridorControl::OffsetInc),
+            ] {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new(label),
+                        ));
+                    })
+                    .insert(CorridorButton(ctl));
             }
         });
 }
@@ -224,5 +384,60 @@ fn update_lines(
         s.custom_size = Some(Vec2::new(a.distance(b), 2.0));
         t.translation = (a + b) / 2.0;
         t.rotation = Quat::from_rotation_z((b - a).y.atan2((b - a).x));
+    }
+}
+
+fn handle_add_alignment(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddAlignmentButton>)>,
+    mut data: ResMut<AlignmentData>,
+    points: Query<&Transform, With<CadPoint>>,
+    selected: Res<SelectedPoints>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &selected.0 {
+            if let Ok(t) = points.get(*e) {
+                data.points.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+            }
+        }
+    }
+}
+
+fn handle_add_surface(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddSurfaceButton>)>,
+    mut data: ResMut<SurfaceData>,
+    points: Query<&Transform, With<CadPoint>>,
+    selected: Res<SelectedPoints>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &selected.0 {
+            if let Ok(t) = points.get(*e) {
+                data.vertices.push(Point3::new(t.translation.x as f64, t.translation.y as f64, 0.0));
+            }
+        }
+    }
+}
+
+fn handle_corridor_buttons(
+    interactions: Query<(&Interaction, &CorridorButton), Changed<Interaction>>,
+    mut params: ResMut<CorridorParams>,
+) {
+    for (interaction, button) in &interactions {
+        if *interaction == Interaction::Pressed {
+            match button.0 {
+                CorridorControl::WidthInc => params.width += 1.0,
+                CorridorControl::WidthDec => params.width -= 1.0,
+                CorridorControl::IntervalInc => params.interval += 1.0,
+                CorridorControl::IntervalDec => params.interval -= 1.0,
+                CorridorControl::OffsetInc => params.offset_step += 0.5,
+                CorridorControl::OffsetDec => params.offset_step -= 0.5,
+            }
+            params.width = params.width.max(0.0);
+            params.interval = params.interval.max(0.1);
+            params.offset_step = params.offset_step.max(0.1);
+            println!(
+                "Corridor params -> width: {:.1}, interval: {:.1}, offset: {:.1}",
+                params.width, params.interval, params.offset_step
+            );
+        }
     }
 }
