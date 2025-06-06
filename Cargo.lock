@@ -4018,6 +4018,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shapefile",
+ "tempfile",
  "truck-geometry",
  "truck-modeling",
  "truck-topology",

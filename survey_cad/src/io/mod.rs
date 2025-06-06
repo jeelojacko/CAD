@@ -420,6 +420,57 @@ pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
     Ok(entities)
 }
 
+/// Writes supported [`DxfEntity`] values to a DWG file using the external
+/// `dxf2dwg` command from the LibreDWG project. The entities are first written
+/// to a temporary DXF file and then converted to DWG. An error is returned if
+/// the command fails or is not available.
+pub fn write_dwg(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
+    use std::process::Command;
+    use tempfile::NamedTempFile;
+
+    let tmp = NamedTempFile::new()?;
+    write_dxf(tmp.path().to_str().unwrap(), entities)?;
+    let status = Command::new("dxf2dwg")
+        .arg(tmp.path())
+        .arg(path)
+        .status()
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to spawn dxf2dwg: {e}"),
+            )
+        })?;
+    if !status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "dxf2dwg failed"));
+    }
+    Ok(())
+}
+
+/// Reads supported [`DxfEntity`] values from a DWG file using the external
+/// `dwg2dxf` command from the LibreDWG project. The DWG is converted to a
+/// temporary DXF file which is then parsed using [`read_dxf`]. An error is
+/// returned if the command fails or is not available.
+pub fn read_dwg(path: &str) -> io::Result<Vec<DxfEntity>> {
+    use std::process::Command;
+    use tempfile::NamedTempFile;
+
+    let tmp = NamedTempFile::new()?;
+    let status = Command::new("dwg2dxf")
+        .arg(path)
+        .arg(tmp.path())
+        .status()
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to spawn dwg2dxf: {e}"),
+            )
+        })?;
+    if !status.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "dwg2dxf failed"));
+    }
+    read_dxf(tmp.path().to_str().unwrap())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -495,6 +546,20 @@ mod tests {
         let read = read_dxf(path_str).unwrap();
         assert_eq!(read.len(), 3);
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn dwg_functions_return_error_without_tools() {
+        let path = std::env::temp_dir().join("dummy.dwg");
+        let path_str = path.to_str().unwrap();
+        let entities = vec![DxfEntity::Point {
+            point: Point::new(0.0, 0.0),
+            layer: None,
+        }];
+        let err = write_dwg(path_str, &entities).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+        let err2 = read_dwg(path_str).unwrap_err();
+        assert_eq!(err2.kind(), io::ErrorKind::Other);
     }
 
     #[test]

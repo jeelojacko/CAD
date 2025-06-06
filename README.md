@@ -12,9 +12,10 @@ differential leveling helpers.
 
 Supported file formats include CSV, GeoJSON, simple DXF and LandXML. Optional
 features provide shapefile and LAS point cloud readers to ease interoperability
-with other CAD and GIS tools.
-Bridging directly to DWG files remains future work and would further broaden
-compatibility with proprietary CAD ecosystems.
+with other CAD and GIS tools. Basic DWG interoperability is available through
+the `dwg2dxf` and `dxf2dwg` command line tools from the LibreDWG project. The
+library converts DWG files to DXF and back using these utilities when present,
+returning an error if they are missing.
 
 ## Architecture Overview
 
