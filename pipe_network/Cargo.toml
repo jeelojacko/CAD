@@ -1,0 +1,7 @@
+[package]
+name = "pipe_network"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

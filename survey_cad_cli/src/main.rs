@@ -3,6 +3,7 @@ use clap::{Parser, Subcommand};
 use std::str::FromStr;
 #[cfg(feature = "render")]
 use survey_cad::render::{render_point, render_points};
+use pipe_network;
 use survey_cad::{
     alignment::{Alignment, HorizontalAlignment, VerticalAlignment},
     corridor::corridor_volume,
@@ -212,6 +213,18 @@ enum Commands {
         align_a: String,
         align_b: String,
         radius: f64,
+    },
+    /// Create a pipe network LandXML file from CSV inputs.
+    CreatePipeNetwork {
+        structures: String,
+        pipes: String,
+        output: String,
+    },
+    /// Compute head loss for each pipe using Hazen-Williams.
+    PipeNetworkGrade {
+        structures: String,
+        pipes: String,
+        flow: f64,
     },
 }
 
@@ -571,6 +584,36 @@ fn main() {
                 }
                 (Err(e), _) => eprintln!("Error reading {}: {}", align_a, e),
                 (_, Err(e)) => eprintln!("Error reading {}: {}", align_b, e),
+            }
+        }
+        Commands::CreatePipeNetwork { structures, pipes, output } => {
+            match pipe_network::read_network_csv(&structures, &pipes) {
+                Ok(net) => {
+                    if let Err(e) = pipe_network::write_network_landxml(&output, &net) {
+                        eprintln!("Error writing {}: {}", output, e);
+                    } else {
+                        println!("Wrote {}", output);
+                    }
+                }
+                Err(e) => eprintln!("Error reading network: {}", e),
+            }
+        }
+        Commands::PipeNetworkGrade { structures, pipes, flow } => {
+            match pipe_network::read_network_csv(&structures, &pipes) {
+                Ok(net) => {
+                    let idx = net.structure_index();
+                    for pipe in &net.pipes {
+                        if let (Some(&from_idx), Some(&to_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
+                            let a = &net.structures[from_idx];
+                            let b = &net.structures[to_idx];
+                            let len = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+                            let hl = pipe_network::hazen_williams_headloss(flow, len, pipe.diameter, pipe.c);
+                            let end = pipe_network::hydraulic_grade(a.z, hl);
+                            println!("{}: headloss {:.3}, end grade {:.3}", pipe.id, hl, end);
+                        }
+                    }
+                }
+                Err(e) => eprintln!("Error reading network: {}", e),
             }
         }
     }
