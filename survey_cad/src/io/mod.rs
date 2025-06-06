@@ -53,24 +53,18 @@ pub fn read_points_csv(
                     format!("line {}: expected two comma-separated values", idx + 1),
                 ));
             }
-            let x = parts[0]
-                .trim()
-                .parse::<f64>()
-                .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("line {}: {}", idx + 1, e),
-                    )
-                })?;
-            let y = parts[1]
-                .trim()
-                .parse::<f64>()
-                .map_err(|e| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        format!("line {}: {}", idx + 1, e),
-                    )
-                })?;
+            let x = parts[0].trim().parse::<f64>().map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("line {}: {}", idx + 1, e),
+                )
+            })?;
+            let y = parts[1].trim().parse::<f64>().map_err(|e| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("line {}: {}", idx + 1, e),
+                )
+            })?;
             Ok(Point::new(x, y))
         })
         .collect::<Result<_, _>>()?;
@@ -554,7 +548,7 @@ mod tests {
         let hal = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
         landxml::write_landxml_alignment(path.to_str().unwrap(), &hal).unwrap();
         let read = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
-        assert_eq!(read.centerline.vertices.len(), 2);
+        assert_eq!(read.elements.len(), 1);
         std::fs::remove_file(path).ok();
     }
 }
