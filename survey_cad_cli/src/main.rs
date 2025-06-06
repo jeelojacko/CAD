@@ -19,8 +19,23 @@ use survey_cad::{
     },
 };
 
+#[cfg(feature = "las")]
+use survey_cad::io::las::read_points_las;
+#[cfg(feature = "shapefile")]
+use survey_cad::io::shp::{read_points_shp, write_points_shp};
+
 fn no_render() -> bool {
     std::env::var("SURVEY_CAD_TEST").is_ok()
+}
+
+#[cfg(feature = "las")]
+fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::File::create(path)?;
+    for p in points {
+        writeln!(file, "{},{},{}", p.x, p.y, p.z)?;
+    }
+    Ok(())
 }
 
 fn read_surface(path: &str) -> std::io::Result<Tin> {
@@ -126,6 +141,15 @@ enum Commands {
         #[arg(long)]
         dst_epsg: Option<u32>,
     },
+    /// Export points from a CSV file to a shapefile.
+    #[cfg(feature = "shapefile")]
+    ExportShp { input: String, output: String },
+    /// Import points from a shapefile to CSV.
+    #[cfg(feature = "shapefile")]
+    ImportShp { input: String, output: String },
+    /// Import points from a LAS file to CSV (x,y,z).
+    #[cfg(feature = "las")]
+    ImportLas { input: String, output: String },
     /// View points from a CSV file.
     #[cfg(feature = "render")]
     ViewPoints { input: String },
@@ -293,6 +317,30 @@ fn main() {
             dst_epsg,
         } => match read_points_csv(&input, src_epsg, dst_epsg) {
             Ok(pts) => match write_points_dxf(&output, &pts, None, None) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ExportShp { input, output } => match read_points_csv(&input, None, None) {
+            Ok(pts) => match write_points_shp(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ImportShp { input, output } => match read_points_shp(&input) {
+            Ok(pts) => match write_points_csv(&output, &pts, None, None) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "las")]
+        Commands::ImportLas { input, output } => match read_points_las(&input) {
+            Ok(pts) => match write_points_csv_3d(&output, &pts) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
