@@ -1,6 +1,8 @@
+use super::Traverse;
 use super::{adjust_network, AdjustResult, Observation};
 use crate::crs::Crs;
 use crate::geometry::{Point, Point3, Polyline};
+use crate::parcel::Parcel;
 
 /// Representation of a survey point with optional number and description.
 #[derive(Debug, Clone, PartialEq)]
@@ -71,6 +73,32 @@ impl PointDatabase {
             sp.point.y = adj.y;
         }
         result
+    }
+
+    /// Adjusts the network and returns a traverse constructed from the adjusted points.
+    pub fn adjust_to_traverse(
+        &mut self,
+        fixed: &[usize],
+        observations: &[Observation],
+    ) -> (AdjustResult, Traverse) {
+        let result = self.adjust(fixed, observations);
+        let pts = self
+            .points
+            .iter()
+            .map(|p| Point::new(p.point.x, p.point.y))
+            .collect();
+        (result, Traverse::new(pts))
+    }
+
+    /// Adjusts the network and builds a parcel from the resulting traverse.
+    pub fn adjust_to_parcel(
+        &mut self,
+        fixed: &[usize],
+        observations: &[Observation],
+    ) -> (AdjustResult, Parcel) {
+        let (res, trav) = self.adjust_to_traverse(fixed, observations);
+        let parcel = Parcel::from_traverse(&trav);
+        (res, parcel)
     }
 
     /// Generates simple polylines from points sharing the same code. Points are
@@ -179,5 +207,58 @@ mod tests {
         let mut lens: Vec<usize> = lines.iter().map(|l| l.vertices.len()).collect();
         lens.sort();
         assert_eq!(lens, vec![1, 2]);
+    }
+
+    #[test]
+    fn adjust_to_parcel_builds_traverse_and_parcel() {
+        let mut db = PointDatabase::new();
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            Vec::new(),
+        ));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(100.0, 0.0, 0.0),
+            None,
+            Vec::new(),
+        ));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(45.0, 25.0, 0.0),
+            None,
+            Vec::new(),
+        ));
+        let dist = 53.85164807134504f64;
+        let angle = 2.3805798993650633f64;
+        let obs = vec![
+            Observation::Distance {
+                from: 0,
+                to: 2,
+                value: dist,
+                weight: 1.0,
+            },
+            Observation::Distance {
+                from: 1,
+                to: 2,
+                value: dist,
+                weight: 1.0,
+            },
+            Observation::Angle {
+                at: 2,
+                from: 0,
+                to: 1,
+                value: angle,
+                weight: 1.0,
+            },
+        ];
+        let (res, parcel) = db.adjust_to_parcel(&[0, 1], &obs);
+        let p = &db.points[2].point;
+        assert!((p.x - 50.0).abs() < 1e-2);
+        assert!((p.y - 20.0).abs() < 1e-2);
+        assert!(res.residuals.iter().all(|v| v.abs() < 1e-6));
+        assert_eq!(parcel.boundary.len(), 3);
+        assert!((parcel.area() - 1000.0).abs() < 1.0);
     }
 }
