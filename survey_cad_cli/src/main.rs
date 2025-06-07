@@ -468,7 +468,7 @@ fn main() {
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportShp { input, output } => match read_points_csv(&input, None, None) {
-            Ok(pts) => match write_points_shp(&output, &pts) {
+            Ok(pts) => match write_points_shp(&output, &pts, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
@@ -476,15 +476,24 @@ fn main() {
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportShp { input, output } => match read_points_shp(&input) {
-            Ok(pts) => match write_points_csv(&output, &pts, None, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
-            },
+            Ok((pts, pts3)) => {
+                if let Some(z) = pts3 {
+                    match write_points_csv_3d(&output, &z) {
+                        Ok(()) => println!("Wrote {}", output),
+                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                    }
+                } else {
+                    match write_points_csv(&output, &pts, None, None) {
+                        Ok(()) => println!("Wrote {}", output),
+                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                    }
+                }
+            }
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportPolylinesShp { input, output } => match read_polylines_csv(&input) {
-            Ok(lines) => match write_polylines_shp(&output, &lines) {
+            Ok(lines) => match write_polylines_shp(&output, &lines, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
@@ -492,7 +501,7 @@ fn main() {
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportPolylinesShp { input, output } => match read_polylines_shp(&input) {
-            Ok(lines) => match write_polylines_csv(&output, &lines) {
+            Ok((lines, _)) => match write_polylines_csv(&output, &lines) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
@@ -500,7 +509,7 @@ fn main() {
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportPolygonsShp { input, output } => match read_polygons_csv(&input) {
-            Ok(polys) => match write_polygons_shp(&output, &polys) {
+            Ok(polys) => match write_polygons_shp(&output, &polys, None) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
@@ -508,7 +517,7 @@ fn main() {
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportPolygonsShp { input, output } => match read_polygons_shp(&input) {
-            Ok(polys) => match write_polygons_csv(&output, &polys) {
+            Ok((polys, _)) => match write_polygons_csv(&output, &polys) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
