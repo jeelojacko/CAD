@@ -86,6 +86,12 @@ struct AddParcelButton;
 struct GradeButton;
 
 #[derive(Component)]
+struct OpenButton;
+
+#[derive(Component)]
+struct SaveButton;
+
+#[derive(Component)]
 struct CorridorButton(CorridorControl);
 
 #[derive(Clone, Copy)]
@@ -220,6 +226,8 @@ fn main() {
                 handle_corridor_buttons,
                 handle_build_surface,
                 handle_grade_button,
+                handle_open_button,
+                handle_save_button,
                 handle_show_profile,
                 handle_show_sections,
                 handle_section_nav,
@@ -252,7 +260,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
     commands.insert_resource(GradeInfo { text: Some(grade_text) });
     commands.insert_resource(SectionView { label: Some(section_label), ..Default::default() });
     // Example content
-    spawn_point(&mut commands, Point::new(0.0, 0.0));
+    let _ = spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
 
 fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
@@ -298,6 +306,38 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
                         ));
                     });
             }
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Open"),
+                    ));
+                })
+                .insert(OpenButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Save"),
+                    ));
+                })
+                .insert(SaveButton);
         });
 }
 
@@ -638,8 +678,9 @@ fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>
     label
 }
 
-fn spawn_point(commands: &mut Commands, p: Point) {
-    commands.spawn((
+fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
+    commands
+        .spawn((
         SpriteBundle {
             sprite: Sprite {
                 color: Color::srgb(1.0, 0.0, 0.0),
@@ -650,7 +691,8 @@ fn spawn_point(commands: &mut Commands, p: Point) {
             ..default()
         },
         CadPoint,
-    ));
+    ))
+    .id()
 }
 
 fn cursor_world_pos(
@@ -690,7 +732,7 @@ fn handle_mouse_clicks(
                     dragging.0 = Some(e);
                 }
             } else {
-                spawn_point(&mut commands, Point::new(pos.x as f64, pos.y as f64));
+                let _ = spawn_point(&mut commands, Point::new(pos.x as f64, pos.y as f64));
             }
         }
     }
@@ -1290,6 +1332,128 @@ fn update_section_lines(
     if let Some(id) = view.label {
         if let Ok(mut span) = spans.get_mut(id) {
             span.0 = format!("Station: {:.2}", sec_station);
+        }
+    }
+}
+
+fn handle_open_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<OpenButton>)>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut alignment: ResMut<AlignmentData>,
+    mut surface_data: ResMut<SurfaceData>,
+    mut surface_tin: ResMut<SurfaceTin>,
+    points: Query<Entity, With<CadPoint>>,
+    surfaces: Query<Entity, With<SurfaceMesh>>,
+) {
+    use survey_cad::io::{landxml, read_points_csv};
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(path) = rfd::FileDialog::new().pick_file() {
+            let path_str = path.to_str().unwrap();
+            for e in &points { commands.entity(e).despawn_recursive(); }
+            for e in &surfaces { commands.entity(e).despawn_recursive(); }
+            alignment.points.clear();
+            surface_data.vertices.clear();
+            surface_data.breaklines.clear();
+            surface_data.holes.clear();
+            surface_data.point_map.clear();
+            surface_tin.0 = None;
+            let lower = path_str.to_ascii_lowercase();
+            if lower.ends_with(".csv") {
+                if let Ok(pts) = read_points_csv(path_str, None, None) {
+                    for p in pts {
+                        let _ = spawn_point(&mut commands, p);
+                    }
+                }
+            } else if lower.ends_with(".xml") {
+                if let Ok(tin) = landxml::read_landxml_surface(path_str) {
+                    let mesh = build_surface_mesh(&tin);
+                    let handle = meshes.add(mesh);
+                    let mat = materials.add(StandardMaterial { base_color: Color::GREEN, ..default() });
+                    commands.spawn(PbrBundle { mesh: handle, material: mat, ..default() }).insert(SurfaceMesh);
+                    surface_tin.0 = Some(tin);
+                } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
+                    for elem in hal.elements {
+                        use survey_cad::alignment::HorizontalElement::*;
+                        match elem {
+                            Tangent { start, end } => {
+                                let a = spawn_point(&mut commands, start);
+                                let b = spawn_point(&mut commands, end);
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                            Curve { arc } => {
+                                let s = Point::new(
+                                    arc.center.x + arc.radius * arc.start_angle.cos(),
+                                    arc.center.y + arc.radius * arc.start_angle.sin(),
+                                );
+                                let e = Point::new(
+                                    arc.center.x + arc.radius * arc.end_angle.cos(),
+                                    arc.center.y + arc.radius * arc.end_angle.sin(),
+                                );
+                                let a = spawn_point(&mut commands, s);
+                                let b = spawn_point(&mut commands, e);
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                            Spiral { spiral } => {
+                                let a = spawn_point(&mut commands, spiral.start_point());
+                                let b = spawn_point(&mut commands, spiral.end_point());
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                        }
+                    }
+                }
+            } else if lower.ends_with(".shp") {
+                #[cfg(feature = "shapefile")]
+                if let Ok((pts, _)) = survey_cad::io::shp::read_points_shp(path_str) {
+                    for p in pts { let _ = spawn_point(&mut commands, p); }
+                }
+            }
+        }
+    }
+}
+
+fn handle_save_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<SaveButton>)>,
+    points: Query<(Entity, &Transform), With<CadPoint>>,
+    tin_res: Res<SurfaceTin>,
+    alignment: Res<AlignmentData>,
+) {
+    use survey_cad::io::{landxml, write_points_csv};
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(path) = rfd::FileDialog::new().save_file() {
+            let path_str = path.to_str().unwrap();
+            let lower = path_str.to_ascii_lowercase();
+            if lower.ends_with(".csv") {
+                let mut pts = Vec::new();
+                for (_, t) in &points { pts.push(Point::new(t.translation.x as f64, t.translation.y as f64)); }
+                let _ = write_points_csv(path_str, &pts, None, None);
+            } else if lower.ends_with(".xml") {
+                if let Some(tin) = tin_res.0.as_ref() {
+                    let _ = landxml::write_landxml_surface(path_str, tin);
+                } else if alignment.points.len() > 1 {
+                    let mut pts = Vec::new();
+                    for e in &alignment.points {
+                        if let Ok((_, t)) = points.get(*e) {
+                            pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                        }
+                    }
+                    let hal = survey_cad::alignment::HorizontalAlignment::new(pts);
+                    let _ = landxml::write_landxml_alignment(path_str, &hal);
+                }
+            } else if lower.ends_with(".shp") {
+                #[cfg(feature = "shapefile")]
+                {
+                    let mut pts = Vec::new();
+                    for (_, t) in &points {
+                        pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                    }
+                    let _ = survey_cad::io::shp::write_points_shp(path_str, &pts, None);
+                }
+            }
         }
     }
 }
