@@ -280,7 +280,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<WorkingCrs>) {
-    println!("GUI working CRS EPSG: {}", working.0.epsg());
+    println!("GUI working CRS: {}", working.0.definition());
     commands.spawn(Camera2dBundle::default());
     commands.spawn(Camera3dBundle {
         transform: Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),

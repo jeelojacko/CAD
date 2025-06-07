@@ -411,7 +411,7 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
     let _working_crs = Crs::from_epsg(cli.epsg);
-    println!("Using EPSG {}", cli.epsg);
+    println!("Using CRS: {}", _working_crs.definition());
     match cli.command {
         Commands::StationDistance {
             name_a,
