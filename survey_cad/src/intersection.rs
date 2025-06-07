@@ -1,4 +1,6 @@
-use crate::alignment::{HorizontalAlignment, HorizontalElement, VerticalAlignment};
+use crate::alignment::{
+    Alignment, HorizontalAlignment, HorizontalElement, VerticalAlignment, VerticalElement,
+};
 use crate::geometry::{Arc, Line, Point};
 use crate::surveying::line_intersection;
 
@@ -181,9 +183,8 @@ fn build_vertical_curve(
     let high_elev =
         start_elev + grade_in * x_high + 0.5 * (grade_out - grade_in) / length * x_high * x_high;
 
-    let curve_at_intersection = start_elev
-        + grade_in * l1
-        + 0.5 * (grade_out - grade_in) / length * l1 * l1;
+    let curve_at_intersection =
+        start_elev + grade_in * l1 + 0.5 * (grade_out - grade_in) / length * l1 * l1;
     let b_elev = b.elevation_at(station)?;
     let grade_adjustment = curve_at_intersection - b_elev;
 
@@ -215,4 +216,148 @@ pub fn sag_curve_between_alignments(
     grade_out: f64,
 ) -> Option<VerticalCurveInfo> {
     build_vertical_curve(a, b, station, grade_in, grade_out)
+}
+
+fn grade_at_start(elem: &VerticalElement) -> f64 {
+    match elem {
+        VerticalElement::Grade {
+            start_station,
+            end_station,
+            start_elev,
+            end_elev,
+        } => {
+            if (*end_station - *start_station).abs() < f64::EPSILON {
+                0.0
+            } else {
+                (end_elev - start_elev) / (end_station - start_station)
+            }
+        }
+        VerticalElement::Parabola { start_grade, .. } => *start_grade,
+    }
+}
+
+fn grade_at_end(elem: &VerticalElement) -> f64 {
+    match elem {
+        VerticalElement::Grade {
+            start_station,
+            end_station,
+            start_elev,
+            end_elev,
+        } => {
+            if (*end_station - *start_station).abs() < f64::EPSILON {
+                0.0
+            } else {
+                (end_elev - start_elev) / (end_station - start_station)
+            }
+        }
+        VerticalElement::Parabola { end_grade, .. } => *end_grade,
+    }
+}
+
+/// Creates a full intersection alignment between two approach alignments.
+/// The incoming alignment `a` must end with a tangent and `b` must begin with
+/// a tangent. The vertical alignments are connected with a parabolic curve and
+/// the outgoing alignment is adjusted so grades tie together smoothly.
+pub fn intersection_alignment(a: &Alignment, b: &Alignment, radius: f64) -> Option<Alignment> {
+    let curb = curb_return_between_alignments(&a.horizontal, &b.horizontal, radius)?;
+
+    if a.horizontal.elements.is_empty() || b.horizontal.elements.is_empty() {
+        return None;
+    }
+
+    let mut h_elems = Vec::new();
+    for elem in a
+        .horizontal
+        .elements
+        .iter()
+        .take(a.horizontal.elements.len() - 1)
+    {
+        h_elems.push(elem.clone());
+    }
+    match a.horizontal.elements.last().unwrap() {
+        HorizontalElement::Tangent { start, .. } => {
+            h_elems.push(HorizontalElement::Tangent {
+                start: *start,
+                end: curb.start,
+            });
+        }
+        _ => return None,
+    }
+
+    h_elems.push(HorizontalElement::Curve {
+        arc: curb.arc.clone(),
+    });
+
+    match b.horizontal.elements.first().unwrap() {
+        HorizontalElement::Tangent { end, .. } => {
+            h_elems.push(HorizontalElement::Tangent {
+                start: curb.end,
+                end: *end,
+            });
+        }
+        _ => return None,
+    }
+    for elem in b.horizontal.elements.iter().skip(1) {
+        h_elems.push(elem.clone());
+    }
+    let horizontal = HorizontalAlignment { elements: h_elems };
+
+    if a.vertical.elements.is_empty() || b.vertical.elements.is_empty() {
+        return None;
+    }
+
+    let start_elem = a.vertical.elements.last().unwrap();
+    let end_elem = b.vertical.elements.first().unwrap();
+
+    let station = match end_elem {
+        VerticalElement::Grade { start_station, .. } => *start_station,
+        VerticalElement::Parabola { start_station, .. } => *start_station,
+    };
+
+    let grade_in = grade_at_end(start_elem);
+    let grade_out = grade_at_start(end_elem);
+
+    let info = if grade_out > grade_in {
+        sag_curve_between_alignments(&a.vertical, &b.vertical, station, grade_in, grade_out)?
+    } else {
+        crest_curve_between_alignments(&a.vertical, &b.vertical, station, grade_in, grade_out)?
+    };
+
+    let start_station = match start_elem {
+        VerticalElement::Grade { start_station, .. } => *start_station,
+        VerticalElement::Parabola { start_station, .. } => *start_station,
+    };
+    let end_station = match end_elem {
+        VerticalElement::Grade { end_station, .. } => *end_station,
+        VerticalElement::Parabola { end_station, .. } => *end_station,
+    };
+    let start_elev = a.vertical.elevation_at(start_station)?;
+
+    let parabola = VerticalElement::Parabola {
+        start_station,
+        end_station,
+        start_elev,
+        start_grade: grade_in,
+        end_grade: grade_out,
+    };
+
+    let mut v_elems = Vec::new();
+    for elem in a
+        .vertical
+        .elements
+        .iter()
+        .take(a.vertical.elements.len() - 1)
+    {
+        v_elems.push(elem.clone());
+    }
+    v_elems.push(parabola);
+
+    let mut b_adj = b.vertical.clone();
+    apply_grade_adjustment(&mut b_adj, station, info.grade_adjustment);
+    for elem in b_adj.elements.into_iter().skip(1) {
+        v_elems.push(elem);
+    }
+    let vertical = VerticalAlignment { elements: v_elems };
+
+    Some(Alignment::new(horizontal, vertical))
 }

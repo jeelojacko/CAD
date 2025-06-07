@@ -1,11 +1,13 @@
 use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
+use pipe_network;
 use std::str::FromStr;
 #[cfg(feature = "render")]
 use survey_cad::render::{render_point, render_points};
-use pipe_network;
 use survey_cad::{
-    alignment::{Alignment, HorizontalAlignment, VerticalAlignment},
+    alignment::{
+        Alignment, HorizontalAlignment, HorizontalElement, VerticalAlignment, VerticalElement,
+    },
     corridor::corridor_volume,
     crs::Crs,
     dtm::Tin,
@@ -42,6 +44,14 @@ fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
     Ok(())
 }
 
+fn print_point(p: Point) {
+    println!("{:.3},{:.3}", p.x, p.y);
+}
+
+fn print_station(sta: f64, elev: f64) {
+    println!("{:.3},{:.3}", sta, elev);
+}
+
 #[cfg(feature = "shapefile")]
 fn read_polylines_csv(path: &str) -> std::io::Result<Vec<survey_cad::geometry::Polyline>> {
     let lines = read_lines(path)?;
@@ -68,10 +78,16 @@ fn read_polylines_csv(path: &str) -> std::io::Result<Vec<survey_cad::geometry::P
             ));
         }
         let x: f64 = parts[0].trim().parse().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         let y: f64 = parts[1].trim().parse().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         current.push(Point::new(x, y));
     }
@@ -89,7 +105,10 @@ fn read_polylines_csv(path: &str) -> std::io::Result<Vec<survey_cad::geometry::P
 }
 
 #[cfg(feature = "shapefile")]
-fn write_polylines_csv(path: &str, polylines: &[survey_cad::geometry::Polyline]) -> std::io::Result<()> {
+fn write_polylines_csv(
+    path: &str,
+    polylines: &[survey_cad::geometry::Polyline],
+) -> std::io::Result<()> {
     use std::io::Write;
     let mut file = std::fs::File::create(path)?;
     for (i, pl) in polylines.iter().enumerate() {
@@ -124,10 +143,16 @@ fn read_polygons_csv(path: &str) -> std::io::Result<Vec<Vec<Point>>> {
             ));
         }
         let x: f64 = parts[0].trim().parse().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         let y: f64 = parts[1].trim().parse().map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         current.push(Point::new(x, y));
     }
@@ -337,6 +362,14 @@ enum Commands {
     CreateIntersection {
         align_a: String,
         align_b: String,
+        radius: f64,
+    },
+    /// Create a full intersection alignment with vertical design.
+    CreateFullIntersection {
+        halign_a: String,
+        valign_a: String,
+        halign_b: String,
+        valign_b: String,
         radius: f64,
     },
     /// Create a pipe network LandXML file from CSV inputs.
@@ -752,35 +785,151 @@ fn main() {
                 (_, Err(e)) => eprintln!("Error reading {}: {}", align_b, e),
             }
         }
-        Commands::CreatePipeNetwork { structures, pipes, output } => {
-            match pipe_network::read_network_csv(&structures, &pipes) {
-                Ok(net) => {
-                    if let Err(e) = pipe_network::write_network_landxml(&output, &net) {
-                        eprintln!("Error writing {}: {}", output, e);
-                    } else {
-                        println!("Wrote {}", output);
-                    }
-                }
-                Err(e) => eprintln!("Error reading network: {}", e),
-            }
-        }
-        Commands::PipeNetworkGrade { structures, pipes, flow } => {
-            match pipe_network::read_network_csv(&structures, &pipes) {
-                Ok(net) => {
-                    let idx = net.structure_index();
-                    for pipe in &net.pipes {
-                        if let (Some(&from_idx), Some(&to_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
-                            let a = &net.structures[from_idx];
-                            let b = &net.structures[to_idx];
-                            let len = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
-                            let hl = pipe_network::hazen_williams_headloss(flow, len, pipe.diameter, pipe.c);
-                            let end = pipe_network::hydraulic_grade(a.z, hl);
-                            println!("{}: headloss {:.3}, end grade {:.3}", pipe.id, hl, end);
+        Commands::CreateFullIntersection {
+            halign_a,
+            valign_a,
+            halign_b,
+            valign_b,
+            radius,
+        } => {
+            match (
+                read_points_csv(&halign_a, None, None),
+                read_points_csv(&valign_a, None, None),
+                read_points_csv(&halign_b, None, None),
+                read_points_csv(&valign_b, None, None),
+            ) {
+                (Ok(ha_pts), Ok(va_pts), Ok(hb_pts), Ok(vb_pts)) => {
+                    let ha = HorizontalAlignment::new(ha_pts);
+                    let va_pairs: Vec<(f64, f64)> = va_pts.iter().map(|p| (p.x, p.y)).collect();
+                    let va = VerticalAlignment::new(va_pairs);
+                    let hb = HorizontalAlignment::new(hb_pts);
+                    let vb_pairs: Vec<(f64, f64)> = vb_pts.iter().map(|p| (p.x, p.y)).collect();
+                    let vb = VerticalAlignment::new(vb_pairs);
+                    let a = Alignment::new(ha, va);
+                    let b = Alignment::new(hb, vb);
+                    if let Some(res) =
+                        survey_cad::intersection::intersection_alignment(&a, &b, radius)
+                    {
+                        println!("Horizontal alignment:");
+                        if let Some(first) = res.horizontal.elements.first() {
+                            match first {
+                                HorizontalElement::Tangent { start, .. } => print_point(*start),
+                                HorizontalElement::Curve { arc } => {
+                                    let p = Point::new(
+                                        arc.center.x + arc.radius * arc.start_angle.cos(),
+                                        arc.center.y + arc.radius * arc.start_angle.sin(),
+                                    );
+                                    print_point(p);
+                                }
+                                HorizontalElement::Spiral { spiral } => {
+                                    print_point(spiral.start_point())
+                                }
+                            }
                         }
+                        for elem in &res.horizontal.elements {
+                            match elem {
+                                HorizontalElement::Tangent { end, .. } => print_point(*end),
+                                HorizontalElement::Curve { arc } => {
+                                    let p = Point::new(
+                                        arc.center.x + arc.radius * arc.end_angle.cos(),
+                                        arc.center.y + arc.radius * arc.end_angle.sin(),
+                                    );
+                                    print_point(p);
+                                }
+                                HorizontalElement::Spiral { spiral } => {
+                                    print_point(spiral.end_point())
+                                }
+                            }
+                        }
+                        println!("Vertical alignment:");
+                        if let Some(first) = res.vertical.elements.first() {
+                            match first {
+                                VerticalElement::Grade {
+                                    start_station,
+                                    start_elev,
+                                    ..
+                                } => {
+                                    print_station(*start_station, *start_elev);
+                                }
+                                VerticalElement::Parabola {
+                                    start_station,
+                                    start_elev,
+                                    ..
+                                } => {
+                                    print_station(*start_station, *start_elev);
+                                }
+                            }
+                        }
+                        for elem in &res.vertical.elements {
+                            match elem {
+                                VerticalElement::Grade {
+                                    end_station,
+                                    end_elev,
+                                    ..
+                                } => {
+                                    print_station(*end_station, *end_elev);
+                                }
+                                VerticalElement::Parabola {
+                                    start_station,
+                                    end_station,
+                                    start_elev,
+                                    start_grade,
+                                    end_grade,
+                                } => {
+                                    let l = end_station - start_station;
+                                    let elev = *start_elev
+                                        + start_grade * l
+                                        + 0.5 * (end_grade - start_grade) * l;
+                                    print_station(*end_station, elev);
+                                }
+                            }
+                        }
+                    } else {
+                        println!("No intersection");
                     }
                 }
-                Err(e) => eprintln!("Error reading network: {}", e),
+                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", halign_a, e),
+                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", valign_a, e),
+                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign_b, e),
+                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign_b, e),
             }
         }
+        Commands::CreatePipeNetwork {
+            structures,
+            pipes,
+            output,
+        } => match pipe_network::read_network_csv(&structures, &pipes) {
+            Ok(net) => {
+                if let Err(e) = pipe_network::write_network_landxml(&output, &net) {
+                    eprintln!("Error writing {}: {}", output, e);
+                } else {
+                    println!("Wrote {}", output);
+                }
+            }
+            Err(e) => eprintln!("Error reading network: {}", e),
+        },
+        Commands::PipeNetworkGrade {
+            structures,
+            pipes,
+            flow,
+        } => match pipe_network::read_network_csv(&structures, &pipes) {
+            Ok(net) => {
+                let idx = net.structure_index();
+                for pipe in &net.pipes {
+                    if let (Some(&from_idx), Some(&to_idx)) =
+                        (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str()))
+                    {
+                        let a = &net.structures[from_idx];
+                        let b = &net.structures[to_idx];
+                        let len = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+                        let hl =
+                            pipe_network::hazen_williams_headloss(flow, len, pipe.diameter, pipe.c);
+                        let end = pipe_network::hydraulic_grade(a.z, hl);
+                        println!("{}: headloss {:.3}, end grade {:.3}", pipe.id, hl, end);
+                    }
+                }
+            }
+            Err(e) => eprintln!("Error reading network: {}", e),
+        },
     }
 }
