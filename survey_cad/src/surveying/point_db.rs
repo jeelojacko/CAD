@@ -1,3 +1,4 @@
+use super::field_code::FieldCode;
 use super::Traverse;
 use super::{adjust_network, AdjustResult, Observation};
 use crate::crs::Crs;
@@ -26,6 +27,11 @@ impl SurveyPoint {
             description,
             codes,
         }
+    }
+
+    /// Returns parsed field codes for this point.
+    pub fn field_codes(&self) -> Vec<FieldCode> {
+        self.codes.iter().map(|c| FieldCode::parse(c)).collect()
     }
 }
 
@@ -114,6 +120,49 @@ impl PointDatabase {
             }
         }
         map.into_iter().map(|(_, pts)| Polyline::new(pts)).collect()
+    }
+
+    /// Generates linework by interpreting field codes using begin/continue/end
+    /// semantics. Each figure is returned as a polyline in the order it was
+    /// completed.
+    pub fn generate_figures(&self) -> Vec<Polyline> {
+        use super::field_code::CodeAction;
+        use std::collections::BTreeMap;
+        let mut active: BTreeMap<String, Vec<Point>> = BTreeMap::new();
+        let mut result = Vec::new();
+        for p in &self.points {
+            let pt = Point::new(p.point.x, p.point.y);
+            for fc in p.field_codes() {
+                match fc.action {
+                    CodeAction::Begin => {
+                        if let Some(pts) = active.remove(&fc.code) {
+                            if pts.len() >= 2 {
+                                result.push(Polyline::new(pts));
+                            }
+                        }
+                        active.insert(fc.code, vec![pt.clone()]);
+                    }
+                    CodeAction::Continue => {
+                        active.entry(fc.code).or_default().push(pt.clone());
+                    }
+                    CodeAction::End => {
+                        if let Some(mut pts) = active.remove(&fc.code) {
+                            pts.push(pt.clone());
+                            if pts.len() >= 2 {
+                                result.push(Polyline::new(pts));
+                            }
+                        }
+                    }
+                    CodeAction::None => {}
+                }
+            }
+        }
+        for (_, pts) in active {
+            if pts.len() >= 2 {
+                result.push(Polyline::new(pts));
+            }
+        }
+        result
     }
 }
 
@@ -207,6 +256,32 @@ mod tests {
         let mut lens: Vec<usize> = lines.iter().map(|l| l.vertices.len()).collect();
         lens.sort();
         assert_eq!(lens, vec![1, 2]);
+    }
+
+    #[test]
+    fn figures_from_field_codes() {
+        let mut db = PointDatabase::new();
+        db.add_point(SurveyPoint::new(
+            Some(1),
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            vec!["BCURB".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(2),
+            Point3::new(1.0, 0.0, 0.0),
+            None,
+            vec!["CCURB".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(3),
+            Point3::new(1.0, 1.0, 0.0),
+            None,
+            vec!["ECURB".into()],
+        ));
+        let figs = db.generate_figures();
+        assert_eq!(figs.len(), 1);
+        assert_eq!(figs[0].vertices.len(), 3);
     }
 
     #[test]
