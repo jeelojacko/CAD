@@ -23,6 +23,23 @@ pub fn sidewalk(width: f64, slope: f64) -> Subassembly {
     Subassembly::new(vec![(0.0, 0.0), (width, width * slope)])
 }
 
+/// Creates a combined curb and gutter section. The curb has a vertical face of
+/// `height` and `curb_width`. The gutter extends an additional `gutter_width`
+/// at a constant `gutter_slope`.
+pub fn curb_and_gutter(
+    height: f64,
+    curb_width: f64,
+    gutter_width: f64,
+    gutter_slope: f64,
+) -> Subassembly {
+    let mut profile = vec![(0.0, 0.0), (0.0, height), (curb_width, height)];
+    profile.push((
+        curb_width + gutter_width,
+        height + gutter_width * gutter_slope,
+    ));
+    Subassembly::new(profile)
+}
+
 /// Creates a raised median with vertical faces given `width` and `height`.
 /// The profile starts at the pavement edge and returns to grade at the end
 /// of the median.
@@ -46,6 +63,65 @@ pub fn ditch(depth: f64, bottom_width: f64, side_slope: f64) -> Subassembly {
     }
     pts.push((run + bottom_width + run, 0.0));
     Subassembly::new(pts)
+}
+
+/// Creates a daylight slope that projects from the origin for `width` at the
+/// provided `slope`.
+pub fn daylight(width: f64, slope: f64) -> Subassembly {
+    Subassembly::new(vec![(0.0, 0.0), (width, width * slope)])
+}
+
+/// Generates a daylight profile table that targets an existing surface. The
+/// returned subassembly contains a profile table mapping station along the
+/// `alignment` to the daylight intercept computed from `slope`.
+pub fn daylight_to_surface(
+    surface: &crate::dtm::Tin,
+    alignment: &crate::alignment::Alignment,
+    slope: f64,
+    interval: f64,
+    step: f64,
+    max_dist: f64,
+) -> Subassembly {
+    use crate::corridor::ProfilePoint;
+
+    let mut table = Vec::new();
+    let length = alignment.horizontal.length();
+    let mut station = 0.0;
+    while station <= length {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(station),
+            alignment.horizontal.direction_at(station),
+            alignment.vertical.elevation_at(station),
+        ) {
+            let normal = (-dir.1, dir.0);
+            let side = if slope >= 0.0 {
+                normal
+            } else {
+                (-normal.0, -normal.1)
+            };
+            if let Some(p) = surface.slope_projection(
+                crate::geometry::Point3::new(center.x, center.y, grade),
+                side,
+                slope,
+                step,
+                max_dist,
+            ) {
+                let dist = (p.x - center.x) * side.0 + (p.y - center.y) * side.1;
+                let offset = if slope >= 0.0 { dist } else { -dist };
+                let profile = vec![(0.0, 0.0), (offset, slope * dist)];
+                table.push(ProfilePoint { station, profile });
+            }
+        }
+        station += interval;
+    }
+
+    let profile = table
+        .first()
+        .map(|p| p.profile.clone())
+        .unwrap_or_else(|| vec![(0.0, 0.0)]);
+    let mut sub = Subassembly::new(profile);
+    sub.profile_table = Some(table);
+    sub
 }
 
 /// Creates a simple retaining wall with a vertical face of `height` and a
@@ -79,12 +155,7 @@ pub fn transition(start: &Subassembly, end: &Subassembly, length: f64) -> Subass
 /// Mirrors a subassembly about the alignment, returning a new one suitable for
 /// the opposite side of the road.
 pub fn mirror(sub: &Subassembly) -> Subassembly {
-    let mut profile: Vec<(f64, f64)> = sub
-        .profile
-        .iter()
-        .rev()
-        .map(|(o, e)| (-o, *e))
-        .collect();
+    let mut profile: Vec<(f64, f64)> = sub.profile.iter().rev().map(|(o, e)| (-o, *e)).collect();
     // ensure the first point is exactly mirrored
     if let Some(first) = profile.first_mut() {
         first.0 = 0.0;
@@ -174,6 +245,16 @@ mod tests {
     }
 
     #[test]
+    fn curb_and_gutter_profile() {
+        let cg = curb_and_gutter(0.15, 0.3, 0.5, -0.05);
+        assert_eq!(cg.profile.len(), 4);
+        assert_eq!(cg.profile[1], (0.0, 0.15));
+        let last = cg.profile.last().unwrap();
+        assert!((last.0 - 0.8).abs() < 1e-6);
+        assert!((last.1 - (0.15 + 0.5 * -0.05)).abs() < 1e-6);
+    }
+
+    #[test]
     fn transition_table() {
         let a = lane(3.0, -0.02);
         let b = shoulder(3.5, -0.02);
@@ -183,5 +264,26 @@ mod tests {
         assert_eq!(table.len(), 2);
         assert_eq!(table[0].profile, a.profile);
         assert_eq!(table[1].profile, b.profile);
+    }
+
+    #[test]
+    fn daylight_surface_table() {
+        use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+        use crate::dtm::Tin;
+        use crate::geometry::{Point, Point3};
+
+        let ground = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, -5.0),
+            Point3::new(0.0, 10.0, 0.0),
+        ]);
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 1.0), (10.0, 1.0)]);
+        let align = Alignment::new(halign, valign);
+
+        let sub = daylight_to_surface(&ground, &align, -0.5, 5.0, 1.0, 20.0);
+        assert!(sub.profile_table.is_some());
+        let table = sub.profile_table.unwrap();
+        assert!(!table.is_empty());
     }
 }
