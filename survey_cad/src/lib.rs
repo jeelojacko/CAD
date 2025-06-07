@@ -7,6 +7,7 @@ pub mod dtm;
 pub mod geometry;
 pub mod intersection;
 pub mod io;
+pub mod local_grid;
 pub mod layers;
 pub mod parcel;
 #[cfg(feature = "pmetra")]
@@ -21,3 +22,5 @@ pub mod superelevation;
 pub mod surveying;
 pub mod truck_integration;
 pub mod variable_offset;
+
+pub use local_grid::LocalGrid;
