@@ -44,6 +44,15 @@ struct SurfaceData {
 }
 
 #[derive(Resource, Default)]
+struct SurfaceDirty(bool);
+
+#[derive(Component)]
+struct BreaklineEdge;
+
+#[derive(Component)]
+struct HoleEdge;
+
+#[derive(Resource, Default)]
 struct SurfaceTin(Option<survey_cad::dtm::Tin>);
 
 #[derive(Component)]
@@ -206,6 +215,7 @@ fn main() {
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
         .insert_resource(SurfaceTin::default())
+        .insert_resource(SurfaceDirty::default())
         .insert_resource(CorridorParams::default())
         .insert_resource(ProfileVisible::default())
         .insert_resource(SectionsVisible::default())
@@ -222,6 +232,14 @@ fn main() {
                 handle_add_surface,
                 handle_add_breakline,
                 handle_add_hole,
+                handle_point_elevation,
+                update_surface_edges,
+                maybe_update_surface,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
                 handle_add_parcel,
                 handle_corridor_buttons,
                 handle_build_surface,
@@ -748,6 +766,8 @@ fn drag_point(
     buttons: Res<ButtonInput<MouseButton>>,
     mut points: Query<&mut Transform, With<CadPoint>>,
     dragging: Res<Dragging>,
+    mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
 ) {
     if let Some(e) = dragging.0 {
         if buttons.pressed(MouseButton::Left) {
@@ -755,6 +775,42 @@ fn drag_point(
                 if let Ok(mut t) = points.get_mut(e) {
                     t.translation.x = pos.x;
                     t.translation.y = pos.y;
+                    if let Some(&idx) = data.point_map.get(&e) {
+                        if let Some(v) = data.vertices.get_mut(idx) {
+                            v.x = pos.x as f64;
+                            v.y = pos.y as f64;
+                            dirty.0 = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn handle_point_elevation(
+    keys: Res<ButtonInput<KeyCode>>,
+    selected: Res<SelectedPoints>,
+    mut points: Query<&mut Transform, With<CadPoint>>,
+    mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
+) {
+    let mut delta = 0.0;
+    if keys.pressed(KeyCode::ArrowUp) {
+        delta += 0.1;
+    }
+    if keys.pressed(KeyCode::ArrowDown) {
+        delta -= 0.1;
+    }
+    if delta != 0.0 {
+        for e in &selected.0 {
+            if let Ok(mut t) = points.get_mut(*e) {
+                t.translation.z += delta;
+                if let Some(&idx) = data.point_map.get(e) {
+                    if let Some(v) = data.vertices.get_mut(idx) {
+                        v.z = t.translation.z as f64;
+                        dirty.0 = true;
+                    }
                 }
             }
         }
@@ -802,6 +858,84 @@ fn update_lines(
     }
 }
 
+fn update_surface_edges(
+    data: Res<SurfaceData>,
+    mut commands: Commands,
+    existing: Query<Entity, Or<(With<BreaklineEdge>, With<HoleEdge>)>>,
+) {
+    if data.is_changed() {
+        for e in &existing {
+            commands.entity(e).despawn_recursive();
+        }
+        for (i1, i2) in &data.breaklines {
+            if let (Some(a), Some(b)) = (data.vertices.get(*i1), data.vertices.get(*i2)) {
+                let va = Vec2::new(a.x as f32, a.y as f32);
+                let vb = Vec2::new(b.x as f32, b.y as f32);
+                commands
+                    .spawn(SpriteBundle {
+                        sprite: Sprite {
+                            color: Color::rgb(1.0, 0.5, 0.0),
+                            custom_size: Some(Vec2::new(va.distance(vb), 2.0)),
+                            ..default()
+                        },
+                        transform: Transform::from_translation(((va + vb) / 2.0).extend(0.0))
+                            .with_rotation(Quat::from_rotation_z((vb - va).y.atan2((vb - va).x))),
+                        ..default()
+                    })
+                    .insert(BreaklineEdge);
+            }
+        }
+        for hole in &data.holes {
+            for i in 0..hole.len() {
+                let i1 = hole[i];
+                let i2 = hole[(i + 1) % hole.len()];
+                if let (Some(a), Some(b)) = (data.vertices.get(i1), data.vertices.get(i2)) {
+                    let va = Vec2::new(a.x as f32, a.y as f32);
+                    let vb = Vec2::new(b.x as f32, b.y as f32);
+                    commands
+                        .spawn(SpriteBundle {
+                            sprite: Sprite {
+                                color: Color::rgb(0.5, 0.0, 0.5),
+                                custom_size: Some(Vec2::new(va.distance(vb), 2.0)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(((va + vb) / 2.0).extend(0.0))
+                                .with_rotation(Quat::from_rotation_z((vb - va).y.atan2((vb - va).x))),
+                            ..default()
+                        })
+                        .insert(HoleEdge);
+                }
+            }
+        }
+    }
+}
+
+fn maybe_update_surface(
+    dirty: Res<SurfaceDirty>,
+    data: Res<SurfaceData>,
+    mut dirty_flag: ResMut<SurfaceDirty>,
+    mut tin_res: ResMut<SurfaceTin>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    existing: Query<Entity, With<SurfaceMesh>>,
+) {
+    if dirty.0 {
+        for e in &existing {
+            commands.entity(e).despawn_recursive();
+        }
+        let tin = build_tin(&data);
+        let mesh = build_surface_mesh(&tin);
+        let handle = meshes.add(mesh);
+        let mat = materials.add(StandardMaterial { base_color: Color::rgb(0.0, 1.0, 0.0), ..default() });
+        commands
+            .spawn(PbrBundle { mesh: Mesh3d(handle), material: MeshMaterial3d(mat), ..default() })
+            .insert(SurfaceMesh);
+        tin_res.0 = Some(tin);
+        dirty_flag.0 = false;
+    }
+}
+
 fn handle_add_alignment(
     interaction: Query<
         &Interaction,
@@ -823,6 +957,7 @@ fn handle_add_alignment(
 fn handle_add_surface(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddSurfaceButton>)>,
     mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
 ) {
@@ -833,9 +968,10 @@ fn handle_add_surface(
                 data.vertices.push(Point3::new(
                     t.translation.x as f64,
                     t.translation.y as f64,
-                    0.0,
+                    t.translation.z as f64,
                 ));
                 data.point_map.insert(*e, idx);
+                dirty.0 = true;
             }
         }
     }
@@ -849,7 +985,7 @@ fn get_vertex_index(data: &mut SurfaceData, e: Entity, t: &Transform) -> usize {
         data.vertices.push(Point3::new(
             t.translation.x as f64,
             t.translation.y as f64,
-            0.0,
+            t.translation.z as f64,
         ));
         data.point_map.insert(e, idx);
         idx
@@ -862,6 +998,7 @@ fn handle_add_breakline(
         (Changed<Interaction>, With<Button>, With<AddBreaklineButton>),
     >,
     mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
 ) {
@@ -872,8 +1009,18 @@ fn handle_add_breakline(
             if let (Ok(t1), Ok(t2)) = (points.get(a), points.get(b)) {
                 let i1 = get_vertex_index(&mut data, a, t1);
                 let i2 = get_vertex_index(&mut data, b, t2);
-                data.breaklines.push((i1, i2));
-                println!("Added breakline between {} and {}", i1, i2);
+                if let Some(pos) = data
+                    .breaklines
+                    .iter()
+                    .position(|&(x, y)| (x == i1 && y == i2) || (x == i2 && y == i1))
+                {
+                    data.breaklines.remove(pos);
+                    println!("Removed breakline between {} and {}", i1, i2);
+                } else {
+                    data.breaklines.push((i1, i2));
+                    println!("Added breakline between {} and {}", i1, i2);
+                }
+                dirty.0 = true;
             }
         }
     }
@@ -882,6 +1029,7 @@ fn handle_add_breakline(
 fn handle_add_hole(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<AddHoleButton>)>,
     mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
 ) {
@@ -894,11 +1042,18 @@ fn handle_add_hole(
                     hole.push(idx);
                 }
             }
-            data.holes.push(hole);
-            println!(
-                "Added hole with {} vertices",
-                data.holes.last().unwrap().len()
-            );
+            if let Some(pos) = data
+                .holes
+                .iter()
+                .position(|h| *h == hole)
+            {
+                data.holes.remove(pos);
+                println!("Removed hole with {} vertices", hole.len());
+            } else {
+                data.holes.push(hole);
+                println!("Added hole with {} vertices", data.holes.last().unwrap().len());
+            }
+            dirty.0 = true;
         }
     }
 }
@@ -985,13 +1140,13 @@ fn handle_build_surface(
         let mesh = build_surface_mesh(&tin);
         let handle = meshes.add(mesh);
         let mat = materials.add(StandardMaterial {
-            base_color: Color::GREEN,
+            base_color: Color::rgb(0.0, 1.0, 0.0),
             ..default()
         });
         commands
             .spawn(PbrBundle {
-                mesh: handle,
-                material: mat,
+                mesh: Mesh3d(handle),
+                material: MeshMaterial3d(mat),
                 ..default()
             })
             .insert(SurfaceMesh);
@@ -1001,7 +1156,8 @@ fn handle_build_surface(
 
 fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
     use bevy::render::mesh::{Indices, PrimitiveTopology};
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    use bevy::asset::RenderAssetUsages;
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
     let positions: Vec<[f32; 3]> = tin
         .vertices
         .iter()
@@ -1017,7 +1173,7 @@ fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
-    mesh.set_indices(Some(Indices::U32(indices)));
+    mesh.insert_indices(Indices::U32(indices));
     mesh
 }
 
@@ -1221,7 +1377,7 @@ fn update_profile_lines(
                 commands.spawn((
                     SpriteBundle {
                         sprite: Sprite {
-                            color: Color::BLUE,
+                            color: Color::rgb(0.0, 0.0, 1.0),
                             custom_size: Some(Vec2::new(a.distance(b), 2.0)),
                             ..default()
                         },
@@ -1258,14 +1414,13 @@ fn update_section_lines(
         return;
     }
     let sec_station = if let Some(sec) = view.sections.get(view.current) {
-        view.station = sec.station;
         sec.station
     } else if let Some(sec) = view.design.get(view.current) {
-        view.station = sec.station;
         sec.station
     } else {
         return;
     };
+    view.station = sec_station;
     let mut pts = Vec::new();
     let mut v_pairs = Vec::new();
     for (i, e) in data.points.iter().enumerate() {
@@ -1320,12 +1475,14 @@ fn update_section_lines(
 
         if view.show_ground {
             if let Some(sec) = view.sections.get(view.current) {
-                draw_section(sec, Color::rgb(1.0, 1.0, 0.0), &mut commands, &mut view.entities);
+                let clone = survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
+                draw_section(&clone, Color::rgb(1.0, 1.0, 0.0), &mut commands, &mut view.entities);
             }
         }
         if view.show_design {
             if let Some(sec) = view.design.get(view.current) {
-                draw_section(sec, Color::rgb(1.0, 0.0, 0.0), &mut commands, &mut view.entities);
+                let clone = survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
+                draw_section(&clone, Color::rgb(1.0, 0.0, 0.0), &mut commands, &mut view.entities);
             }
         }
     }
@@ -1344,6 +1501,7 @@ fn handle_open_button(
     mut alignment: ResMut<AlignmentData>,
     mut surface_data: ResMut<SurfaceData>,
     mut surface_tin: ResMut<SurfaceTin>,
+    mut surface_dirty: ResMut<SurfaceDirty>,
     points: Query<Entity, With<CadPoint>>,
     surfaces: Query<Entity, With<SurfaceMesh>>,
 ) {
@@ -1359,6 +1517,7 @@ fn handle_open_button(
             surface_data.holes.clear();
             surface_data.point_map.clear();
             surface_tin.0 = None;
+            surface_dirty.0 = false;
             let lower = path_str.to_ascii_lowercase();
             if lower.ends_with(".csv") {
                 if let Ok(pts) = read_points_csv(path_str, None, None) {
@@ -1370,8 +1529,10 @@ fn handle_open_button(
                 if let Ok(tin) = landxml::read_landxml_surface(path_str) {
                     let mesh = build_surface_mesh(&tin);
                     let handle = meshes.add(mesh);
-                    let mat = materials.add(StandardMaterial { base_color: Color::GREEN, ..default() });
-                    commands.spawn(PbrBundle { mesh: handle, material: mat, ..default() }).insert(SurfaceMesh);
+                    let mat = materials.add(StandardMaterial { base_color: Color::rgb(0.0, 1.0, 0.0), ..default() });
+                    commands
+                        .spawn(PbrBundle { mesh: Mesh3d(handle), material: MeshMaterial3d(mat), ..default() })
+                        .insert(SurfaceMesh);
                     surface_tin.0 = Some(tin);
                 } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
                     for elem in hal.elements {
