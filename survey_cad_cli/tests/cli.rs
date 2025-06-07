@@ -253,3 +253,30 @@ fn create_intersection_command() {
         .stdout(predicate::str::contains("center:"));
     dir.close().unwrap();
 }
+
+#[test]
+fn create_full_intersection_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let ha = dir.child("ha.csv");
+    ha.write_str("-10.0,0.0\n0.0,0.0\n").unwrap();
+    let va = dir.child("va.csv");
+    va.write_str("0.0,0.0\n10.0,0.0\n").unwrap();
+    let hb = dir.child("hb.csv");
+    hb.write_str("0.0,0.0\n0.0,10.0\n").unwrap();
+    let vb = dir.child("vb.csv");
+    vb.write_str("10.0,0.0\n20.0,0.0\n").unwrap();
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args([
+            "create-full-intersection",
+            ha.path().to_str().unwrap(),
+            va.path().to_str().unwrap(),
+            hb.path().to_str().unwrap(),
+            vb.path().to_str().unwrap(),
+            "5.0",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Horizontal alignment:"));
+    dir.close().unwrap();
+}
