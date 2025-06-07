@@ -35,6 +35,15 @@ pub struct Network {
     pub pipes: Vec<Pipe>,
 }
 
+/// Rule specifying minimum slope based on pipe diameter.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlopeRule {
+    /// Minimum pipe diameter the rule applies to (m)
+    pub min_diameter: f64,
+    /// Desired slope for pipes of at least this diameter
+    pub slope: f64,
+}
+
 impl Network {
     pub fn structure_index(&self) -> HashMap<&str, usize> {
         let mut map = HashMap::new();
@@ -93,6 +102,29 @@ pub fn read_network_csv(structs: &str, pipes: &str) -> io::Result<Network> {
         });
     }
     Ok(network)
+}
+
+/// Read slope design rules from a CSV file with `diameter,slope` lines.
+pub fn read_slope_rules_csv(path: &str) -> io::Result<Vec<SlopeRule>> {
+    let mut rules = Vec::new();
+    for line in std::fs::read_to_string(path)?.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+        let diam = parts[0].trim().parse().unwrap_or(0.0);
+        let slope = parts[1].trim().parse().unwrap_or(0.0);
+        rules.push(SlopeRule {
+            min_diameter: diam,
+            slope,
+        });
+    }
+    // sort ascending by min_diameter for easier lookup
+    rules.sort_by(|a, b| a.min_diameter.partial_cmp(&b.min_diameter).unwrap());
+    Ok(rules)
 }
 
 pub fn write_network_csv(net: &Network, structs: &str, pipes: &str) -> io::Result<()> {
@@ -191,6 +223,37 @@ pub fn read_network_landxml(path: &str) -> io::Result<Network> {
     Ok(network)
 }
 
+/// Apply slope design rules to compute pipe inverts.
+pub fn apply_slope_rules(net: &mut Network, rules: &[SlopeRule]) {
+    let idx: HashMap<String, usize> = net
+        .structures
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.id.clone(), i))
+        .collect();
+    for pipe in &mut net.pipes {
+        if let Some(&start_idx) = idx.get(pipe.from.as_str()) {
+            let a = &net.structures[start_idx];
+            // compute pipe length if we know the end structure
+            let length = idx
+                .get(pipe.to.as_str())
+                .map(|&b_idx| {
+                    let b = &net.structures[b_idx];
+                    ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt()
+                })
+                .unwrap_or(0.0);
+            pipe.start_invert = a.z;
+            let slope = rules
+                .iter()
+                .filter(|r| pipe.diameter >= r.min_diameter)
+                .max_by(|a, b| a.min_diameter.partial_cmp(&b.min_diameter).unwrap())
+                .map(|r| r.slope)
+                .unwrap_or(0.0);
+            pipe.end_invert = pipe.start_invert - slope * length;
+        }
+    }
+}
+
 /// Calculates head loss using the Hazen-Williams equation (SI units).
 pub fn hazen_williams_headloss(flow: f64, length: f64, diameter: f64, c: f64) -> f64 {
     if diameter <= 0.0 || c <= 0.0 {
@@ -236,6 +299,20 @@ pub struct PipeAnalysis {
     pub end_grade: f64,
 }
 
+/// Results of detailed pipe analysis with additional hydraulics info
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetailedPipeAnalysis {
+    pub id: String,
+    pub length: f64,
+    pub design_flow: f64,
+    pub slope: f64,
+    pub headloss: f64,
+    pub velocity: f64,
+    pub friction_slope: f64,
+    pub start_grade: f64,
+    pub end_grade: f64,
+}
+
 /// Analyze each pipe in a network using its `design_flow`.
 pub fn analyze_network(net: &Network) -> Vec<PipeAnalysis> {
     let idx = net.structure_index();
@@ -264,6 +341,39 @@ pub fn analyze_network(net: &Network) -> Vec<PipeAnalysis> {
     results
 }
 
+/// Perform detailed analysis including velocity and friction slope
+pub fn analyze_network_detailed(net: &Network) -> Vec<DetailedPipeAnalysis> {
+    let idx = net.structure_index();
+    let mut results = Vec::new();
+    for pipe in &net.pipes {
+        if let (Some(&a_idx), Some(&b_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
+            let a = &net.structures[a_idx];
+            let b = &net.structures[b_idx];
+            let length = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+            let slope = pipe_slope(pipe.start_invert, pipe.end_invert, length);
+            let flow = pipe.design_flow;
+            let headloss = hazen_williams_headloss(flow, length, pipe.diameter, pipe.c);
+            let area = std::f64::consts::PI * (pipe.diameter * pipe.diameter) / 4.0;
+            let velocity = if area > 0.0 { flow / area } else { 0.0 };
+            let friction_slope = if length > 0.0 { headloss / length } else { 0.0 };
+            let start_grade = a.z;
+            let end_grade = hydraulic_grade(start_grade, headloss);
+            results.push(DetailedPipeAnalysis {
+                id: pipe.id.clone(),
+                length,
+                design_flow: flow,
+                slope,
+                headloss,
+                velocity,
+                friction_slope,
+                start_grade,
+                end_grade,
+            });
+        }
+    }
+    results
+}
+
 /// Write pipe analysis results to CSV.
 pub fn write_analysis_csv(path: &str, results: &[PipeAnalysis]) -> io::Result<()> {
     let mut file = std::fs::File::create(path)?;
@@ -277,6 +387,27 @@ pub fn write_analysis_csv(path: &str, results: &[PipeAnalysis]) -> io::Result<()
     Ok(())
 }
 
+/// Write detailed pipe analysis results to CSV.
+pub fn write_detailed_analysis_csv(path: &str, results: &[DetailedPipeAnalysis]) -> io::Result<()> {
+    let mut file = std::fs::File::create(path)?;
+    for r in results {
+        writeln!(
+            file,
+            "{},{},{},{},{},{},{},{},{}",
+            r.id,
+            r.length,
+            r.design_flow,
+            r.slope,
+            r.headloss,
+            r.velocity,
+            r.friction_slope,
+            r.start_grade,
+            r.end_grade
+        )?;
+    }
+    Ok(())
+}
+
 /// Write pipe analysis results to LandXML.
 pub fn write_analysis_landxml(path: &str, results: &[PipeAnalysis]) -> io::Result<()> {
     let mut xml = String::new();
@@ -285,6 +416,28 @@ pub fn write_analysis_landxml(path: &str, results: &[PipeAnalysis]) -> io::Resul
         xml.push_str(&format!(
             "    <Pipe id=\"{}\" length=\"{}\" designFlow=\"{}\" slope=\"{}\" headloss=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>\n",
             r.id, r.length, r.design_flow, r.slope, r.headloss, r.start_grade, r.end_grade
+        ));
+    }
+    xml.push_str("  </PipeResults>\n</LandXML>\n");
+    std::fs::write(path, xml)
+}
+
+/// Write detailed pipe analysis results to LandXML.
+pub fn write_detailed_analysis_landxml(path: &str, results: &[DetailedPipeAnalysis]) -> io::Result<()> {
+    let mut xml = String::new();
+    xml.push_str("<?xml version=\"1.0\"?>\n<LandXML>\n  <PipeResults>\n");
+    for r in results {
+        xml.push_str(&format!(
+            "    <Pipe id=\"{}\" length=\"{}\" designFlow=\"{}\" slope=\"{}\" headloss=\"{}\" velocity=\"{}\" frictionSlope=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>\n",
+            r.id,
+            r.length,
+            r.design_flow,
+            r.slope,
+            r.headloss,
+            r.velocity,
+            r.friction_slope,
+            r.start_grade,
+            r.end_grade
         ));
     }
     xml.push_str("  </PipeResults>\n</LandXML>\n");
@@ -382,5 +535,31 @@ mod tests {
         let res = analyze_network(&net);
         assert_eq!(res.len(), 1);
         assert!(res[0].headloss > 0.0);
+    }
+
+    #[test]
+    fn apply_rules_and_detailed_analysis() {
+        let mut net = Network {
+            structures: vec![
+                Structure { id: "A".into(), x: 0.0, y: 0.0, z: 2.0 },
+                Structure { id: "B".into(), x: 20.0, y: 0.0, z: 2.0 },
+            ],
+            pipes: vec![Pipe {
+                id: "P".into(),
+                from: "A".into(),
+                to: "B".into(),
+                diameter: 0.5,
+                c: 120.0,
+                start_invert: 0.0,
+                end_invert: 0.0,
+                design_flow: 0.4,
+            }],
+        };
+        let rules = vec![SlopeRule { min_diameter: 0.0, slope: 0.01 }];
+        apply_slope_rules(&mut net, &rules);
+        assert!(net.pipes[0].end_invert < net.pipes[0].start_invert);
+        let det = analyze_network_detailed(&net);
+        assert_eq!(det.len(), 1);
+        assert!(det[0].velocity > 0.0);
     }
 }

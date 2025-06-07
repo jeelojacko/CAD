@@ -391,6 +391,21 @@ enum Commands {
         out_csv: String,
         out_xml: String,
     },
+    /// Apply slope rules to design pipe inverts.
+    PipeNetworkDesign {
+        structures: String,
+        pipes: String,
+        rules: String,
+        out_structs: String,
+        out_pipes: String,
+    },
+    /// Detailed analysis including velocity.
+    PipeNetworkAnalyzeDetailed {
+        structures: String,
+        pipes: String,
+        out_csv: String,
+        out_xml: String,
+    },
 }
 
 fn main() {
@@ -950,6 +965,41 @@ fn main() {
                     eprintln!("Error writing {}: {}", out_csv, e);
                 }
                 if let Err(e) = pipe_network::write_analysis_landxml(&out_xml, &res) {
+                    eprintln!("Error writing {}: {}", out_xml, e);
+                }
+            }
+            Err(e) => eprintln!("Error reading network: {}", e),
+        },
+        Commands::PipeNetworkDesign {
+            structures,
+            pipes,
+            rules,
+            out_structs,
+            out_pipes,
+        } => match (
+            pipe_network::read_network_csv(&structures, &pipes),
+            pipe_network::read_slope_rules_csv(&rules),
+        ) {
+            (Ok(mut net), Ok(rules)) => {
+                pipe_network::apply_slope_rules(&mut net, &rules);
+                if let Err(e) = pipe_network::write_network_csv(&net, &out_structs, &out_pipes) {
+                    eprintln!("Error writing network: {}", e);
+                }
+            }
+            (Err(e), _) | (_, Err(e)) => eprintln!("Error: {}", e),
+        },
+        Commands::PipeNetworkAnalyzeDetailed {
+            structures,
+            pipes,
+            out_csv,
+            out_xml,
+        } => match pipe_network::read_network_csv(&structures, &pipes) {
+            Ok(net) => {
+                let res = pipe_network::analyze_network_detailed(&net);
+                if let Err(e) = pipe_network::write_detailed_analysis_csv(&out_csv, &res) {
+                    eprintln!("Error writing {}: {}", out_csv, e);
+                }
+                if let Err(e) = pipe_network::write_detailed_analysis_landxml(&out_xml, &res) {
                     eprintln!("Error writing {}: {}", out_xml, e);
                 }
             }

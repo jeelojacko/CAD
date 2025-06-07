@@ -298,8 +298,8 @@ pub fn write_cross_section_scaled_svg(
     grid: f64,
 ) -> io::Result<()> {
     let mut all_lines: Vec<(f64, f64, Vec<Point>, f64)> = Vec::new();
-    let mut max_width = 0.0;
-    let mut max_height = 0.0;
+    let mut max_width: f64 = 0.0;
+    let mut max_height: f64 = 0.0;
     for sec in sections {
         if let (Some(center), Some(dir), Some(grade)) = (
             alignment.horizontal.point_at(sec.station),
