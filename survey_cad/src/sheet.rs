@@ -8,7 +8,7 @@
 use std::fs::File;
 use std::io::{self, Write};
 
-use crate::alignment::{HorizontalAlignment, VerticalAlignment, Alignment};
+use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
 use crate::corridor::CrossSection;
 use crate::geometry::{Point, Point3};
 
@@ -39,16 +39,27 @@ fn bbox(points: &[Point]) -> Option<(f64, f64, f64, f64)> {
     let mut min_y = points[0].y;
     let mut max_y = points[0].y;
     for p in points.iter().skip(1) {
-        if p.x < min_x { min_x = p.x; }
-        if p.x > max_x { max_x = p.x; }
-        if p.y < min_y { min_y = p.y; }
-        if p.y > max_y { max_y = p.y; }
+        if p.x < min_x {
+            min_x = p.x;
+        }
+        if p.x > max_x {
+            max_x = p.x;
+        }
+        if p.y < min_y {
+            min_y = p.y;
+        }
+        if p.y > max_y {
+            max_y = p.y;
+        }
     }
     Some((min_x, min_y, max_x, max_y))
 }
 
 fn write_svg_header(file: &mut File, width: f64, height: f64) -> io::Result<()> {
-    writeln!(file, "<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}'>")
+    writeln!(
+        file,
+        "<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}'>"
+    )
 }
 
 fn write_svg_footer(file: &mut File) -> io::Result<()> {
@@ -89,7 +100,7 @@ pub fn write_plan_profile_svg(
         profile.push(Point::new(profile_len, z));
     }
 
-    let (min_x, min_y, max_x, max_y) = bbox(&plan).unwrap_or((0.0,0.0,0.0,0.0));
+    let (min_x, min_y, max_x, max_y) = bbox(&plan).unwrap_or((0.0, 0.0, 0.0, 0.0));
     let width = max_x - min_x;
     let height = max_y - min_y;
     let mut f = File::create(path)?;
@@ -105,7 +116,7 @@ pub fn write_plan_profile_svg(
 
     // profile below plan
     writeln!(f, "<g transform='translate(20,{})'>", height + 40.0)?;
-    let prof_bbox = bbox(&profile).unwrap_or((0.0,0.0,0.0,0.0));
+    let prof_bbox = bbox(&profile).unwrap_or((0.0, 0.0, 0.0, 0.0));
     let prof_height = prof_bbox.3 - prof_bbox.1;
     let profile_scaled: Vec<Point> = profile
         .iter()
@@ -129,8 +140,8 @@ pub fn write_cross_section_svg(
     spacing: f64,
 ) -> io::Result<()> {
     let mut all_lines: Vec<Vec<Point>> = Vec::new();
-    let mut max_width = 0.0;
-    let mut max_height = 0.0;
+    let mut max_width: f64 = 0.0;
+    let mut max_height: f64 = 0.0;
     for sec in sections {
         if let (Some(center), Some(dir), Some(grade)) = (
             alignment.horizontal.point_at(sec.station),
@@ -172,4 +183,3 @@ pub fn write_cross_section_svg(
 
     write_svg_footer(&mut f)
 }
-
