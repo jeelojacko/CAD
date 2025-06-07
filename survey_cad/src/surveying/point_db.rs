@@ -1,6 +1,6 @@
+use super::{adjust_network, AdjustResult, Observation};
 use crate::crs::Crs;
-use crate::geometry::{Point, Point3};
-use super::{adjust_network, Observation, AdjustResult};
+use crate::geometry::{Point, Point3, Polyline};
 
 /// Representation of a survey point with optional number and description.
 #[derive(Debug, Clone, PartialEq)]
@@ -8,11 +8,22 @@ pub struct SurveyPoint {
     pub number: Option<u32>,
     pub point: Point3,
     pub description: Option<String>,
+    pub codes: Vec<String>,
 }
 
 impl SurveyPoint {
-    pub fn new(number: Option<u32>, point: Point3, description: Option<String>) -> Self {
-        Self { number, point, description }
+    pub fn new(
+        number: Option<u32>,
+        point: Point3,
+        description: Option<String>,
+        codes: Vec<String>,
+    ) -> Self {
+        Self {
+            number,
+            point,
+            description,
+            codes,
+        }
     }
 }
 
@@ -61,6 +72,21 @@ impl PointDatabase {
         }
         result
     }
+
+    /// Generates simple polylines from points sharing the same code. Points are
+    /// ordered according to their position in the database.
+    pub fn generate_linework(&self) -> Vec<Polyline> {
+        use std::collections::BTreeMap;
+        let mut map: BTreeMap<String, Vec<Point>> = BTreeMap::new();
+        for p in &self.points {
+            for code in &p.codes {
+                map.entry(code.clone())
+                    .or_default()
+                    .push(Point::new(p.point.x, p.point.y));
+            }
+        }
+        map.into_iter().map(|(_, pts)| Polyline::new(pts)).collect()
+    }
 }
 
 #[cfg(test)]
@@ -71,7 +97,12 @@ mod tests {
     #[test]
     fn transform_points() {
         let mut db = PointDatabase::new();
-        db.add_point(SurveyPoint::new(None, Point3::new(0.0, 0.0, 0.0), None));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            Vec::new(),
+        ));
         let wgs84 = Crs::from_epsg(4326);
         let webm = Crs::from_epsg(3857);
         db.transform(wgs84, webm);
@@ -83,9 +114,24 @@ mod tests {
     #[test]
     fn adjust_database() {
         let mut db = PointDatabase::new();
-        db.add_point(SurveyPoint::new(None, Point3::new(0.0, 0.0, 0.0), None));
-        db.add_point(SurveyPoint::new(None, Point3::new(100.0, 0.0, 0.0), None));
-        db.add_point(SurveyPoint::new(None, Point3::new(40.0, 40.0, 0.0), None));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            Vec::new(),
+        ));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(100.0, 0.0, 0.0),
+            None,
+            Vec::new(),
+        ));
+        db.add_point(SurveyPoint::new(
+            None,
+            Point3::new(40.0, 40.0, 0.0),
+            None,
+            Vec::new(),
+        ));
         let obs = vec![
             Observation::Distance {
                 from: 0,
@@ -106,5 +152,32 @@ mod tests {
         assert!((p.y - 40.0).abs() < 1e-2);
         assert!(result.residuals.iter().all(|v| v.abs() < 1e-6));
     }
-}
 
+    #[test]
+    fn generate_linework_groups_by_code() {
+        let mut db = PointDatabase::new();
+        db.add_point(SurveyPoint::new(
+            Some(1),
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            vec!["A1".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(2),
+            Point3::new(1.0, 0.0, 0.0),
+            None,
+            vec!["A1".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(3),
+            Point3::new(0.0, 1.0, 0.0),
+            None,
+            vec!["B1".into()],
+        ));
+        let lines = db.generate_linework();
+        assert_eq!(lines.len(), 2);
+        let mut lens: Vec<usize> = lines.iter().map(|l| l.vertices.len()).collect();
+        lens.sort();
+        assert_eq!(lens, vec![1, 2]);
+    }
+}

@@ -45,6 +45,7 @@ pub struct SurveyPoint {
     pub number: Option<u32>,
     pub point: Point3,
     pub description: Option<String>,
+    pub codes: Vec<String>,
 }
 
 /// Common point file formats.
@@ -124,6 +125,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number,
                     point: Point3::new(e, n, z),
                     description: desc,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::PENZD => {
@@ -146,6 +148,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number,
                     point: Point3::new(e, n, z),
                     description: desc,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::PNEZ => {
@@ -163,6 +166,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number,
                     point: Point3::new(e, n, z),
                     description: None,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::PENZ => {
@@ -180,6 +184,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number,
                     point: Point3::new(e, n, z),
                     description: None,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::NEZ => {
@@ -196,6 +201,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number: None,
                     point: Point3::new(e, n, z),
                     description: None,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::ENZ => {
@@ -212,6 +218,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number: None,
                     point: Point3::new(e, n, z),
                     description: None,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::NEZD => {
@@ -229,6 +236,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number: None,
                     point: Point3::new(e, n, z),
                     description: desc,
+                    codes: Vec::new(),
                 }
             }
             PointFileFormat::ENZD => {
@@ -246,6 +254,7 @@ pub fn read_point_file(path: &str, format: PointFileFormat) -> io::Result<Vec<Su
                     number: None,
                     point: Point3::new(e, n, z),
                     description: desc,
+                    codes: Vec::new(),
                 }
             }
         };
