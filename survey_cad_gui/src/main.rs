@@ -2,8 +2,8 @@
 use bevy::prelude::*;
 use clap::Parser;
 use std::collections::HashMap;
-use survey_cad::geometry::Point3;
-use survey_cad::{crs::Crs, geometry::Point};
+use survey_cad::geometry::{Point, Point3, Polyline};
+use survey_cad::{crs::Crs, geometry::distance};
 
 #[derive(Parser)]
 struct Args {
@@ -68,6 +68,12 @@ struct ShowProfileButton;
 struct ShowSectionsButton;
 
 #[derive(Component)]
+struct ShowPlanButton;
+
+#[derive(Component)]
+struct PlanLabel;
+
+#[derive(Component)]
 struct ProfileLine;
 
 #[derive(Component)]
@@ -125,6 +131,9 @@ struct ProfileVisible(bool);
 
 #[derive(Resource, Default)]
 struct SectionsVisible(bool);
+
+#[derive(Resource, Default)]
+struct PlanVisible(bool);
 
 #[derive(Resource, Default)]
 struct ParcelData {
@@ -219,6 +228,7 @@ fn main() {
         .insert_resource(CorridorParams::default())
         .insert_resource(ProfileVisible::default())
         .insert_resource(SectionsVisible::default())
+        .insert_resource(PlanVisible::default())
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -246,11 +256,13 @@ fn main() {
                 handle_grade_button,
                 handle_open_button,
                 handle_save_button,
+                handle_show_plan,
                 handle_show_profile,
                 handle_show_sections,
                 handle_section_nav,
                 handle_section_buttons,
                 update_profile_lines,
+                update_plan_labels,
                 update_section_lines,
             ),
         )
@@ -602,6 +614,22 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
                     ));
                 })
                 .insert(ShowSectionsButton);
+
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Show Plan"),
+                    ));
+                })
+                .insert(ShowPlanButton);
         });
     (parcel_text, grade_text)
 }
@@ -1186,6 +1214,15 @@ fn handle_show_profile(
     }
 }
 
+fn handle_show_plan(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ShowPlanButton>)>,
+    mut visible: ResMut<PlanVisible>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        visible.0 = !visible.0;
+    }
+}
+
 fn handle_show_sections(
     interaction: Query<
         &Interaction,
@@ -1389,6 +1426,72 @@ fn update_profile_lines(
                 ));
             }
         }
+    }
+}
+
+fn polyline_point_at(pts: &[Point], dist: f64) -> Option<Point> {
+    if pts.len() < 2 {
+        return None;
+    }
+    let mut remaining = dist;
+    for pair in pts.windows(2) {
+        let seg_len = distance(pair[0], pair[1]);
+        if remaining <= seg_len {
+            let t = if seg_len == 0.0 { 0.0 } else { remaining / seg_len };
+            return Some(Point::new(
+                pair[0].x + t * (pair[1].x - pair[0].x),
+                pair[0].y + t * (pair[1].y - pair[0].y),
+            ));
+        }
+        remaining -= seg_len;
+    }
+    pts.last().copied()
+}
+
+fn update_plan_labels(
+    visible: Res<PlanVisible>,
+    data: Res<AlignmentData>,
+    points: Query<&Transform, With<CadPoint>>,
+    params: Res<CorridorParams>,
+    asset_server: Res<AssetServer>,
+    mut commands: Commands,
+    existing: Query<Entity, With<PlanLabel>>,
+) {
+    for e in &existing {
+        commands.entity(e).despawn_recursive();
+    }
+    if !visible.0 {
+        return;
+    }
+    let mut pts = Vec::new();
+    for &e in &data.points {
+        if let Ok(t) = points.get(e) {
+            pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+        }
+    }
+    if pts.len() < 2 {
+        return;
+    }
+    let pl = Polyline::new(pts.clone());
+    let total = pl.length();
+    let mut station = 0.0;
+    let interval = params.interval.max(0.1);
+    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    while station <= total + 0.01 {
+        if let Some(p) = polyline_point_at(&pts, station) {
+            commands.spawn((
+                Text2d::new(format!("{:.0}", station)),
+                TextFont {
+                    font: font.clone(),
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor::WHITE,
+                Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 1.0)),
+                PlanLabel,
+            ));
+        }
+        station += interval;
     }
 }
 
