@@ -8,6 +8,9 @@ pub use cogo::{bearing, forward, line_intersection};
 pub mod adjustment;
 pub use adjustment::{adjust_network, AdjustResult, Observation};
 
+pub mod point_db;
+pub use point_db::{PointDatabase, SurveyPoint};
+
 /// Representation of a simple survey station.
 #[derive(Debug)]
 pub struct Station {
