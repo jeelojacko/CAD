@@ -23,7 +23,10 @@ use survey_cad::{
 #[cfg(feature = "las")]
 use survey_cad::io::las::read_points_las;
 #[cfg(feature = "shapefile")]
-use survey_cad::io::shp::{read_points_shp, write_points_shp};
+use survey_cad::io::shp::{
+    read_points_shp, read_polygons_shp, read_polylines_shp, write_points_shp, write_polygons_shp,
+    write_polylines_shp,
+};
 
 fn no_render() -> bool {
     std::env::var("SURVEY_CAD_TEST").is_ok()
@@ -35,6 +38,116 @@ fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
     let mut file = std::fs::File::create(path)?;
     for p in points {
         writeln!(file, "{},{},{}", p.x, p.y, p.z)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "shapefile")]
+fn read_polylines_csv(path: &str) -> std::io::Result<Vec<survey_cad::geometry::Polyline>> {
+    let lines = read_lines(path)?;
+    let mut polylines = Vec::new();
+    let mut current = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() {
+            if current.len() >= 2 {
+                polylines.push(survey_cad::geometry::Polyline::new(current.clone()));
+            } else if !current.is_empty() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("line {}: polyline has less than 2 points", idx + 1),
+                ));
+            }
+            current.clear();
+            continue;
+        }
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() != 2 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: expected x,y", idx + 1),
+            ));
+        }
+        let x: f64 = parts[0].trim().parse().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        let y: f64 = parts[1].trim().parse().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        current.push(Point::new(x, y));
+    }
+    if !current.is_empty() {
+        if current.len() >= 2 {
+            polylines.push(survey_cad::geometry::Polyline::new(current));
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "final polyline has less than 2 points",
+            ));
+        }
+    }
+    Ok(polylines)
+}
+
+#[cfg(feature = "shapefile")]
+fn write_polylines_csv(path: &str, polylines: &[survey_cad::geometry::Polyline]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::File::create(path)?;
+    for (i, pl) in polylines.iter().enumerate() {
+        for v in &pl.vertices {
+            writeln!(file, "{},{}", v.x, v.y)?;
+        }
+        if i + 1 < polylines.len() {
+            writeln!(file)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "shapefile")]
+fn read_polygons_csv(path: &str) -> std::io::Result<Vec<Vec<Point>>> {
+    let lines = read_lines(path)?;
+    let mut polygons = Vec::new();
+    let mut current = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() {
+            if !current.is_empty() {
+                polygons.push(current.clone());
+                current.clear();
+            }
+            continue;
+        }
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() != 2 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("line {}: expected x,y", idx + 1),
+            ));
+        }
+        let x: f64 = parts[0].trim().parse().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        let y: f64 = parts[1].trim().parse().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        current.push(Point::new(x, y));
+    }
+    if !current.is_empty() {
+        polygons.push(current);
+    }
+    Ok(polygons)
+}
+
+#[cfg(feature = "shapefile")]
+fn write_polygons_csv(path: &str, polygons: &[Vec<Point>]) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::File::create(path)?;
+    for (i, poly) in polygons.iter().enumerate() {
+        for p in poly {
+            writeln!(file, "{},{}", p.x, p.y)?;
+        }
+        if i + 1 < polygons.len() {
+            writeln!(file)?;
+        }
     }
     Ok(())
 }
@@ -148,6 +261,18 @@ enum Commands {
     /// Import points from a shapefile to CSV.
     #[cfg(feature = "shapefile")]
     ImportShp { input: String, output: String },
+    /// Export polylines from a CSV file to a shapefile.
+    #[cfg(feature = "shapefile")]
+    ExportPolylinesShp { input: String, output: String },
+    /// Import polylines from a shapefile to CSV.
+    #[cfg(feature = "shapefile")]
+    ImportPolylinesShp { input: String, output: String },
+    /// Export polygons from a CSV file to a shapefile.
+    #[cfg(feature = "shapefile")]
+    ExportPolygonsShp { input: String, output: String },
+    /// Import polygons from a shapefile to CSV.
+    #[cfg(feature = "shapefile")]
+    ImportPolygonsShp { input: String, output: String },
     /// Import points from a LAS file to CSV (x,y,z).
     #[cfg(feature = "las")]
     ImportLas { input: String, output: String },
@@ -352,6 +477,38 @@ fn main() {
         #[cfg(feature = "shapefile")]
         Commands::ImportShp { input, output } => match read_points_shp(&input) {
             Ok(pts) => match write_points_csv(&output, &pts, None, None) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ExportPolylinesShp { input, output } => match read_polylines_csv(&input) {
+            Ok(lines) => match write_polylines_shp(&output, &lines) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ImportPolylinesShp { input, output } => match read_polylines_shp(&input) {
+            Ok(lines) => match write_polylines_csv(&output, &lines) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ExportPolygonsShp { input, output } => match read_polygons_csv(&input) {
+            Ok(polys) => match write_polygons_shp(&output, &polys) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::ImportPolygonsShp { input, output } => match read_polygons_shp(&input) {
+            Ok(polys) => match write_polygons_csv(&output, &polys) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },

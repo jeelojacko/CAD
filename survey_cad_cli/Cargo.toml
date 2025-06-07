@@ -8,6 +8,7 @@ edition = "2021"
 survey_cad = { path = "../survey_cad", default-features = false }
 clap = { version = "4", features = ["derive"] }
 cad_import = { path = "../cad_import" }
+pipe_network = { path = "../pipe_network" }
 
 [features]
 default = ["render"]
