@@ -7,6 +7,7 @@ pub mod dtm;
 pub mod geometry;
 pub mod intersection;
 pub mod io;
+pub mod layers;
 pub mod parcel;
 #[cfg(feature = "pmetra")]
 pub mod pmetra;
@@ -14,6 +15,7 @@ pub mod pmetra;
 pub mod render;
 pub mod sheet;
 pub mod snap;
+pub mod styles;
 pub mod subassembly;
 pub mod superelevation;
 pub mod surveying;
