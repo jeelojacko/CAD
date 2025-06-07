@@ -24,6 +24,9 @@ pub struct Pipe {
     pub start_invert: f64,
     /// Invert elevation at the pipe end
     pub end_invert: f64,
+    /// Design flow for the pipe (m^3/s)
+    #[serde(default)]
+    pub design_flow: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -83,6 +86,10 @@ pub fn read_network_csv(structs: &str, pipes: &str) -> io::Result<Network> {
                 .get(6)
                 .and_then(|v| v.trim().parse().ok())
                 .unwrap_or(0.0),
+            design_flow: parts
+                .get(7)
+                .and_then(|v| v.trim().parse().ok())
+                .unwrap_or(0.0),
         });
     }
     Ok(network)
@@ -97,8 +104,15 @@ pub fn write_network_csv(net: &Network, structs: &str, pipes: &str) -> io::Resul
     for p in &net.pipes {
         writeln!(
             p_file,
-            "{},{},{},{},{},{},{}",
-            p.id, p.from, p.to, p.diameter, p.c, p.start_invert, p.end_invert
+            "{},{},{},{},{},{},{},{}",
+            p.id,
+            p.from,
+            p.to,
+            p.diameter,
+            p.c,
+            p.start_invert,
+            p.end_invert,
+            p.design_flow
         )?;
     }
     Ok(())
@@ -117,8 +131,15 @@ pub fn write_network_landxml(path: &str, net: &Network) -> io::Result<()> {
     xml.push_str("    </Structs>\n    <Pipes>\n");
     for p in &net.pipes {
         xml.push_str(&format!(
-            "      <Pipe id=\"{}\" from=\"{}\" to=\"{}\" diameter=\"{}\" c=\"{}\" startInv=\"{}\" endInv=\"{}\"/>\n",
-            p.id, p.from, p.to, p.diameter, p.c, p.start_invert, p.end_invert
+            "      <Pipe id=\"{}\" from=\"{}\" to=\"{}\" diameter=\"{}\" c=\"{}\" startInv=\"{}\" endInv=\"{}\" designFlow=\"{}\"/>\n",
+            p.id,
+            p.from,
+            p.to,
+            p.diameter,
+            p.c,
+            p.start_invert,
+            p.end_invert,
+            p.design_flow
         ));
     }
     xml.push_str("    </Pipes>\n  </PipeNetworks>\n</LandXML>\n");
@@ -160,6 +181,10 @@ pub fn read_network_landxml(path: &str) -> io::Result<Network> {
                     .attribute("endInv")
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(0.0),
+                design_flow: p
+                    .attribute("designFlow")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0.0),
             });
         }
     }
@@ -199,6 +224,73 @@ pub fn hydraulic_grade_from_inverts(
     hydraulic_grade(start_invert, hl)
 }
 
+/// Results of analyzing a single pipe
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipeAnalysis {
+    pub id: String,
+    pub length: f64,
+    pub design_flow: f64,
+    pub slope: f64,
+    pub headloss: f64,
+    pub start_grade: f64,
+    pub end_grade: f64,
+}
+
+/// Analyze each pipe in a network using its `design_flow`.
+pub fn analyze_network(net: &Network) -> Vec<PipeAnalysis> {
+    let idx = net.structure_index();
+    let mut results = Vec::new();
+    for pipe in &net.pipes {
+        if let (Some(&a_idx), Some(&b_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
+            let a = &net.structures[a_idx];
+            let b = &net.structures[b_idx];
+            let length = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+            let slope = pipe_slope(pipe.start_invert, pipe.end_invert, length);
+            let flow = pipe.design_flow;
+            let headloss = hazen_williams_headloss(flow, length, pipe.diameter, pipe.c);
+            let start_grade = a.z;
+            let end_grade = hydraulic_grade(start_grade, headloss);
+            results.push(PipeAnalysis {
+                id: pipe.id.clone(),
+                length,
+                design_flow: flow,
+                slope,
+                headloss,
+                start_grade,
+                end_grade,
+            });
+        }
+    }
+    results
+}
+
+/// Write pipe analysis results to CSV.
+pub fn write_analysis_csv(path: &str, results: &[PipeAnalysis]) -> io::Result<()> {
+    let mut file = std::fs::File::create(path)?;
+    for r in results {
+        writeln!(
+            file,
+            "{},{},{},{},{},{},{}",
+            r.id, r.length, r.design_flow, r.slope, r.headloss, r.start_grade, r.end_grade
+        )?;
+    }
+    Ok(())
+}
+
+/// Write pipe analysis results to LandXML.
+pub fn write_analysis_landxml(path: &str, results: &[PipeAnalysis]) -> io::Result<()> {
+    let mut xml = String::new();
+    xml.push_str("<?xml version=\"1.0\"?>\n<LandXML>\n  <PipeResults>\n");
+    for r in results {
+        xml.push_str(&format!(
+            "    <Pipe id=\"{}\" length=\"{}\" designFlow=\"{}\" slope=\"{}\" headloss=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>\n",
+            r.id, r.length, r.design_flow, r.slope, r.headloss, r.start_grade, r.end_grade
+        ));
+    }
+    xml.push_str("  </PipeResults>\n</LandXML>\n");
+    std::fs::write(path, xml)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -235,6 +327,7 @@ mod tests {
                 c: 120.0,
                 start_invert: 1.0,
                 end_invert: 0.5,
+                design_flow: 0.1,
             }],
         };
         let file = NamedTempFile::new().unwrap();
@@ -256,6 +349,7 @@ mod tests {
             assert!((a.c - b.c).abs() < 1e-6);
             assert!((a.start_invert - b.start_invert).abs() < 1e-6);
             assert!((a.end_invert - b.end_invert).abs() < 1e-6);
+            assert!((a.design_flow - b.design_flow).abs() < 1e-6);
         }
     }
 
@@ -265,5 +359,28 @@ mod tests {
         assert!((slope - 0.05).abs() < 1e-6);
         let grade = hydraulic_grade_from_inverts(1.0, 0.1, 10.0, 0.3, 120.0);
         assert!(grade < 1.0 && grade > 0.0);
+    }
+
+    #[test]
+    fn analyze_network_basic() {
+        let net = Network {
+            structures: vec![
+                Structure { id: "A".into(), x: 0.0, y: 0.0, z: 1.0 },
+                Structure { id: "B".into(), x: 10.0, y: 0.0, z: 1.0 },
+            ],
+            pipes: vec![Pipe {
+                id: "P".into(),
+                from: "A".into(),
+                to: "B".into(),
+                diameter: 0.3,
+                c: 120.0,
+                start_invert: 1.0,
+                end_invert: 0.9,
+                design_flow: 0.2,
+            }],
+        };
+        let res = analyze_network(&net);
+        assert_eq!(res.len(), 1);
+        assert!(res[0].headloss > 0.0);
     }
 }
