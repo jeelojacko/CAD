@@ -19,7 +19,7 @@ truck-geometry = "0.5"
 delaunator = "1"
 cdt = "0.1"
 roxmltree = "0.20"
-proj = "0.30"
+proj = { version = "0.30", features = ["network"] }
 shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
 nalgebra = { version = "0.32", default-features = false, features = ["std"] }

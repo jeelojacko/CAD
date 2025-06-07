@@ -58,7 +58,12 @@ impl PointDatabase {
             return;
         }
         for p in &mut self.points {
-            if let Some((x, y)) = src.transform_point(&dst, p.point.x, p.point.y) {
+            if let Some((x, y, z)) = src.transform_point3d(&dst, p.point.x, p.point.y, p.point.z) {
+                p.point.x = x;
+                p.point.y = y;
+                p.point.z = z;
+            } else if let Some((x, y)) = src.transform_point(&dst, p.point.x, p.point.y) {
+                // Fallback to 2D if 3D transform fails
                 p.point.x = x;
                 p.point.y = y;
             }
@@ -186,6 +191,8 @@ mod tests {
         // 0,0 should map close to 0,0 in Web Mercator
         assert!(db.points[0].point.x.abs() < 1e-6);
         assert!(db.points[0].point.y.abs() < 1e-6);
+        // z should remain unchanged
+        assert!(db.points[0].point.z.abs() < 1e-6);
     }
 
     #[test]

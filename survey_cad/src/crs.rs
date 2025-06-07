@@ -75,6 +75,52 @@ impl Crs {
         let proj = Proj::new_known_crs(&self.definition, &target.definition, None).ok()?;
         proj.convert((x, y)).ok()
     }
+
+    /// Transforms an `(x, y, z)` coordinate from this CRS to the target CRS.
+    /// Network access is enabled to allow on-the-fly grid/geoid downloads.
+    pub fn transform_point3d(
+        &self,
+        target: &Crs,
+        x: f64,
+        y: f64,
+        z: f64,
+    ) -> Option<(f64, f64, f64)> {
+        use std::ffi::CString;
+        use proj_sys::*;
+
+        unsafe {
+            let ctx = proj_context_create();
+            if ctx.is_null() {
+                return None;
+            }
+            // allow grid downloads for datum shifts and geoid transformations
+            proj_context_set_enable_network(ctx, 1);
+
+            let from_c = CString::new(self.definition.as_str()).ok()?;
+            let to_c = CString::new(target.definition.as_str()).ok()?;
+            let area = proj_area_create();
+            let mut pj = proj_create_crs_to_crs(ctx, from_c.as_ptr(), to_c.as_ptr(), area);
+            if pj.is_null() {
+                proj_area_destroy(area);
+                proj_context_destroy(ctx);
+                return None;
+            }
+            pj = proj_normalize_for_visualization(ctx, pj);
+            let coord = PJ_COORD {
+                xyzt: PJ_XYZT {
+                    x,
+                    y,
+                    z,
+                    t: 0.0,
+                },
+            };
+            let res = proj_trans(pj, PJ_DIRECTION_PJ_FWD, coord);
+            proj_destroy(pj);
+            proj_area_destroy(area);
+            proj_context_destroy(ctx);
+            Some((res.xyzt.x, res.xyzt.y, res.xyzt.z))
+        }
+    }
 }
 
 #[cfg(test)]
