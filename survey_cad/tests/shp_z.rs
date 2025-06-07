@@ -33,8 +33,8 @@ fn polygons_z_roundtrip() {
     use tempfile::NamedTempFile;
     let poly3 = vec![
         Point3::new(0.0,0.0,0.0),
-        Point3::new(1.0,0.0,0.0),
         Point3::new(1.0,1.0,0.0),
+        Point3::new(1.0,0.0,0.0),
         Point3::new(0.0,0.0,0.0),
     ];
     let poly2: Vec<Point> = poly3.iter().map(|p| Point::new(p.x,p.y)).collect();
