@@ -4638,6 +4638,7 @@ dependencies = [
  "log",
  "nalgebra",
  "proj",
+ "proj-sys",
  "roxmltree",
  "serde",
  "serde_json",
