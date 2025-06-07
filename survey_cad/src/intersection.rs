@@ -127,3 +127,92 @@ pub fn apply_grade_adjustment(alignment: &mut VerticalAlignment, station: f64, d
         }
     }
 }
+
+/// Result information for a connecting vertical curve.
+#[derive(Debug, Clone, Copy)]
+pub struct VerticalCurveInfo {
+    /// Total length of the curve.
+    pub length: f64,
+    /// Station of the high/low point.
+    pub high_low_station: f64,
+    /// Elevation of the high/low point.
+    pub high_low_elev: f64,
+    /// Elevation adjustment required for the outgoing alignment.
+    pub grade_adjustment: f64,
+}
+
+fn build_vertical_curve(
+    a: &VerticalAlignment,
+    b: &VerticalAlignment,
+    station: f64,
+    grade_in: f64,
+    grade_out: f64,
+) -> Option<VerticalCurveInfo> {
+    let start_elem = a.elements.last()?;
+    let end_elem = b.elements.first()?;
+
+    let start_station = match start_elem {
+        crate::alignment::VerticalElement::Grade { start_station, .. } => *start_station,
+        crate::alignment::VerticalElement::Parabola { start_station, .. } => *start_station,
+    };
+
+    let end_station = match end_elem {
+        crate::alignment::VerticalElement::Grade { end_station, .. } => *end_station,
+        crate::alignment::VerticalElement::Parabola { end_station, .. } => *end_station,
+    };
+
+    let l1 = station - start_station;
+    let l2 = end_station - station;
+    let length = l1 + l2;
+    if length <= 0.0 {
+        return None;
+    }
+
+    let start_elev = a.elevation_at(start_station)?;
+
+    let x_high = if (grade_out - grade_in).abs() < f64::EPSILON {
+        0.0
+    } else {
+        (-grade_in * length) / (grade_out - grade_in)
+    };
+
+    let x_high = x_high.clamp(0.0, length);
+    let high_station = start_station + x_high;
+    let high_elev =
+        start_elev + grade_in * x_high + 0.5 * (grade_out - grade_in) / length * x_high * x_high;
+
+    let curve_at_intersection = start_elev
+        + grade_in * l1
+        + 0.5 * (grade_out - grade_in) / length * l1 * l1;
+    let b_elev = b.elevation_at(station)?;
+    let grade_adjustment = curve_at_intersection - b_elev;
+
+    Some(VerticalCurveInfo {
+        length,
+        high_low_station: high_station,
+        high_low_elev: high_elev,
+        grade_adjustment,
+    })
+}
+
+/// Creates a crest vertical curve connecting two alignments.
+pub fn crest_curve_between_alignments(
+    a: &VerticalAlignment,
+    b: &VerticalAlignment,
+    station: f64,
+    grade_in: f64,
+    grade_out: f64,
+) -> Option<VerticalCurveInfo> {
+    build_vertical_curve(a, b, station, grade_in, grade_out)
+}
+
+/// Creates a sag vertical curve connecting two alignments.
+pub fn sag_curve_between_alignments(
+    a: &VerticalAlignment,
+    b: &VerticalAlignment,
+    station: f64,
+    grade_in: f64,
+    grade_out: f64,
+) -> Option<VerticalCurveInfo> {
+    build_vertical_curve(a, b, station, grade_in, grade_out)
+}
