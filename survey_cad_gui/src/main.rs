@@ -122,12 +122,35 @@ struct GradeInfo {
     text: Option<Entity>,
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 struct SectionView {
     sections: Vec<survey_cad::corridor::CrossSection>,
+    design: Vec<survey_cad::corridor::CrossSection>,
     current: usize,
+    station: f64,
+    scale: f32,
+    exaggeration: f32,
+    show_ground: bool,
+    show_design: bool,
     entities: Vec<Entity>,
     label: Option<Entity>,
+}
+
+impl Default for SectionView {
+    fn default() -> Self {
+        Self {
+            sections: Vec::new(),
+            design: Vec::new(),
+            current: 0,
+            station: 0.0,
+            scale: 5.0,
+            exaggeration: 1.0,
+            show_ground: true,
+            show_design: true,
+            entities: Vec::new(),
+            label: None,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -135,6 +158,19 @@ struct PrevSectionButton;
 
 #[derive(Component)]
 struct NextSectionButton;
+
+#[derive(Component)]
+struct SectionButton(SectionControl);
+
+#[derive(Clone, Copy)]
+enum SectionControl {
+    ScaleInc,
+    ScaleDec,
+    ExagInc,
+    ExagDec,
+    ToggleGround,
+    ToggleDesign,
+}
 
 impl Default for CorridorParams {
     fn default() -> Self {
@@ -187,6 +223,7 @@ fn main() {
                 handle_show_profile,
                 handle_show_sections,
                 handle_section_nav,
+                handle_section_buttons,
                 update_profile_lines,
                 update_section_lines,
             ),
@@ -572,6 +609,31 @@ fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>
                     ));
                 })
                 .insert(NextSectionButton);
+
+            for (label, ctl) in [
+                ("Scale -", SectionControl::ScaleDec),
+                ("Scale +", SectionControl::ScaleInc),
+                ("Exag -", SectionControl::ExagDec),
+                ("Exag +", SectionControl::ExagInc),
+                ("Ground", SectionControl::ToggleGround),
+                ("Design", SectionControl::ToggleDesign),
+            ] {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new(label),
+                        ));
+                    })
+                    .insert(SectionButton(ctl));
+            }
         });
     label
 }
@@ -942,11 +1004,12 @@ fn handle_show_sections(
         visible.0 = !visible.0;
         view.entities.clear();
         if visible.0 {
+            let keep_station = view.station;
             view.sections.clear();
-            view.current = 0;
+            view.design.clear();
             if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
                 use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
-                use survey_cad::corridor::extract_cross_sections;
+                use survey_cad::corridor::{extract_cross_sections, extract_design_cross_sections, Subassembly};
                 let mut pts = Vec::new();
                 let mut v_pairs = Vec::new();
                 for (i, e) in data.points.iter().enumerate() {
@@ -965,9 +1028,31 @@ fn handle_show_sections(
                     params.interval,
                     params.offset_step,
                 );
+                let sub = Subassembly::new(vec![(-params.width, 0.0), (params.width, 0.0)]);
+                view.design = extract_design_cross_sections(&align, &[sub], None, params.interval);
+            }
+            if !view.sections.is_empty() {
+                if let Some((idx, _)) = view
+                    .sections
+                    .iter()
+                    .enumerate()
+                    .min_by(|a, b| {
+                        (a.1.station - keep_station)
+                            .abs()
+                            .partial_cmp(&(b.1.station - keep_station).abs())
+                            .unwrap()
+                    })
+                {
+                    view.current = idx;
+                    view.station = view.sections[idx].station;
+                } else {
+                    view.current = 0;
+                    view.station = view.sections[0].station;
+                }
             }
         } else {
             view.sections.clear();
+            view.design.clear();
         }
     }
 }
@@ -985,6 +1070,31 @@ fn handle_section_nav(
     if let Ok(&Interaction::Pressed) = next.get_single() {
         if view.current + 1 < view.sections.len() {
             view.current += 1;
+        }
+    }
+    if let Some(sec) = view.sections.get(view.current) {
+        view.station = sec.station;
+    }
+}
+
+fn handle_section_buttons(
+    interactions: Query<(&Interaction, &SectionButton), Changed<Interaction>>,
+    mut view: ResMut<SectionView>,
+) {
+    for (interaction, button) in &interactions {
+        if *interaction == Interaction::Pressed {
+            match button.0 {
+                SectionControl::ScaleInc => view.scale += 1.0,
+                SectionControl::ScaleDec => {
+                    view.scale = (view.scale - 1.0).max(0.1);
+                }
+                SectionControl::ExagInc => view.exaggeration += 0.5,
+                SectionControl::ExagDec => {
+                    view.exaggeration = (view.exaggeration - 0.5).max(0.1);
+                }
+                SectionControl::ToggleGround => view.show_ground = !view.show_ground,
+                SectionControl::ToggleDesign => view.show_design = !view.show_design,
+            }
         }
     }
 }
@@ -1099,10 +1209,21 @@ fn update_section_lines(
     for e in &existing {
         commands.entity(e).despawn_recursive();
     }
-    if !visible.0 || view.sections.is_empty() {
+    if !visible.0 {
         return;
     }
-    let sec = &view.sections[view.current.min(view.sections.len() - 1)];
+    if view.sections.is_empty() && view.design.is_empty() {
+        return;
+    }
+    let sec_station = if let Some(sec) = view.sections.get(view.current) {
+        view.station = sec.station;
+        sec.station
+    } else if let Some(sec) = view.design.get(view.current) {
+        view.station = sec.station;
+        sec.station
+    } else {
+        return;
+    };
     let mut pts = Vec::new();
     let mut v_pairs = Vec::new();
     for (i, e) in data.points.iter().enumerate() {
@@ -1116,41 +1237,59 @@ fn update_section_lines(
     let val = VerticalAlignment::new(v_pairs);
     let align = Alignment::new(hal, val);
     if let (Some(center), Some(dir), Some(grade)) = (
-        align.horizontal.point_at(sec.station),
-        align.horizontal.direction_at(sec.station),
-        align.vertical.elevation_at(sec.station),
+        align.horizontal.point_at(sec_station),
+        align.horizontal.direction_at(sec_station),
+        align.vertical.elevation_at(sec_station),
     ) {
         let normal = (-dir.1, dir.0);
         let base = -40.0f32;
-        let scale = 5.0f32;
-        for pair in sec.points.windows(2) {
-            let off_a = (pair[0].x - center.x) * normal.0 + (pair[0].y - center.y) * normal.1;
-            let off_b = (pair[1].x - center.x) * normal.0 + (pair[1].y - center.y) * normal.1;
-            let elev_a = pair[0].z - grade;
-            let elev_b = pair[1].z - grade;
-            let a = Vec2::new(off_a as f32 * scale, base + elev_a as f32 * scale);
-            let b = Vec2::new(off_b as f32 * scale, base + elev_b as f32 * scale);
-            let ent = commands
-                .spawn((
-                    SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::rgb(1.0, 1.0, 0.0),
-                            custom_size: Some(Vec2::new(a.distance(b).max(1.0), 1.0)),
+        let h_scale = view.scale;
+        let v_scale = view.scale * view.exaggeration;
+
+        let draw_section = |section: &survey_cad::corridor::CrossSection,
+                            color: Color,
+                            cmds: &mut Commands,
+                            ents: &mut Vec<Entity>| {
+            for pair in section.points.windows(2) {
+                let off_a = (pair[0].x - center.x) * normal.0 + (pair[0].y - center.y) * normal.1;
+                let off_b = (pair[1].x - center.x) * normal.0 + (pair[1].y - center.y) * normal.1;
+                let elev_a = pair[0].z - grade;
+                let elev_b = pair[1].z - grade;
+                let a = Vec2::new(off_a as f32 * h_scale, base + elev_a as f32 * v_scale);
+                let b = Vec2::new(off_b as f32 * h_scale, base + elev_b as f32 * v_scale);
+                let ent = cmds
+                    .spawn((
+                        SpriteBundle {
+                            sprite: Sprite {
+                                color,
+                                custom_size: Some(Vec2::new(a.distance(b).max(1.0), 1.0)),
+                                ..default()
+                            },
+                            transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
                             ..default()
                         },
-                        transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
-                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
-                        ..default()
-                    },
-                    SectionLine,
-                ))
-                .id();
-            view.entities.push(ent);
+                        SectionLine,
+                    ))
+                    .id();
+                ents.push(ent);
+            }
+        };
+
+        if view.show_ground {
+            if let Some(sec) = view.sections.get(view.current) {
+                draw_section(sec, Color::rgb(1.0, 1.0, 0.0), &mut commands, &mut view.entities);
+            }
+        }
+        if view.show_design {
+            if let Some(sec) = view.design.get(view.current) {
+                draw_section(sec, Color::rgb(1.0, 0.0, 0.0), &mut commands, &mut view.entities);
+            }
         }
     }
     if let Some(id) = view.label {
         if let Ok(mut span) = spans.get_mut(id) {
-            span.0 = format!("Station: {:.2}", sec.station);
+            span.0 = format!("Station: {:.2}", sec_station);
         }
     }
 }
