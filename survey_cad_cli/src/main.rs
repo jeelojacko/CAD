@@ -384,6 +384,13 @@ enum Commands {
         pipes: String,
         flow: f64,
     },
+    /// Analyze a pipe network using design flows stored in the pipe CSV.
+    PipeNetworkAnalyze {
+        structures: String,
+        pipes: String,
+        out_csv: String,
+        out_xml: String,
+    },
 }
 
 fn main() {
@@ -927,6 +934,23 @@ fn main() {
                         let end = pipe_network::hydraulic_grade(a.z, hl);
                         println!("{}: headloss {:.3}, end grade {:.3}", pipe.id, hl, end);
                     }
+                }
+            }
+            Err(e) => eprintln!("Error reading network: {}", e),
+        },
+        Commands::PipeNetworkAnalyze {
+            structures,
+            pipes,
+            out_csv,
+            out_xml,
+        } => match pipe_network::read_network_csv(&structures, &pipes) {
+            Ok(net) => {
+                let res = pipe_network::analyze_network(&net);
+                if let Err(e) = pipe_network::write_analysis_csv(&out_csv, &res) {
+                    eprintln!("Error writing {}: {}", out_csv, e);
+                }
+                if let Err(e) = pipe_network::write_analysis_landxml(&out_xml, &res) {
+                    eprintln!("Error writing {}: {}", out_xml, e);
                 }
             }
             Err(e) => eprintln!("Error reading network: {}", e),
