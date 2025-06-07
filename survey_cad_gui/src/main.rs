@@ -122,6 +122,20 @@ struct GradeInfo {
     text: Option<Entity>,
 }
 
+#[derive(Resource, Default)]
+struct SectionView {
+    sections: Vec<survey_cad::corridor::CrossSection>,
+    current: usize,
+    entities: Vec<Entity>,
+    label: Option<Entity>,
+}
+
+#[derive(Component)]
+struct PrevSectionButton;
+
+#[derive(Component)]
+struct NextSectionButton;
+
 impl Default for CorridorParams {
     fn default() -> Self {
         Self {
@@ -172,6 +186,7 @@ fn main() {
                 handle_grade_button,
                 handle_show_profile,
                 handle_show_sections,
+                handle_section_nav,
                 update_profile_lines,
                 update_section_lines,
             ),
@@ -195,8 +210,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
     });
     spawn_toolbar(&mut commands, &asset_server);
     let (parcel_text, grade_text) = spawn_edit_panel(&mut commands, &asset_server);
+    let section_label = spawn_sections_panel(&mut commands, &asset_server);
     commands.insert_resource(ParcelData { parcels: Vec::new(), text: Some(parcel_text) });
     commands.insert_resource(GradeInfo { text: Some(grade_text) });
+    commands.insert_resource(SectionView { label: Some(section_label), ..Default::default() });
     // Example content
     spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
@@ -492,6 +509,71 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
                 .insert(ShowSectionsButton);
         });
     (parcel_text, grade_text)
+}
+
+fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) -> Entity {
+    let mut label = Entity::from_raw(0);
+    commands
+        .spawn(NodeBundle {
+            node: Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                bottom: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Px(80.0),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            background_color: BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+            ..default()
+        })
+        .with_children(|parent| {
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Prev"),
+                    ));
+                })
+                .insert(PrevSectionButton);
+            label = parent
+                .spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 12.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Station: 0.0"),
+                ))
+                .id();
+            parent
+                .spawn(ButtonBundle::default())
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new("Next"),
+                    ));
+                })
+                .insert(NextSectionButton);
+        });
+    label
 }
 
 fn spawn_point(commands: &mut Commands, p: Point) {
@@ -850,9 +932,60 @@ fn handle_show_sections(
         (Changed<Interaction>, With<Button>, With<ShowSectionsButton>),
     >,
     mut visible: ResMut<SectionsVisible>,
+    tin_res: Res<SurfaceTin>,
+    data: Res<AlignmentData>,
+    params: Res<CorridorParams>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut view: ResMut<SectionView>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         visible.0 = !visible.0;
+        view.entities.clear();
+        if visible.0 {
+            view.sections.clear();
+            view.current = 0;
+            if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
+                use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+                use survey_cad::corridor::extract_cross_sections;
+                let mut pts = Vec::new();
+                let mut v_pairs = Vec::new();
+                for (i, e) in data.points.iter().enumerate() {
+                    if let Ok(t) = points.get(*e) {
+                        pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                        v_pairs.push((i as f64, t.translation.y as f64));
+                    }
+                }
+                let hal = HorizontalAlignment::new(pts);
+                let val = VerticalAlignment::new(v_pairs);
+                let align = Alignment::new(hal, val);
+                view.sections = extract_cross_sections(
+                    tin,
+                    &align,
+                    params.width,
+                    params.interval,
+                    params.offset_step,
+                );
+            }
+        } else {
+            view.sections.clear();
+        }
+    }
+}
+
+fn handle_section_nav(
+    prev: Query<&Interaction, (Changed<Interaction>, With<Button>, With<PrevSectionButton>)>,
+    next: Query<&Interaction, (Changed<Interaction>, With<Button>, With<NextSectionButton>)>,
+    mut view: ResMut<SectionView>,
+) {
+    if let Ok(&Interaction::Pressed) = prev.get_single() {
+        if view.current > 0 {
+            view.current -= 1;
+        }
+    }
+    if let Ok(&Interaction::Pressed) = next.get_single() {
+        if view.current + 1 < view.sections.len() {
+            view.current += 1;
+        }
     }
 }
 
@@ -953,51 +1086,56 @@ fn update_profile_lines(
 
 fn update_section_lines(
     visible: Res<SectionsVisible>,
-    tin_res: Res<SurfaceTin>,
+    mut view: ResMut<SectionView>,
     data: Res<AlignmentData>,
-    params: Res<CorridorParams>,
     points: Query<&Transform, With<CadPoint>>,
     mut commands: Commands,
+    mut spans: Query<&mut TextSpan>,
     existing: Query<Entity, With<SectionLine>>,
 ) {
+    for e in view.entities.drain(..) {
+        commands.entity(e).despawn_recursive();
+    }
     for e in &existing {
         commands.entity(e).despawn_recursive();
     }
-    if !visible.0 {
+    if !visible.0 || view.sections.is_empty() {
         return;
     }
-    if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
-        use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
-        use survey_cad::corridor::extract_cross_sections;
-        let mut pts = Vec::new();
-        let mut v_pairs = Vec::new();
-        for (i, e) in data.points.iter().enumerate() {
-            if let Ok(t) = points.get(*e) {
-                pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
-                v_pairs.push((i as f64, t.translation.y as f64));
-            }
+    let sec = &view.sections[view.current.min(view.sections.len() - 1)];
+    let mut pts = Vec::new();
+    let mut v_pairs = Vec::new();
+    for (i, e) in data.points.iter().enumerate() {
+        if let Ok(t) = points.get(*e) {
+            pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+            v_pairs.push((i as f64, t.translation.y as f64));
         }
-        let hal = HorizontalAlignment::new(pts);
-        let val = VerticalAlignment::new(v_pairs);
-        let align = Alignment::new(hal, val);
-        let sections = extract_cross_sections(
-            tin,
-            &align,
-            params.width,
-            params.interval,
-            params.offset_step,
-        );
-        let mut idx = 0f32;
-        for sec in sections {
-            let base = idx * 20.0 - 50.0;
-            for pair in sec.points.windows(2) {
-                let a = Vec2::new(base + pair[0].x as f32, pair[0].z as f32);
-                let b = Vec2::new(base + pair[1].x as f32, pair[1].z as f32);
-                commands.spawn((
+    }
+    use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+    let hal = HorizontalAlignment::new(pts);
+    let val = VerticalAlignment::new(v_pairs);
+    let align = Alignment::new(hal, val);
+    if let (Some(center), Some(dir), Some(grade)) = (
+        align.horizontal.point_at(sec.station),
+        align.horizontal.direction_at(sec.station),
+        align.vertical.elevation_at(sec.station),
+    ) {
+        let normal = (-dir.1, dir.0);
+        let base = -40.0f32;
+        let scale = 5.0f32;
+        for pair in sec.points.windows(2) {
+            let off_a = (pair[0].x - center.x) * normal.0 + (pair[0].y - center.y) * normal.1;
+            let off_b = (pair[1].x - center.x) * normal.0 + (pair[1].y - center.y) * normal.1;
+            let elev_a = pair[0].z - grade;
+            let elev_b = pair[1].z - grade;
+            let a = Vec2::new(off_a as f32 * scale, base + elev_a as f32 * scale);
+            let b = Vec2::new(off_b as f32 * scale, base + elev_b as f32 * scale);
+            let ent = commands
+                .spawn((
                     SpriteBundle {
                         sprite: Sprite {
-                            color: Color::YELLOW,
-                            custom_size: Some(Vec2::new(a.distance(b), 1.0)),
+                            color: Color::rgb(1.0, 1.0, 0.0),
+                            custom_size: Some(Vec2::new(a.distance(b).max(1.0), 1.0)),
                             ..default()
                         },
                         transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
@@ -1005,9 +1143,14 @@ fn update_section_lines(
                         ..default()
                     },
                     SectionLine,
-                ));
-            }
-            idx += 1.0;
+                ))
+                .id();
+            view.entities.push(ent);
+        }
+    }
+    if let Some(id) = view.label {
+        if let Ok(mut span) = spans.get_mut(id) {
+            span.0 = format!("Station: {:.2}", sec.station);
         }
     }
 }
