@@ -1,5 +1,22 @@
 use crate::geometry::{polygon_area, Point, Point3};
 
+/// Classification for breaklines when building constrained TINs.
+#[derive(Debug, Clone, Copy)]
+pub enum BreaklineKind {
+    /// Hard breaklines enforce triangle edges exactly.
+    Hard,
+    /// Soft breaklines are used only for smoothing.
+    Soft,
+}
+
+/// Breakline with an associated classification.
+#[derive(Debug, Clone, Copy)]
+pub struct ClassifiedBreakline {
+    pub start: usize,
+    pub end: usize,
+    pub kind: BreaklineKind,
+}
+
 /// Returns `true` if point `p` is inside the polygon defined by `poly` using
 /// the ray casting algorithm.
 fn point_in_polygon(p: Point, poly: &[Point]) -> bool {
@@ -40,7 +57,9 @@ fn triangle_slope_deg(a: Point3, b: Point3, c: Point3) -> f64 {
     if n.z.abs() < f64::EPSILON {
         90.0
     } else {
-        ((n.x * n.x + n.y * n.y).sqrt() / n.z.abs()).atan().to_degrees()
+        ((n.x * n.x + n.y * n.y).sqrt() / n.z.abs())
+            .atan()
+            .to_degrees()
     }
 }
 
@@ -167,6 +186,74 @@ impl Tin {
     /// breaklines.
     pub fn with_breaklines(&self, breaklines: &[(usize, usize)]) -> Self {
         Tin::from_points_constrained(self.vertices.clone(), Some(breaklines), None)
+    }
+
+    /// Builds a constrained TIN using classified breaklines. Only hard
+    /// breaklines are enforced; soft breaklines are ignored when
+    /// constructing the triangulation.
+    pub fn from_points_classified(
+        points: Vec<Point3>,
+        breaklines: &[ClassifiedBreakline],
+        outer_boundary: Option<&[usize]>,
+        holes: &[Vec<usize>],
+    ) -> Self {
+        let hard: Vec<(usize, usize)> = breaklines
+            .iter()
+            .filter(|b| matches!(b.kind, BreaklineKind::Hard))
+            .map(|b| (b.start, b.end))
+            .collect();
+        Tin::from_points_constrained_with_holes(points, Some(&hard), outer_boundary, holes)
+    }
+
+    /// Returns a new TIN with an updated outer boundary.
+    pub fn with_boundary(&self, boundary: &[usize]) -> Self {
+        Tin::from_points_constrained(self.vertices.clone(), None, Some(boundary))
+    }
+
+    /// Returns a new TIN with interior hole boundaries applied.
+    pub fn with_holes(&self, holes: &[Vec<usize>]) -> Self {
+        Tin::from_points_constrained_with_holes(self.vertices.clone(), None, None, holes)
+    }
+
+    /// Smooths the surface elevations using simple Laplacian smoothing.
+    /// Only vertex Z values are modified. Boundaries are not preserved.
+    pub fn smooth(&self, iterations: usize) -> Self {
+        if iterations == 0 {
+            return self.clone();
+        }
+        let mut verts = self.vertices.clone();
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); verts.len()];
+        for tri in &self.triangles {
+            for i in 0..3 {
+                let a = tri[i];
+                for j in 0..3 {
+                    if i == j {
+                        continue;
+                    }
+                    let b = tri[j];
+                    if !adj[a].contains(&b) {
+                        adj[a].push(b);
+                    }
+                }
+            }
+        }
+        for _ in 0..iterations {
+            let mut new_z: Vec<f64> = verts.iter().map(|v| v.z).collect();
+            for i in 0..verts.len() {
+                if adj[i].is_empty() {
+                    continue;
+                }
+                let sum: f64 = adj[i].iter().map(|&j| verts[j].z).sum();
+                new_z[i] = sum / adj[i].len() as f64;
+            }
+            for (v, z) in verts.iter_mut().zip(new_z) {
+                v.z = z;
+            }
+        }
+        Self {
+            vertices: verts,
+            triangles: self.triangles.clone(),
+        }
     }
 
     /// Returns the slope in degrees for each triangle in the TIN.
@@ -416,6 +503,53 @@ impl Tin {
     }
 }
 
+/// Surface that automatically rebuilds when its points are modified.
+#[derive(Debug, Clone)]
+pub struct DynamicTin {
+    pub points: Vec<Point3>,
+    pub breaklines: Vec<(usize, usize)>,
+    pub boundary: Option<Vec<usize>>,
+    pub holes: Vec<Vec<usize>>,
+    pub tin: Tin,
+}
+
+impl DynamicTin {
+    /// Creates a new dynamic surface from points.
+    pub fn new(points: Vec<Point3>) -> Self {
+        let tin = Tin::from_points(points.clone());
+        Self {
+            points,
+            breaklines: Vec::new(),
+            boundary: None,
+            holes: Vec::new(),
+            tin,
+        }
+    }
+
+    /// Rebuilds the internal TIN using current points and constraints.
+    pub fn rebuild(&mut self) {
+        self.tin = Tin::from_points_constrained_with_holes(
+            self.points.clone(),
+            Some(&self.breaklines),
+            self.boundary.as_deref(),
+            &self.holes,
+        );
+    }
+
+    /// Updates a single point and rebuilds the surface.
+    pub fn update_point(&mut self, index: usize, point: Point3) {
+        if let Some(p) = self.points.get_mut(index) {
+            *p = point;
+            self.rebuild();
+        }
+    }
+
+    /// Returns a reference to the underlying TIN.
+    pub fn tin(&self) -> &Tin {
+        &self.tin
+    }
+}
+
 fn intersect_edge(a: Point3, b: Point3, level: f64) -> Option<Point3> {
     let da = a.z - level;
     let db = b.z - level;
@@ -569,5 +703,60 @@ mod tests {
             .slope_projection(start, (1.0, 0.0), -1.0, 1.0, 10.0)
             .unwrap();
         assert!((p.x - 10.0).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn tin_smoothing() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 10.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let smoothed = tin.smooth(1);
+        assert!(smoothed.vertices[3].z < 10.0);
+    }
+
+    #[test]
+    fn classified_breaklines_ignore_soft() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+        ];
+        let breaklines = vec![
+            ClassifiedBreakline {
+                start: 0,
+                end: 2,
+                kind: BreaklineKind::Hard,
+            },
+            ClassifiedBreakline {
+                start: 1,
+                end: 3,
+                kind: BreaklineKind::Soft,
+            },
+        ];
+        let tin = Tin::from_points_classified(pts, &breaklines, None, &[]);
+        assert!(tin
+            .triangles
+            .iter()
+            .any(|t| t.contains(&0) && t.contains(&2)));
+    }
+
+    #[test]
+    fn dynamic_tin_updates() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let mut dtin = DynamicTin::new(pts);
+        let z_before = dtin.tin.vertices[0].z;
+        dtin.update_point(0, Point3::new(0.0, 0.0, 5.0));
+        let z_after = dtin.tin.vertices[0].z;
+        assert!(z_after - z_before > 4.9);
     }
 }
