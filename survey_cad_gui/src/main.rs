@@ -1,5 +1,6 @@
 #![allow(deprecated)]
 use bevy::prelude::*;
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use clap::Parser;
 use std::collections::HashMap;
 use survey_cad::geometry::{Point, Point3, Polyline};
@@ -57,6 +58,13 @@ struct SurfaceTin(Option<survey_cad::dtm::Tin>);
 
 #[derive(Component)]
 struct SurfaceMesh;
+
+#[derive(Component)]
+struct LevelOfDetail {
+    high: Handle<Mesh>,
+    low: Handle<Mesh>,
+    threshold: f32,
+}
 
 #[derive(Component)]
 struct BuildSurfaceButton;
@@ -245,6 +253,8 @@ fn main() {
                 handle_point_elevation,
                 update_surface_edges,
                 maybe_update_surface,
+                camera_pan_zoom,
+                update_lod_meshes,
             ),
         )
         .add_systems(
@@ -816,6 +826,25 @@ fn drag_point(
     }
 }
 
+fn camera_pan_zoom(
+    mut camera_q: Query<(&mut Transform, &mut OrthographicProjection), With<Camera2d>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut motion_evr: EventReader<MouseMotion>,
+    mut wheel_evr: EventReader<MouseWheel>,
+){
+    let (mut transform, mut projection) = camera_q.single_mut();
+    for ev in wheel_evr.read() {
+        let factor = 1.0 - ev.y * 0.1;
+        projection.scale = (projection.scale * factor).clamp(0.1, 1000.0);
+    }
+    if buttons.pressed(MouseButton::Right) {
+        for ev in motion_evr.read() {
+            transform.translation.x -= ev.delta.x * projection.scale;
+            transform.translation.y += ev.delta.y * projection.scale;
+        }
+    }
+}
+
 fn handle_point_elevation(
     keys: Res<ButtonInput<KeyCode>>,
     selected: Res<SelectedPoints>,
@@ -953,12 +982,15 @@ fn maybe_update_surface(
             commands.entity(e).despawn_recursive();
         }
         let tin = build_tin(&data);
-        let mesh = build_surface_mesh(&tin);
-        let handle = meshes.add(mesh);
+        let high_mesh = build_surface_mesh(&tin);
+        let low_mesh = build_lowres_surface_mesh(&tin);
+        let handle = meshes.add(high_mesh);
+        let low_handle = meshes.add(low_mesh);
         let mat = materials.add(StandardMaterial { base_color: Color::rgb(0.0, 1.0, 0.0), ..default() });
         commands
-            .spawn(PbrBundle { mesh: Mesh3d(handle), material: MeshMaterial3d(mat), ..default() })
-            .insert(SurfaceMesh);
+            .spawn(PbrBundle { mesh: Mesh3d(handle.clone()), material: MeshMaterial3d(mat), ..default() })
+            .insert(SurfaceMesh)
+            .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
         tin_res.0 = Some(tin);
         dirty_flag.0 = false;
     }
@@ -1165,19 +1197,22 @@ fn handle_build_surface(
             commands.entity(e).despawn_recursive();
         }
         let tin = build_tin(&data);
-        let mesh = build_surface_mesh(&tin);
-        let handle = meshes.add(mesh);
+        let high_mesh = build_surface_mesh(&tin);
+        let low_mesh = build_lowres_surface_mesh(&tin);
+        let handle = meshes.add(high_mesh);
+        let low_handle = meshes.add(low_mesh);
         let mat = materials.add(StandardMaterial {
             base_color: Color::rgb(0.0, 1.0, 0.0),
             ..default()
         });
         commands
             .spawn(PbrBundle {
-                mesh: Mesh3d(handle),
+                mesh: Mesh3d(handle.clone()),
                 material: MeshMaterial3d(mat),
                 ..default()
             })
-            .insert(SurfaceMesh);
+            .insert(SurfaceMesh)
+            .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
         tin_res.0 = Some(tin);
     }
 }
@@ -1204,6 +1239,22 @@ fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
     mesh.insert_indices(Indices::U32(indices));
     mesh
 }
+fn build_lowres_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
+    use bevy::render::mesh::{Indices, PrimitiveTopology};
+    use bevy::asset::RenderAssetUsages;
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    let positions: Vec<[f32; 3]> = tin.vertices.iter().map(|p| [p.x as f32, p.y as f32, p.z as f32]).collect();
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+    let uvs = vec![[0.0, 0.0]; positions.len()];
+    let step = (tin.triangles.len() / 10).max(1);
+    let indices: Vec<u32> = tin.triangles.iter().step_by(step).flat_map(|t| [t[0] as u32, t[1] as u32, t[2] as u32]).collect();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_indices(Indices::U32(indices));
+    mesh
+}
+
 
 fn handle_show_profile(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ShowProfileButton>)>,
@@ -1721,3 +1772,17 @@ fn handle_save_button(
         }
     }
 }
+
+fn update_lod_meshes(
+    camera_q: Query<&OrthographicProjection, With<Camera2d>>,
+    mut meshes: Query<(&mut Mesh3d, &LevelOfDetail)>,
+) {
+    let scale = camera_q.single().scale;
+    for (mut mesh, lod) in &mut meshes {
+        let target = if scale > lod.threshold { &lod.low } else { &lod.high };
+        if mesh.0 != *target {
+            mesh.0 = target.clone();
+        }
+    }
+}
+
