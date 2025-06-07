@@ -12,9 +12,10 @@ pub mod parcel;
 pub mod pmetra;
 #[cfg(feature = "render")]
 pub mod render;
+pub mod sheet;
+pub mod snap;
+pub mod subassembly;
 pub mod superelevation;
 pub mod surveying;
 pub mod truck_integration;
 pub mod variable_offset;
-pub mod subassembly;
-pub mod sheet;

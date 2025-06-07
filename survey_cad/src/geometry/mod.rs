@@ -1,9 +1,9 @@
 //! Basic geometry primitives for CAD operations.
 
-pub mod point;
 pub mod line;
-pub mod point3;
 pub mod line3;
+pub mod point;
+pub mod point3;
 
 pub use line::{Line, LineAnnotation, LineType};
 pub use line3::Line3;
@@ -27,7 +27,6 @@ pub fn polygon_area(vertices: &[Point]) -> f64 {
     }
     sum.abs() * 0.5
 }
-
 
 /// Calculates the Euclidean distance between two 3D points.
 pub fn distance3(a: Point3, b: Point3) -> f64 {
@@ -106,6 +105,69 @@ impl Arc {
     pub fn length(&self) -> f64 {
         let sweep = (self.end_angle - self.start_angle).abs();
         self.radius * sweep
+    }
+
+    /// Returns the point on the arc at the given angle.
+    pub fn point_at(&self, angle: f64) -> Point {
+        Point::new(
+            self.center.x + self.radius * angle.cos(),
+            self.center.y + self.radius * angle.sin(),
+        )
+    }
+
+    /// Returns the start point of the arc.
+    pub fn start_point(&self) -> Point {
+        self.point_at(self.start_angle)
+    }
+
+    /// Returns the end point of the arc.
+    pub fn end_point(&self) -> Point {
+        self.point_at(self.end_angle)
+    }
+
+    /// Returns the midpoint of the arc.
+    pub fn midpoint(&self) -> Point {
+        self.point_at((self.start_angle + self.end_angle) / 2.0)
+    }
+
+    /// Returns the closest point on the arc to `p`.
+    pub fn nearest_point(&self, p: Point) -> Point {
+        let mut ang = (p.y - self.center.y).atan2(p.x - self.center.x);
+        // Normalize angles to range 0..2PI for comparison
+        let mut start = self.start_angle;
+        let mut end = self.end_angle;
+        while ang < 0.0 {
+            ang += 2.0 * std::f64::consts::PI;
+        }
+        while start < 0.0 {
+            start += 2.0 * std::f64::consts::PI;
+        }
+        while end < 0.0 {
+            end += 2.0 * std::f64::consts::PI;
+        }
+        if start <= end {
+            if ang < start {
+                return self.start_point();
+            }
+            if ang > end {
+                return self.end_point();
+            }
+            self.point_at(ang)
+        } else {
+            // Arc crosses 2PI -> 0 boundary
+            if ang > end && ang < start {
+                // outside sweep
+                let d_start = (ang - start).abs();
+                let d_end = (ang - end).abs();
+                if d_start < d_end {
+                    self.start_point()
+                } else {
+                    self.end_point()
+                }
+            } else {
+                self.point_at(ang)
+            }
+        }
     }
 }
 

@@ -236,12 +236,22 @@ pub enum DxfEntity {
         point: Point,
         layer: Option<String>,
     },
+    Line {
+        line: crate::geometry::Line,
+        layer: Option<String>,
+    },
     Polyline {
         polyline: Polyline,
         layer: Option<String>,
     },
     Arc {
         arc: Arc,
+        layer: Option<String>,
+    },
+    Text {
+        position: Point,
+        height: f64,
+        value: String,
         layer: Option<String>,
     },
 }
@@ -268,6 +278,22 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "{}", point.y)?;
                 writeln!(file, "30")?;
                 writeln!(file, "0.0")?;
+            }
+            DxfEntity::Line { line, layer } => {
+                writeln!(file, "0")?;
+                writeln!(file, "LINE")?;
+                if let Some(l) = layer {
+                    writeln!(file, "8")?;
+                    writeln!(file, "{}", l)?;
+                }
+                writeln!(file, "10")?;
+                writeln!(file, "{}", line.start.x)?;
+                writeln!(file, "20")?;
+                writeln!(file, "{}", line.start.y)?;
+                writeln!(file, "11")?;
+                writeln!(file, "{}", line.end.x)?;
+                writeln!(file, "21")?;
+                writeln!(file, "{}", line.end.y)?;
             }
             DxfEntity::Polyline { polyline, layer } => {
                 writeln!(file, "0")?;
@@ -315,6 +341,27 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "51")?;
                 writeln!(file, "{}", arc.end_angle.to_degrees())?;
             }
+            DxfEntity::Text {
+                position,
+                height,
+                value,
+                layer,
+            } => {
+                writeln!(file, "0")?;
+                writeln!(file, "TEXT")?;
+                if let Some(l) = layer {
+                    writeln!(file, "8")?;
+                    writeln!(file, "{}", l)?;
+                }
+                writeln!(file, "10")?;
+                writeln!(file, "{}", position.x)?;
+                writeln!(file, "20")?;
+                writeln!(file, "{}", position.y)?;
+                writeln!(file, "40")?;
+                writeln!(file, "{}", height)?;
+                writeln!(file, "1")?;
+                writeln!(file, "{}", value)?;
+            }
         }
     }
     writeln!(file, "0")?;
@@ -350,6 +397,32 @@ pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
                 if let (Some(x), Some(y)) = (x, y) {
                     entities.push(DxfEntity::Point {
                         point: Point::new(x, y),
+                        layer,
+                    });
+                }
+            }
+            "LINE" => {
+                let mut sx = None;
+                let mut sy = None;
+                let mut ex = None;
+                let mut ey = None;
+                let mut layer = None;
+                while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
+                    match c.trim() {
+                        "8" => layer = Some(v.trim().to_string()),
+                        "10" => sx = v.trim().parse().ok(),
+                        "20" => sy = v.trim().parse().ok(),
+                        "11" => ex = v.trim().parse().ok(),
+                        "21" => {
+                            ey = v.trim().parse().ok();
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                if let (Some(sx), Some(sy), Some(ex), Some(ey)) = (sx, sy, ex, ey) {
+                    entities.push(DxfEntity::Line {
+                        line: crate::geometry::Line::new(Point::new(sx, sy), Point::new(ex, ey)),
                         layer,
                     });
                 }
@@ -412,6 +485,34 @@ pub fn read_dxf(path: &str) -> io::Result<Vec<DxfEntity>> {
                 {
                     let arc = Arc::new(Point::new(cx, cy), r, sa, ea);
                     entities.push(DxfEntity::Arc { arc, layer });
+                }
+            }
+            "TEXT" => {
+                let mut x = None;
+                let mut y = None;
+                let mut h = None;
+                let mut val = None;
+                let mut layer = None;
+                while let (Some(c), Some(v)) = (iter.next(), iter.next()) {
+                    match c.trim() {
+                        "8" => layer = Some(v.trim().to_string()),
+                        "10" => x = v.trim().parse().ok(),
+                        "20" => y = v.trim().parse().ok(),
+                        "40" => h = v.trim().parse().ok(),
+                        "1" => {
+                            val = Some(v.trim().to_string());
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                if let (Some(x), Some(y), Some(h), Some(val)) = (x, y, h, val) {
+                    entities.push(DxfEntity::Text {
+                        position: Point::new(x, y),
+                        height: h,
+                        value: val,
+                        layer,
+                    });
                 }
             }
             _ => {}
@@ -533,6 +634,10 @@ mod tests {
                 point: Point::new(0.0, 0.0),
                 layer: Some("P".into()),
             },
+            DxfEntity::Line {
+                line: crate::geometry::Line::new(Point::new(0.0, 0.0), Point::new(1.0, 0.0)),
+                layer: Some("L1".into()),
+            },
             DxfEntity::Polyline {
                 polyline: Polyline::new(vec![Point::new(1.0, 1.0), Point::new(2.0, 2.0)]),
                 layer: Some("L".into()),
@@ -541,10 +646,16 @@ mod tests {
                 arc: Arc::new(Point::new(3.0, 3.0), 1.0, 0.0, std::f64::consts::FRAC_PI_2),
                 layer: None,
             },
+            DxfEntity::Text {
+                position: Point::new(5.0, 5.0),
+                height: 2.5,
+                value: "Hello".into(),
+                layer: None,
+            },
         ];
         write_dxf(path_str, &entities).unwrap();
         let read = read_dxf(path_str).unwrap();
-        assert_eq!(read.len(), 3);
+        assert_eq!(read.len(), 5);
         std::fs::remove_file(path).ok();
     }
 

@@ -43,6 +43,24 @@ impl Line {
     pub fn azimuth(&self) -> f64 {
         (self.end.y - self.start.y).atan2(self.end.x - self.start.x)
     }
+
+    /// Returns the closest point on the line segment to `p`.
+    pub fn nearest_point(&self, p: Point) -> Point {
+        let dx = self.end.x - self.start.x;
+        let dy = self.end.y - self.start.y;
+        let len_sq = dx * dx + dy * dy;
+        if len_sq.abs() < f64::EPSILON {
+            return self.start;
+        }
+        let t = ((p.x - self.start.x) * dx + (p.y - self.start.y) * dy) / len_sq;
+        if t <= 0.0 {
+            self.start
+        } else if t >= 1.0 {
+            self.end
+        } else {
+            Point::new(self.start.x + t * dx, self.start.y + t * dy)
+        }
+    }
 }
 
 /// Annotation describing line distance and azimuth.
@@ -61,4 +79,3 @@ impl LineAnnotation {
         }
     }
 }
-
