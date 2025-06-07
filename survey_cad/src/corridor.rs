@@ -221,6 +221,84 @@ pub fn build_design_surface(alignment: &Alignment, subs: &[Subassembly], interva
     Tin::from_points(pts)
 }
 
+/// Corridor model that automatically rebuilds its design surface when modified.
+#[derive(Debug, Clone)]
+pub struct Corridor {
+    /// Alignment centerline and profile.
+    pub alignment: Alignment,
+    /// Collection of subassemblies defining the corridor section.
+    pub subassemblies: Vec<Subassembly>,
+    /// Optional global superelevation table.
+    pub superelevation: Option<SuperelevationTable>,
+    /// Spacing used when sampling the corridor.
+    pub interval: f64,
+    /// Current design surface generated from the above parameters.
+    pub design_surface: Tin,
+}
+
+impl Corridor {
+    /// Creates a new corridor and immediately builds its design surface.
+    pub fn new(
+        alignment: Alignment,
+        subassemblies: Vec<Subassembly>,
+        superelevation: Option<SuperelevationTable>,
+        interval: f64,
+    ) -> Self {
+        let design_surface = build_design_surface_dynamic(
+            &alignment,
+            &subassemblies,
+            superelevation.as_ref(),
+            interval,
+        );
+        Self {
+            alignment,
+            subassemblies,
+            superelevation,
+            interval,
+            design_surface,
+        }
+    }
+
+    /// Rebuilds the design surface using current parameters.
+    pub fn update_design_surface(&mut self) {
+        self.design_surface = build_design_surface_dynamic(
+            &self.alignment,
+            &self.subassemblies,
+            self.superelevation.as_ref(),
+            self.interval,
+        );
+    }
+
+    /// Sets a new superelevation table and rebuilds the surface.
+    pub fn set_superelevation(&mut self, table: Option<SuperelevationTable>) {
+        self.superelevation = table;
+        self.update_design_surface();
+    }
+
+    /// Replaces the corridor subassemblies and rebuilds the surface.
+    pub fn set_subassemblies(&mut self, subs: Vec<Subassembly>) {
+        self.subassemblies = subs;
+        self.update_design_surface();
+    }
+
+    /// Replaces the corridor alignment and rebuilds the surface.
+    pub fn set_alignment(&mut self, alignment: Alignment) {
+        self.alignment = alignment;
+        self.update_design_surface();
+    }
+
+    /// Sets the sampling interval and rebuilds the surface.
+    pub fn set_interval(&mut self, interval: f64) {
+        self.interval = interval;
+        self.update_design_surface();
+    }
+
+    /// Returns a reference to the current design surface.
+    pub fn design_surface(&self) -> &Tin {
+        &self.design_surface
+    }
+}
+
 /// Builds a design surface using superelevation and variable offsets.
 pub fn build_design_surface_dynamic(
     alignment: &Alignment,
@@ -321,6 +399,7 @@ mod tests {
     use super::*;
     use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
     use crate::geometry::{Point, Point3};
+    use crate::superelevation::SuperelevationPoint;
 
     #[test]
     fn flat_cross_sections() {
@@ -376,5 +455,53 @@ mod tests {
         assert_eq!(sections.len(), 2);
         assert!((sections[0].points.first().unwrap().y + 1.0).abs() < 1e-6);
         assert!((sections[1].points.first().unwrap().y + 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn corridor_surface_updates() {
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
+        let align = Alignment::new(halign, valign);
+        let sub = Subassembly::new(vec![(0.0, 0.0), (1.0, 0.0)]);
+        let sup = vec![
+            SuperelevationPoint {
+                station: 0.0,
+                left_slope: 0.0,
+                right_slope: 0.0,
+            },
+            SuperelevationPoint {
+                station: 10.0,
+                left_slope: 0.0,
+                right_slope: 0.0,
+            },
+        ];
+        let mut cor = Corridor::new(align.clone(), vec![sub.clone()], Some(sup), 10.0);
+        let initial_z = cor
+            .design_surface
+            .vertices
+            .iter()
+            .map(|p| p.z)
+            .fold(f64::INFINITY, f64::min);
+
+        let sup2 = vec![
+            SuperelevationPoint {
+                station: 0.0,
+                left_slope: 0.0,
+                right_slope: -0.1,
+            },
+            SuperelevationPoint {
+                station: 10.0,
+                left_slope: 0.0,
+                right_slope: -0.1,
+            },
+        ];
+        cor.set_superelevation(Some(sup2));
+        let new_min = cor
+            .design_surface
+            .vertices
+            .iter()
+            .map(|p| p.z)
+            .fold(f64::INFINITY, f64::min);
+        assert!(new_min < initial_z);
     }
 }
