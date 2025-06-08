@@ -522,6 +522,82 @@ pub fn corridor_mass_haul(
     haul
 }
 
+/// Per-station volume information used for earthwork balancing.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StationVolume {
+    pub station: f64,
+    pub cut: f64,
+    pub fill: f64,
+    pub cumulative: f64,
+    pub haul: f64,
+}
+
+/// Computes cut/fill volumes at each station along an alignment and cumulative
+/// haul distance.
+pub fn corridor_station_volumes(
+    design: &Tin,
+    ground: &Tin,
+    alignment: &Alignment,
+    width: f64,
+    station_interval: f64,
+    offset_step: f64,
+) -> Vec<StationVolume> {
+    let design_sections =
+        extract_cross_sections(design, alignment, width, station_interval, offset_step);
+    let ground_sections =
+        extract_cross_sections(ground, alignment, width, station_interval, offset_step);
+    let count = design_sections.len().min(ground_sections.len());
+    if count < 2 {
+        return Vec::new();
+    }
+
+    let mut cut_areas = vec![0.0; count];
+    let mut fill_areas = vec![0.0; count];
+    for i in 0..count {
+        let d = &design_sections[i];
+        let g = &ground_sections[i];
+        let n = d.points.len().min(g.points.len());
+        if n < 2 {
+            continue;
+        }
+        for j in 0..(n - 1) {
+            let dz1 = d.points[j].z - g.points[j].z;
+            let dz2 = d.points[j + 1].z - g.points[j + 1].z;
+            let area = (dz1 + dz2) * 0.5 * offset_step;
+            if area > 0.0 {
+                fill_areas[i] += area;
+            } else {
+                cut_areas[i] += -area;
+            }
+        }
+    }
+
+    let mut results = Vec::new();
+    let mut cumulative = 0.0;
+    let mut haul = 0.0;
+    results.push(StationVolume {
+        station: design_sections[0].station,
+        cut: 0.0,
+        fill: 0.0,
+        cumulative: 0.0,
+        haul: 0.0,
+    });
+    for i in 1..count {
+        let cut_vol = (cut_areas[i - 1] + cut_areas[i]) * 0.5 * station_interval;
+        let fill_vol = (fill_areas[i - 1] + fill_areas[i]) * 0.5 * station_interval;
+        cumulative += fill_vol - cut_vol;
+        haul += cumulative.abs() * station_interval;
+        results.push(StationVolume {
+            station: design_sections[i].station,
+            cut: cut_vol,
+            fill: fill_vol,
+            cumulative,
+            haul,
+        });
+    }
+    results
+}
+
 /// Maintains cross-sections that update automatically when the alignment or
 /// surface changes.
 #[derive(Debug, Clone)]

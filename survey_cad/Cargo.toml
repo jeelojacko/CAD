@@ -33,6 +33,9 @@ tempfile = "3.10"
 fresnel = "0.1"
 uuid = { version = "1", optional = true }
 
+[dev-dependencies]
+assert_fs = "1"
+
 [features]
 default = []
 render = ["dep:bevy", "dep:bevy_editor_cam", "dep:bevy_picking"]
