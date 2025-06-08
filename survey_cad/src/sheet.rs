@@ -363,3 +363,82 @@ pub fn write_cross_section_scaled_svg(
 
     write_svg_footer(&mut f)
 }
+
+/// Writes cross-section sheets with station labels and match lines on each side.
+pub fn write_cross_section_sheet_svg(
+    path: &str,
+    alignment: &Alignment,
+    sections: &[CrossSection],
+    spacing: f64,
+    hscale: f64,
+    vscale: f64,
+    grid: f64,
+) -> io::Result<()> {
+    let mut all_lines: Vec<(f64, f64, Vec<Point>, f64)> = Vec::new();
+    let mut max_width: f64 = 0.0;
+    let mut max_height: f64 = 0.0;
+    for sec in sections {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(sec.station),
+            alignment.horizontal.direction_at(sec.station),
+            alignment.vertical.elevation_at(sec.station),
+        ) {
+            let normal = (-dir.1, dir.0);
+            let mut pts = Vec::new();
+            for p in &sec.points {
+                let dx = p.x - center.x;
+                let dy = p.y - center.y;
+                let off = dx * normal.0 + dy * normal.1;
+                let elev = p.z - grade;
+                pts.push(Point::new(off, -elev));
+            }
+            if let Some(b) = bbox(&pts) {
+                let width = (b.2 - b.0) / hscale;
+                let height = (b.3 - b.1) / vscale;
+                max_width = max_width.max(width);
+                max_height = max_height.max(height);
+            }
+            all_lines.push((sec.station, grade, pts, grade));
+        }
+    }
+
+    let mut f = File::create(path)?;
+    let width = spacing * sections.len() as f64 + max_width + 40.0;
+    let height = max_height + 40.0;
+    write_svg_header(&mut f, width, height)?;
+
+    for (i, (station, _grade, pts, _)) in all_lines.iter().enumerate() {
+        let tx = 20.0 + i as f64 * spacing;
+        writeln!(f, "<g transform='translate({tx},20)'>")?;
+        if let Some(b) = bbox(pts) {
+            let sec_width = (b.2 - b.0) / hscale;
+            let sec_height = (b.3 - b.1) / vscale;
+            let mut y = 0.0;
+            while y <= sec_height {
+                write_line(&mut f, 0.0, y, sec_width, y, "#ccc")?;
+                y += grid;
+            }
+            let mut x = 0.0;
+            while x <= sec_width {
+                write_line(&mut f, x, 0.0, x, sec_height, "#ccc")?;
+                x += grid;
+            }
+            write_line(&mut f, 0.0, 0.0, 0.0, sec_height, "#666")?;
+            write_line(&mut f, sec_width, 0.0, sec_width, sec_height, "#666")?;
+            let shifted: Vec<Point> = pts
+                .iter()
+                .map(|p| Point::new((p.x - b.0) / hscale, (p.y - b.1) / vscale))
+                .collect();
+            write_polyline(&mut f, &shifted, "red")?;
+            write_text(
+                &mut f,
+                sec_width / 2.0 - 10.0,
+                sec_height + 12.0,
+                &format!("Sta {:.2}", station),
+            )?;
+        }
+        writeln!(f, "</g>")?;
+    }
+
+    write_svg_footer(&mut f)
+}

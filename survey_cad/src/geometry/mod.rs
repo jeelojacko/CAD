@@ -261,6 +261,26 @@ impl Polyline {
         }
     }
 
+    /// Returns the closest point on the polyline to `p`.
+    pub fn nearest_point(&self, p: Point) -> Point {
+        if self.vertices.len() == 1 {
+            return self.vertices[0];
+        }
+
+        let mut nearest = self.vertices[0];
+        let mut best_dist = f64::MAX;
+        for pair in self.vertices.windows(2) {
+            let line = Line::new(pair[0], pair[1]);
+            let pt = line.nearest_point(p);
+            let d = distance(p, pt);
+            if d < best_dist {
+                best_dist = d;
+                nearest = pt;
+            }
+        }
+        nearest
+    }
+
     /// Returns a smoothed version of the polyline using Chaikin's algorithm.
     /// The number of `iterations` controls how many times the refinement is
     /// applied. Values less than 1 return the original polyline.
@@ -356,6 +376,15 @@ mod tests {
         assert!((p.x - 5.0).abs() < 1e-6 && p.y.abs() < 1e-6);
         let dir = pl.direction_at(5.0).unwrap();
         assert!((dir.0 - 1.0).abs() < 1e-6 && dir.1.abs() < 1e-6);
+    }
+
+    #[test]
+    fn polyline_nearest_point() {
+        let pts = vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)];
+        let pl = Polyline::new(pts);
+        let q = Point::new(5.0, 3.0);
+        let n = pl.nearest_point(q);
+        assert!((n.x - 5.0).abs() < 1e-6 && n.y.abs() < 1e-6);
     }
 
     #[test]
