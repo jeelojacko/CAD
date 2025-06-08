@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use clap::Parser;
 use std::collections::HashMap;
+use bevy_editor_cam::prelude::*;
 use survey_cad::geometry::{Point, Point3, Polyline};
 use survey_cad::{crs::Crs, geometry::distance};
 
@@ -219,14 +220,17 @@ fn main() {
     println!("Using EPSG {}", args.epsg);
     App::new()
         .insert_resource(WorkingCrs(Crs::from_epsg(args.epsg)))
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Survey CAD GUI".into(),
-                resolution: (800.0, 600.0).into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Survey CAD GUI".into(),
+                    resolution: (800.0, 600.0).into(),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            DefaultEditorCamPlugins,
+        ))
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
         .insert_resource(AlignmentData::default())
@@ -282,10 +286,14 @@ fn main() {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<WorkingCrs>) {
     println!("GUI working CRS: {}", working.0.definition());
     commands.spawn(Camera2dBundle::default());
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
-        ..default()
-    });
+    commands.spawn((
+        Camera3dBundle {
+            transform: Transform::from_xyz(0.0, -50.0, 50.0)
+                .looking_at(Vec3::ZERO, Vec3::Z),
+            ..default()
+        },
+        EditorCam::default(),
+    ));
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             shadows_enabled: false,
