@@ -7,6 +7,10 @@ use crate::crs::Crs;
 
 use crate::geometry::{Arc, Point, Polyline};
 
+#[cfg(feature = "fgdb")]
+pub mod fgdb;
+#[cfg(feature = "kml")]
+pub mod kml;
 pub mod landxml;
 #[cfg(feature = "las")]
 pub mod las;
@@ -100,9 +104,7 @@ pub fn write_points_csv(
     let to = dst_epsg.map(Crs::from_epsg);
     for p in points {
         let (x, y) = match (&from, &to) {
-            (Some(f), Some(t)) if f != t => {
-                f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y))
-            }
+            (Some(f), Some(t)) if f != t => f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y)),
             _ => (p.x, p.y),
         };
         writeln!(file, "{},{}", x, y)?;
@@ -208,9 +210,7 @@ pub fn write_points_dxf(
     writeln!(file, "ENTITIES")?;
     for p in points {
         let (x, y) = match (&from, &to) {
-            (Some(f), Some(t)) if f != t => {
-                f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y))
-            }
+            (Some(f), Some(t)) if f != t => f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y)),
             _ => (p.x, p.y),
         };
         writeln!(file, "0")?;
