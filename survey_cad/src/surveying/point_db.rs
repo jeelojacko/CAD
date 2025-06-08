@@ -4,6 +4,7 @@ use super::{adjust_network, AdjustResult, Observation};
 use crate::crs::Crs;
 use crate::geometry::{Point, Point3, Polyline};
 use crate::parcel::Parcel;
+use chrono::{DateTime, Utc};
 
 /// Representation of a survey point with optional number and description.
 #[derive(Debug, Clone, PartialEq)]
@@ -12,6 +13,21 @@ pub struct SurveyPoint {
     pub point: Point3,
     pub description: Option<String>,
     pub codes: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum PointChange {
+    Added(SurveyPoint),
+    Modified { old: SurveyPoint, new: SurveyPoint },
+}
+
+#[derive(Debug, Clone)]
+pub struct PointAuditEntry {
+    pub index: usize,
+    pub user: String,
+    pub timestamp: DateTime<Utc>,
+    pub comment: Option<String>,
+    pub change: PointChange,
 }
 
 impl SurveyPoint {
@@ -39,17 +55,48 @@ impl SurveyPoint {
 #[derive(Debug, Default)]
 pub struct PointDatabase {
     pub points: Vec<SurveyPoint>,
+    pub history: Vec<PointAuditEntry>,
 }
 
 impl PointDatabase {
     /// Creates a new empty database.
     pub fn new() -> Self {
-        Self { points: Vec::new() }
+        Self { points: Vec::new(), history: Vec::new() }
     }
 
     /// Adds a survey point to the database.
     pub fn add_point(&mut self, point: SurveyPoint) {
+        self.add_point_with_audit(point, "system", None);
+    }
+
+    pub fn add_point_with_audit(&mut self, point: SurveyPoint, user: &str, comment: Option<&str>) {
+        let idx = self.points.len();
+        self.history.push(PointAuditEntry {
+            index: idx,
+            user: user.to_string(),
+            timestamp: Utc::now(),
+            comment: comment.map(|s| s.to_string()),
+            change: PointChange::Added(point.clone()),
+        });
         self.points.push(point);
+    }
+
+    pub fn update_point(&mut self, index: usize, point: SurveyPoint, user: &str, comment: Option<&str>) {
+        if let Some(old) = self.points.get_mut(index) {
+            let old_clone = old.clone();
+            *old = point.clone();
+            self.history.push(PointAuditEntry {
+                index,
+                user: user.to_string(),
+                timestamp: Utc::now(),
+                comment: comment.map(|s| s.to_string()),
+                change: PointChange::Modified { old: old_clone, new: point },
+            });
+        }
+    }
+
+    pub fn history(&self) -> &[PointAuditEntry] {
+        &self.history
     }
 
     /// Applies a coordinate transformation to all points in the database.
@@ -455,5 +502,23 @@ mod tests {
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].vertices.len(), 2);
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn audit_trail_records_changes() {
+        let mut db = PointDatabase::new();
+        db.add_point_with_audit(
+            SurveyPoint::new(Some(1), Point3::new(0.0, 0.0, 0.0), None, Vec::new()),
+            "tester",
+            Some("initial"),
+        );
+        db.update_point(
+            0,
+            SurveyPoint::new(Some(1), Point3::new(1.0, 0.0, 0.0), None, Vec::new()),
+            "tester",
+            Some("move"),
+        );
+        assert_eq!(db.history.len(), 2);
+        assert_eq!(db.history[0].user, "tester");
     }
 }
