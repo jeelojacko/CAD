@@ -659,7 +659,7 @@ fn main() {
             observations,
         } => {
             use std::collections::HashMap;
-            use survey_cad::surveying::{adjust_network, Observation};
+            use survey_cad::surveying::{adjust_network_report, Observation};
             match (read_lines(&points), read_lines(&observations)) {
                 (Ok(p_lines), Ok(o_lines)) => {
                     let mut names = Vec::new();
@@ -734,7 +734,9 @@ fn main() {
                             }
                         }
                     }
-                    let result = adjust_network(&pts, &fixed, &obs);
+                    let (result, report) =
+                        adjust_network_report(&pts, &fixed, &obs, 1e-6, 10);
+                    println!("iterations: {}", report.iterations.len());
                     for (name, p) in names.iter().zip(result.points.iter()) {
                         println!("{}, {:.3}, {:.3}", name, p.x, p.y);
                     }
