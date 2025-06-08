@@ -356,6 +356,16 @@ enum Commands {
     /// Export polygons from a CSV file to a shapefile.
     #[cfg(feature = "shapefile")]
     ExportPolygonsShp { input: String, output: String },
+    /// Generate contour polylines from a surface file.
+    #[cfg(feature = "shapefile")]
+    Contours {
+        surface: String,
+        output: String,
+        #[arg(long)]
+        interval: f64,
+        #[arg(long, default_value_t = 0)]
+        smooth: usize,
+    },
     /// Import polygons from a shapefile to CSV.
     #[cfg(feature = "shapefile")]
     ImportPolygonsShp { input: String, output: String },
@@ -677,6 +687,24 @@ fn main() {
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "shapefile")]
+        Commands::Contours { surface, output, interval, smooth } => match read_surface(&surface) {
+            Ok(tin) => {
+                let (lines, lines_z) = tin.contour_polylines(interval, smooth);
+                if output.to_ascii_lowercase().ends_with(".shp") {
+                    match survey_cad::io::shp::write_polylines_shp(&output, &lines, Some(&lines_z)) {
+                        Ok(()) => println!("Wrote {}", output),
+                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                    }
+                } else {
+                    match write_polylines_csv(&output, &lines) {
+                        Ok(()) => println!("Wrote {}", output),
+                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                    }
+                }
+            }
+            Err(e) => eprintln!("Error reading {}: {}", surface, e),
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportPolygonsShp { input, output } => match read_polygons_shp(&input) {

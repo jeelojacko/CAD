@@ -260,6 +260,32 @@ impl Polyline {
             None
         }
     }
+
+    /// Returns a smoothed version of the polyline using Chaikin's algorithm.
+    /// The number of `iterations` controls how many times the refinement is
+    /// applied. Values less than 1 return the original polyline.
+    pub fn smooth(&self, iterations: usize) -> Self {
+        if iterations == 0 || self.vertices.len() < 3 {
+            return self.clone();
+        }
+
+        let mut verts = self.vertices.clone();
+        for _ in 0..iterations {
+            let mut new_pts = Vec::with_capacity(verts.len() * 2);
+            new_pts.push(verts[0]);
+            for pair in verts.windows(2) {
+                let p0 = pair[0];
+                let p1 = pair[1];
+                let q = Point::new(0.75 * p0.x + 0.25 * p1.x, 0.75 * p0.y + 0.25 * p1.y);
+                let r = Point::new(0.25 * p0.x + 0.75 * p1.x, 0.25 * p0.y + 0.75 * p1.y);
+                new_pts.push(q);
+                new_pts.push(r);
+            }
+            new_pts.push(*verts.last().unwrap());
+            verts = new_pts;
+        }
+        Self { vertices: verts }
+    }
 }
 
 /// Representation of a planar polygonal surface.

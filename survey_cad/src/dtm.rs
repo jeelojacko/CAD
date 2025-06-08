@@ -1,4 +1,4 @@
-use crate::geometry::{polygon_area, Point, Point3};
+use crate::geometry::{polygon_area, Point, Point3, Polyline};
 
 /// Classification for breaklines when building constrained TINs.
 #[derive(Debug, Clone, Copy)]
@@ -461,6 +461,20 @@ impl Tin {
         segments
     }
 
+    /// Generates contour polylines at the specified interval. `smooth` controls
+    /// the number of Chaikin smoothing iterations applied to each contour.
+    pub fn contour_polylines(&self, interval: f64, smooth: usize) -> (Vec<Polyline>, Vec<Vec<Point3>>) {
+        let segs = self.contour_segments(interval);
+        let lines3 = segments_to_polylines(&segs, 1e-8);
+        let mut lines2d = Vec::new();
+        for pts3 in &lines3 {
+            let pts: Vec<Point> = pts3.iter().map(|p| Point::new(p.x, p.y)).collect();
+            let pl = Polyline::new(pts).smooth(smooth);
+            lines2d.push(pl);
+        }
+        (lines2d, lines3)
+    }
+
     /// Calculates the volume between the TIN surface and a horizontal plane at `base_elev`.
     pub fn volume_to_elevation(&self, base_elev: f64) -> f64 {
         self.volume_to_elevation_bounded(base_elev, None, &[])
@@ -661,6 +675,39 @@ fn intersect_edge(a: Point3, b: Point3, level: f64) -> Option<Point3> {
             level,
         ))
     }
+}
+
+fn points_close(a: Point3, b: Point3, tol: f64) -> bool {
+    (a.x - b.x).abs() <= tol && (a.y - b.y).abs() <= tol && (a.z - b.z).abs() <= tol
+}
+
+fn segments_to_polylines(segs: &[(Point3, Point3)], tol: f64) -> Vec<Vec<Point3>> {
+    let mut remaining: Vec<(Point3, Point3)> = segs.to_vec();
+    let mut out = Vec::new();
+    while let Some((a, b)) = remaining.pop() {
+        let mut line = vec![a, b];
+        let mut extended = true;
+        while extended {
+            extended = false;
+            let last = *line.last().unwrap();
+            for i in 0..remaining.len() {
+                let seg = remaining[i];
+                if points_close(seg.0, last, tol) {
+                    line.push(seg.1);
+                    remaining.swap_remove(i);
+                    extended = true;
+                    break;
+                } else if points_close(seg.1, last, tol) {
+                    line.push(seg.0);
+                    remaining.swap_remove(i);
+                    extended = true;
+                    break;
+                }
+            }
+        }
+        out.push(line);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -905,5 +952,18 @@ mod tests {
         ]);
         let merged = a.merge_with(&b, 0.01);
         assert!(merged.vertices.len() < a.vertices.len() + b.vertices.len());
+    }
+
+    #[test]
+    fn contour_polylines_basic() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let (lines, _z) = tin.contour_polylines(0.5, 0);
+        assert!(!lines.is_empty());
     }
 }
