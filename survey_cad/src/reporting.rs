@@ -1,0 +1,50 @@
+#[cfg(feature = "reporting")]
+use genpdf::{elements::Paragraph, Alignment, Document};
+#[cfg(feature = "reporting")]
+use umya_spreadsheet::{Workbook, Worksheet};
+use crate::geometry::Point;
+
+#[cfg(feature = "reporting")]
+fn write_pdf(path: &str, title: &str, rows: &[String]) -> std::io::Result<()> {
+    let font_family = genpdf::fonts::from_files("/usr/share/fonts", "LiberationSans", None)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+    let mut doc = Document::new(font_family);
+    doc.set_title(title);
+    for r in rows {
+        doc.push(Paragraph::new(r).aligned(Alignment::Left));
+    }
+    doc.render_to_file(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+}
+
+#[cfg(feature = "reporting")]
+fn write_excel(path: &str, rows: &[Vec<String>]) -> std::io::Result<()> {
+    let mut wb = Workbook::new();
+    let mut ws = Worksheet::new();
+    for (r_idx, row) in rows.iter().enumerate() {
+        for (c_idx, val) in row.iter().enumerate() {
+            ws.get_cell_by_column_and_row_mut((c_idx + 1) as u32, (r_idx + 1) as u32).set_value(val);
+        }
+    }
+    wb.add_worksheet(ws);
+    wb.write(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+}
+
+#[cfg(feature = "reporting")]
+pub fn points_report_pdf(path: &str, points: &[Point]) -> std::io::Result<()> {
+    let rows: Vec<String> = points
+        .iter()
+        .enumerate()
+        .map(|(i, p)| format!("{}: {}, {}", i + 1, p.x, p.y))
+        .collect();
+    write_pdf(path, "Points Report", &rows)
+}
+
+#[cfg(feature = "reporting")]
+pub fn points_report_excel(path: &str, points: &[Point]) -> std::io::Result<()> {
+    let rows: Vec<Vec<String>> = points
+        .iter()
+        .enumerate()
+        .map(|(i, p)| vec![format!("{}", i + 1), format!("{}", p.x), format!("{}", p.y)])
+        .collect();
+    write_excel(path, &rows)
+}
