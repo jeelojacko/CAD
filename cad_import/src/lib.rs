@@ -1,5 +1,7 @@
 use std::io;
 
+pub mod instrument;
+
 use survey_cad::{
     geometry::Point,
     geometry::Point3,
@@ -289,5 +291,30 @@ mod tests {
         assert_eq!(p.point, Point3::new(200.0, 100.0, 50.0));
         assert_eq!(p.description.as_deref(), Some("TEST"));
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn read_leica_trimble_topcon_sokkia_raw() {
+        use std::env::temp_dir;
+        use std::fs::write;
+
+        let content = "1,100.0,200.0,50.0,TEST";
+        let brands = [
+            ("leica.raw", instrument::read_leica_raw as fn(&str) -> _),
+            ("trimble.raw", instrument::read_trimble_raw as fn(&str) -> _),
+            ("topcon.raw", instrument::read_topcon_raw as fn(&str) -> _),
+            ("sokkia.raw", instrument::read_sokkia_raw as fn(&str) -> _),
+        ];
+        for (name, func) in brands {
+            let path = temp_dir().join(name);
+            write(&path, content).unwrap();
+            let pts = func(path.to_str().unwrap()).unwrap();
+            assert_eq!(pts.len(), 1);
+            let p = &pts[0];
+            assert_eq!(p.number, Some(1));
+            assert_eq!(p.point, Point3::new(200.0, 100.0, 50.0));
+            assert_eq!(p.description.as_deref(), Some("TEST"));
+            std::fs::remove_file(path).ok();
+        }
     }
 }
