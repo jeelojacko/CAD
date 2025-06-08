@@ -14,6 +14,8 @@ pub mod kml;
 pub mod landxml;
 #[cfg(feature = "las")]
 pub mod las;
+#[cfg(feature = "e57")]
+pub mod e57;
 #[cfg(feature = "shapefile")]
 pub mod shp;
 

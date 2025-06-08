@@ -48,6 +48,36 @@ fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "las")]
+fn read_points_csv_3d(path: &str) -> std::io::Result<Vec<Point3>> {
+    use std::io::{self};
+    let lines = read_lines(path)?;
+    let mut pts = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() < 3 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("line {}: expected three comma-separated values", idx + 1),
+            ));
+        }
+        let x = parts[0].trim().parse::<f64>().map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        let y = parts[1].trim().parse::<f64>().map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        let z = parts[2].trim().parse::<f64>().map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+        })?;
+        pts.push(Point3::new(x, y, z));
+    }
+    Ok(pts)
+}
+
 fn print_point(p: Point) {
     println!("{:.3},{:.3}", p.x, p.y);
 }
@@ -332,6 +362,15 @@ enum Commands {
     /// Import points from a LAS file to CSV (x,y,z).
     #[cfg(feature = "las")]
     ImportLas { input: String, output: String },
+    /// Export points from a CSV file to LAS/LAZ.
+    #[cfg(feature = "las")]
+    ExportLas { input: String, output: String },
+    /// Import points from an E57 file to CSV (x,y,z).
+    #[cfg(feature = "e57")]
+    ImportE57 { input: String, output: String },
+    /// Export points from a CSV file to E57.
+    #[cfg(feature = "e57")]
+    ExportE57 { input: String, output: String },
     /// View points from a CSV file.
     #[cfg(feature = "render")]
     ViewPoints { input: String },
@@ -650,6 +689,30 @@ fn main() {
         #[cfg(feature = "las")]
         Commands::ImportLas { input, output } => match read_points_las(&input) {
             Ok(pts) => match write_points_csv_3d(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "las")]
+        Commands::ExportLas { input, output } => match read_points_csv_3d(&input) {
+            Ok(pts) => match write_points_las(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "e57")]
+        Commands::ImportE57 { input, output } => match read_points_e57(&input) {
+            Ok(pts) => match write_points_csv_3d(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "e57")]
+        Commands::ExportE57 { input, output } => match read_points_csv_3d(&input) {
+            Ok(pts) => match write_points_e57(&output, &pts) {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
