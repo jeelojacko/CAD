@@ -23,6 +23,9 @@ pub use observation_db::{
     TraverseLeg,
 };
 
+pub mod stakeout;
+pub use stakeout::stakeout_position;
+
 /// Representation of a simple survey station.
 #[derive(Debug)]
 pub struct Station {
