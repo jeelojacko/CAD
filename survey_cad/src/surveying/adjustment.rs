@@ -21,6 +21,28 @@ pub struct AdjustResult {
     pub residuals: Vec<f64>,
 }
 
+/// Per-iteration diagnostics for a network adjustment.
+#[derive(Debug)]
+pub struct IterationRecord {
+    /// Parameter corrections solved for this iteration.
+    pub delta: DVector<f64>,
+    /// Observation residuals after applying the corrections.
+    pub residuals: DVector<f64>,
+}
+
+/// Detailed report describing the adjustment solution.
+#[derive(Debug)]
+pub struct AdjustReport {
+    /// History of parameter updates.
+    pub iterations: Vec<IterationRecord>,
+    /// Normal equation matrix from the final iteration.
+    pub normal_matrix: DMatrix<f64>,
+    /// Flag indicating whether convergence tolerance was met.
+    pub converged: bool,
+    /// Optional quality statistics computed from the final solution.
+    pub stats: Option<super::least_squares::LSAnalysis>,
+}
+
 fn bearing_derivatives(p: Point, q: Point) -> (f64, f64, f64, f64) {
     let dx = q.x - p.x;
     let dy = q.y - p.y;
@@ -46,18 +68,12 @@ fn angle_partials(points: &[Point], at: usize, from: usize, to: usize) -> (f64, 
     )
 }
 
-/// Adjusts a 2D network returning updated coordinates and observation residuals.
-pub fn adjust_network(points: &[Point], fixed: &[usize], observations: &[Observation]) -> AdjustResult {
-    let fixed_set: HashSet<usize> = fixed.iter().cloned().collect();
-    let mut index_map = HashMap::new();
-    let mut count = 0usize;
-    for i in 0..points.len() {
-        if !fixed_set.contains(&i) {
-            index_map.insert(i, count);
-            count += 2;
-        }
-    }
-
+fn build_matrices(
+    points: &[Point],
+    observations: &[Observation],
+    index_map: &HashMap<usize, usize>,
+    count: usize,
+) -> (DMatrix<f64>, DVector<f64>, DMatrix<f64>) {
     let num_obs = observations.len();
     let mut a = DMatrix::<f64>::zeros(num_obs, count);
     let mut l = DVector::<f64>::zeros(num_obs);
@@ -87,14 +103,23 @@ pub fn adjust_network(points: &[Point], fixed: &[usize], observations: &[Observa
                 let b1 = bearing(points[at], points[from]);
                 let b2 = bearing(points[at], points[to]);
                 let mut angle = b2 - b1;
-                while angle > std::f64::consts::PI { angle -= 2.0 * std::f64::consts::PI; }
-                while angle < -std::f64::consts::PI { angle += 2.0 * std::f64::consts::PI; }
+                while angle > std::f64::consts::PI {
+                    angle -= 2.0 * std::f64::consts::PI;
+                }
+                while angle < -std::f64::consts::PI {
+                    angle += 2.0 * std::f64::consts::PI;
+                }
                 let mut res = value - angle;
-                while res > std::f64::consts::PI { res -= 2.0 * std::f64::consts::PI; }
-                while res < -std::f64::consts::PI { res += 2.0 * std::f64::consts::PI; }
+                while res > std::f64::consts::PI {
+                    res -= 2.0 * std::f64::consts::PI;
+                }
+                while res < -std::f64::consts::PI {
+                    res += 2.0 * std::f64::consts::PI;
+                }
                 l[row] = res;
                 w[(row, row)] = weight;
-                let (da_xa, da_ya, da_xf, da_yf, da_xt, da_yt) = angle_partials(points, at, from, to);
+                let (da_xa, da_ya, da_xf, da_yf, da_xt, da_yt) =
+                    angle_partials(points, at, from, to);
                 if let Some(&idx) = index_map.get(&at) {
                     a[(row, idx)] = da_xa;
                     a[(row, idx + 1)] = da_ya;
@@ -110,6 +135,23 @@ pub fn adjust_network(points: &[Point], fixed: &[usize], observations: &[Observa
             }
         }
     }
+
+    (a, l, w)
+}
+
+/// Adjusts a 2D network returning updated coordinates and observation residuals.
+pub fn adjust_network(points: &[Point], fixed: &[usize], observations: &[Observation]) -> AdjustResult {
+    let fixed_set: HashSet<usize> = fixed.iter().cloned().collect();
+    let mut index_map = HashMap::new();
+    let mut count = 0usize;
+    for i in 0..points.len() {
+        if !fixed_set.contains(&i) {
+            index_map.insert(i, count);
+            count += 2;
+        }
+    }
+
+    let (a, l, w) = build_matrices(points, observations, &index_map, count);
 
     let at = a.transpose();
     let n = &at * &w * &a;
@@ -130,6 +172,97 @@ pub fn adjust_network(points: &[Point], fixed: &[usize], observations: &[Observa
         points: adj,
         residuals: v.iter().copied().collect(),
     }
+}
+
+/// Adjusts a 2D network returning a detailed adjustment report.
+pub fn adjust_network_report(
+    points: &[Point],
+    fixed: &[usize],
+    observations: &[Observation],
+    tol: f64,
+    max_iter: usize,
+) -> (AdjustResult, AdjustReport) {
+    let fixed_set: HashSet<usize> = fixed.iter().cloned().collect();
+    let mut index_map = HashMap::new();
+    let mut count = 0usize;
+    for i in 0..points.len() {
+        if !fixed_set.contains(&i) {
+            index_map.insert(i, count);
+            count += 2;
+        }
+    }
+
+    let mut current = points.to_vec();
+    let mut iterations = Vec::new();
+    let mut converged = false;
+    let mut final_n = DMatrix::<f64>::zeros(0, 0);
+    let mut final_res = DVector::<f64>::zeros(0);
+
+    for _ in 0..max_iter {
+        let (a, l, w) = build_matrices(&current, observations, &index_map, count);
+        let at = a.transpose();
+        let n = &at * &w * &a;
+        let u = &at * &w * &l;
+        let delta = match n.clone().lu().solve(&u) {
+            Some(d) => d,
+            None => break,
+        };
+        let v = &a * &delta - &l;
+
+        for (idx, pidx) in index_map.iter() {
+            current[*idx].x += delta[*pidx];
+            current[*idx].y += delta[*pidx + 1];
+        }
+
+        iterations.push(IterationRecord {
+            delta: delta.clone(),
+            residuals: v.clone(),
+        });
+        final_n = n;
+        final_res = v;
+
+        if delta.amax() < tol {
+            converged = true;
+            break;
+        }
+    }
+
+    let (a, l, w) = build_matrices(&current, observations, &index_map, count);
+    let at = a.transpose();
+    let n = &at * &w * &a;
+    let u = &at * &w * &l;
+    let delta = match n.clone().lu().solve(&u) {
+        Some(d) => d,
+        None => DVector::<f64>::zeros(count),
+    };
+    let v = &a * &delta - &l;
+    final_n = n;
+    final_res = v.clone();
+    iterations.push(IterationRecord {
+        delta: delta.clone(),
+        residuals: v.clone(),
+    });
+
+    let stats = super::least_squares::redundancy_analysis(&a, &v, &w);
+
+    let mut result_points = current.clone();
+    for (idx, pidx) in index_map.iter() {
+        result_points[*idx].x += delta[*pidx];
+        result_points[*idx].y += delta[*pidx + 1];
+    }
+
+    (
+        AdjustResult {
+            points: result_points,
+            residuals: final_res.iter().copied().collect(),
+        },
+        AdjustReport {
+            iterations,
+            normal_matrix: final_n,
+            converged,
+            stats,
+        },
+    )
 }
 
 #[cfg(test)]
