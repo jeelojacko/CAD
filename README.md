@@ -11,8 +11,8 @@ utilities cover traverse area calculations as well as vertical angle and
 differential leveling helpers.
 
 Supported file formats include CSV, GeoJSON, KML/KMZ, simple DXF and LandXML.
-Optional features provide shapefile, File Geodatabase and LAS point cloud
-readers to ease interoperability with other CAD and GIS tools. Basic DWG
+Optional features provide shapefile, File Geodatabase and LAS/LAZ or E57 point cloud
+readers and writers to ease interoperability with other CAD and GIS tools. Basic DWG
 interoperability is available through
 the `dwg2dxf` and `dxf2dwg` command line tools from the LibreDWG project. The
 library converts DWG files to DXF and back using these utilities when present,

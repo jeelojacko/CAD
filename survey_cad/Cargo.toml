@@ -26,10 +26,12 @@ proj-sys = "0.26"
 shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
 kml = { version = "0.9", features = ["zip"], optional = true }
+e57 = { version = "0.11", optional = true }
 gdal = { version = "0.18", optional = true }
 nalgebra = { version = "0.32", default-features = false, features = ["std"] }
 tempfile = "3.10"
 fresnel = "0.1"
+uuid = { version = "1", optional = true }
 
 [features]
 default = []
@@ -39,3 +41,4 @@ shapefile = ["dep:shapefile"]
 las = ["dep:las"]
 kml = ["dep:kml"]
 fgdb = ["dep:gdal"]
+e57 = ["dep:e57", "dep:uuid"]
