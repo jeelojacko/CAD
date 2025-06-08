@@ -52,6 +52,26 @@ fn copy_command() {
 }
 
 #[test]
+fn macro_play_command() {
+    let dir = assert_fs::TempDir::new().unwrap();
+    let mfile = dir.child("macro.txt");
+    mfile
+        .write_str("station-distance A 0.0 0.0 B 3.0 4.0\n")
+        .unwrap();
+
+    Command::cargo_bin("survey_cad_cli")
+        .unwrap()
+        .args(["macro", "play", mfile.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Distance between A and B is 5.000",
+        ));
+
+    dir.close().unwrap();
+}
+
+#[test]
 fn export_geojson_command() {
     let dir = assert_fs::TempDir::new().unwrap();
     let input = dir.child("pts.csv");
