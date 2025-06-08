@@ -55,7 +55,7 @@ struct BreaklineEdge;
 struct HoleEdge;
 
 #[derive(Resource, Default)]
-struct SurfaceTin(Option<survey_cad::dtm::Tin>);
+struct SurfaceTins(Vec<survey_cad::dtm::Tin>);
 
 #[derive(Component)]
 struct SurfaceMesh;
@@ -235,7 +235,7 @@ fn main() {
         .insert_resource(Dragging::default())
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
-        .insert_resource(SurfaceTin::default())
+        .insert_resource(SurfaceTins::default())
         .insert_resource(SurfaceDirty::default())
         .insert_resource(CorridorParams::default())
         .insert_resource(ProfileVisible::default())
@@ -979,7 +979,7 @@ fn maybe_update_surface(
     dirty: Res<SurfaceDirty>,
     data: Res<SurfaceData>,
     mut dirty_flag: ResMut<SurfaceDirty>,
-    mut tin_res: ResMut<SurfaceTin>,
+    mut tin_res: ResMut<SurfaceTins>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -999,7 +999,7 @@ fn maybe_update_surface(
             .spawn(PbrBundle { mesh: Mesh3d(handle.clone()), material: MeshMaterial3d(mat), ..default() })
             .insert(SurfaceMesh)
             .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
-        tin_res.0 = Some(tin);
+        tin_res.0.push(tin);
         dirty_flag.0 = false;
     }
 }
@@ -1194,7 +1194,7 @@ fn handle_build_surface(
         (Changed<Interaction>, With<Button>, With<BuildSurfaceButton>),
     >,
     data: Res<SurfaceData>,
-    mut tin_res: ResMut<SurfaceTin>,
+    mut tin_res: ResMut<SurfaceTins>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -1221,7 +1221,7 @@ fn handle_build_surface(
             })
             .insert(SurfaceMesh)
             .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
-        tin_res.0 = Some(tin);
+        tin_res.0.push(tin);
     }
 }
 
@@ -1288,7 +1288,7 @@ fn handle_show_sections(
         (Changed<Interaction>, With<Button>, With<ShowSectionsButton>),
     >,
     mut visible: ResMut<SectionsVisible>,
-    tin_res: Res<SurfaceTin>,
+    tin_res: Res<SurfaceTins>,
     data: Res<AlignmentData>,
     params: Res<CorridorParams>,
     points: Query<&Transform, With<CadPoint>>,
@@ -1301,7 +1301,7 @@ fn handle_show_sections(
             let keep_station = view.station;
             view.sections.clear();
             view.design.clear();
-            if let (Some(tin), true) = (tin_res.0.as_ref(), data.points.len() > 1) {
+            if let (Some(tin), true) = (tin_res.0.last(), data.points.len() > 1) {
                 use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
                 use survey_cad::corridor::{extract_cross_sections, extract_design_cross_sections, Subassembly};
                 let mut pts = Vec::new();
@@ -1395,14 +1395,14 @@ fn handle_section_buttons(
 
 fn handle_grade_button(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<GradeButton>)>,
-    tin_res: Res<SurfaceTin>,
+    tin_res: Res<SurfaceTins>,
     selected: Res<SelectedPoints>,
     points: Query<&Transform, With<CadPoint>>,
     mut info: ResMut<GradeInfo>,
     mut spans: Query<&mut TextSpan>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        if let (Some(tin), Some(e)) = (tin_res.0.as_ref(), selected.0.first()) {
+        if let (Some(tin), Some(e)) = (tin_res.0.last(), selected.0.first()) {
             if let Ok(t) = points.get(*e) {
                 let start = Point3::new(t.translation.x as f64, t.translation.y as f64, 0.0);
                 if let Some(p) = tin.slope_projection(start, (1.0, 0.0), -0.1, 1.0, 50.0) {
@@ -1662,7 +1662,7 @@ fn handle_open_button(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut alignment: ResMut<AlignmentData>,
     mut surface_data: ResMut<SurfaceData>,
-    mut surface_tin: ResMut<SurfaceTin>,
+    mut surface_tin: ResMut<SurfaceTins>,
     mut surface_dirty: ResMut<SurfaceDirty>,
     points: Query<Entity, With<CadPoint>>,
     surfaces: Query<Entity, With<SurfaceMesh>>,
@@ -1678,7 +1678,7 @@ fn handle_open_button(
             surface_data.breaklines.clear();
             surface_data.holes.clear();
             surface_data.point_map.clear();
-            surface_tin.0 = None;
+            surface_tin.0.clear();
             surface_dirty.0 = false;
             let lower = path_str.to_ascii_lowercase();
             if lower.ends_with(".csv") {
@@ -1695,7 +1695,7 @@ fn handle_open_button(
                     commands
                         .spawn(PbrBundle { mesh: Mesh3d(handle), material: MeshMaterial3d(mat), ..default() })
                         .insert(SurfaceMesh);
-                    surface_tin.0 = Some(tin);
+                    surface_tin.0.push(tin);
                 } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
                     for elem in hal.elements {
                         use survey_cad::alignment::HorizontalElement::*;
@@ -1742,7 +1742,7 @@ fn handle_open_button(
 fn handle_save_button(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<SaveButton>)>,
     points: Query<(Entity, &Transform), With<CadPoint>>,
-    tin_res: Res<SurfaceTin>,
+    tin_res: Res<SurfaceTins>,
     alignment: Res<AlignmentData>,
 ) {
     use survey_cad::io::{landxml, write_points_csv};
@@ -1755,7 +1755,7 @@ fn handle_save_button(
                 for (_, t) in &points { pts.push(Point::new(t.translation.x as f64, t.translation.y as f64)); }
                 let _ = write_points_csv(path_str, &pts, None, None);
             } else if lower.ends_with(".xml") {
-                if let Some(tin) = tin_res.0.as_ref() {
+                if let Some(tin) = tin_res.0.last() {
                     let _ = landxml::write_landxml_surface(path_str, tin);
                 } else if alignment.points.len() > 1 {
                     let mut pts = Vec::new();

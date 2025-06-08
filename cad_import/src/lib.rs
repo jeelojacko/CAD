@@ -299,11 +299,11 @@ mod tests {
         use std::fs::write;
 
         let content = "1,100.0,200.0,50.0,TEST";
-        let brands = [
-            ("leica.raw", instrument::read_leica_raw as fn(&str) -> _),
-            ("trimble.raw", instrument::read_trimble_raw as fn(&str) -> _),
-            ("topcon.raw", instrument::read_topcon_raw as fn(&str) -> _),
-            ("sokkia.raw", instrument::read_sokkia_raw as fn(&str) -> _),
+        let brands: [(&str, fn(&str) -> io::Result<Vec<SurveyPoint>>); 4] = [
+            ("leica.raw", instrument::read_leica_raw),
+            ("trimble.raw", instrument::read_trimble_raw),
+            ("topcon.raw", instrument::read_topcon_raw),
+            ("sokkia.raw", instrument::read_sokkia_raw),
         ];
         for (name, func) in brands {
             let path = temp_dir().join(name);

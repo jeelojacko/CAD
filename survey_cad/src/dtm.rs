@@ -215,6 +215,21 @@ impl Tin {
         Tin::from_points_constrained_with_holes(self.vertices.clone(), None, None, holes)
     }
 
+    /// Merges this TIN with `other` using the provided tolerance. Vertices
+    /// from `other` that are within `tolerance` of existing vertices are
+    /// discarded. The resulting surface is rebuilt from all kept points.
+    pub fn merge_with(&self, other: &Tin, tolerance: f64) -> Self {
+        let mut points = self.vertices.clone();
+        for v in &other.vertices {
+            if !points.iter().any(|p| {
+                (p.x - v.x).hypot(p.y - v.y) <= tolerance && (p.z - v.z).abs() <= tolerance
+            }) {
+                points.push(*v);
+            }
+        }
+        Tin::from_points(points)
+    }
+
     /// Smooths the surface elevations using simple Laplacian smoothing.
     /// Only vertex Z values are modified. Boundaries are not preserved.
     pub fn smooth(&self, iterations: usize) -> Self {
@@ -549,6 +564,41 @@ pub struct DynamicTin {
     pub tin: Tin,
 }
 
+/// Container for working with multiple TIN surfaces.
+#[derive(Debug, Default, Clone)]
+pub struct TinManager {
+    pub tins: Vec<Tin>,
+}
+
+impl TinManager {
+    /// Adds a new TIN to the manager.
+    pub fn add(&mut self, tin: Tin) {
+        self.tins.push(tin);
+    }
+
+    /// Removes a TIN by index if it exists.
+    pub fn remove(&mut self, index: usize) {
+        if index < self.tins.len() {
+            self.tins.remove(index);
+        }
+    }
+
+    /// Returns a reference to a TIN by index.
+    pub fn get(&self, index: usize) -> Option<&Tin> {
+        self.tins.get(index)
+    }
+
+    /// Returns the number of managed TINs.
+    pub fn len(&self) -> usize {
+        self.tins.len()
+    }
+
+    /// Returns `true` if no TINs are managed.
+    pub fn is_empty(&self) -> bool {
+        self.tins.is_empty()
+    }
+}
+
 impl DynamicTin {
     /// Creates a new dynamic surface from points.
     pub fn new(points: Vec<Point3>) -> Self {
@@ -576,6 +626,18 @@ impl DynamicTin {
     pub fn update_point(&mut self, index: usize, point: Point3) {
         if let Some(p) = self.points.get_mut(index) {
             *p = point;
+            self.rebuild();
+        }
+    }
+
+    /// Adds a breakline and rebuilds the surface.
+    pub fn add_breakline(&mut self, start: usize, end: usize) {
+        if !self
+            .breaklines
+            .iter()
+            .any(|&(a, b)| (a == start && b == end) || (a == end && b == start))
+        {
+            self.breaklines.push((start, end));
             self.rebuild();
         }
     }
@@ -827,5 +889,21 @@ mod tests {
         dtin.update_point(0, Point3::new(0.0, 0.0, 5.0));
         let z_after = dtin.tin.vertices[0].z;
         assert!(z_after - z_before > 4.9);
+    }
+
+    #[test]
+    fn merge_tins_with_tolerance() {
+        let a = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ]);
+        let b = Tin::from_points(vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ]);
+        let merged = a.merge_with(&b, 0.01);
+        assert!(merged.vertices.len() < a.vertices.len() + b.vertices.len());
     }
 }
