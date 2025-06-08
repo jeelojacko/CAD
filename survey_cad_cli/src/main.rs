@@ -88,6 +88,19 @@ fn read_points_csv_3d(path: &str) -> std::io::Result<Vec<Point3>> {
     Ok(pts)
 }
 
+fn write_points_classified(
+    path: &str,
+    points: &[Point3],
+    classes: &[survey_cad::Classification],
+) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::File::create(path)?;
+    for (p, c) in points.iter().zip(classes.iter()) {
+        writeln!(file, "{},{},{},{:?}", p.x, p.y, p.z, c)?;
+    }
+    Ok(())
+}
+
 fn print_point(p: Point) {
     println!("{:.3},{:.3}", p.x, p.y);
 }
@@ -391,6 +404,26 @@ enum Commands {
     /// Export points from a CSV file to E57.
     #[cfg(feature = "e57")]
     ExportE57 { input: String, output: String },
+    /// Filter noise from a CSV point cloud.
+    FilterNoise {
+        input: String,
+        output: String,
+        #[arg(long, default_value_t = 1.0)]
+        radius: f64,
+        #[arg(long, default_value_t = 3)]
+        min_neighbors: usize,
+    },
+    /// Classify a CSV point cloud into ground, vegetation and buildings.
+    ClassifyCloud {
+        input: String,
+        output: String,
+        #[arg(long, default_value_t = 1.0)]
+        cell_size: f64,
+        #[arg(long, default_value_t = 0.3)]
+        ground_threshold: f64,
+        #[arg(long, default_value_t = 2.0)]
+        veg_threshold: f64,
+    },
     /// View points from a CSV file.
     #[cfg(feature = "render")]
     ViewPoints { input: String },
@@ -782,6 +815,40 @@ fn main() {
                 Ok(()) => println!("Wrote {}", output),
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        Commands::FilterNoise {
+            input,
+            output,
+            radius,
+            min_neighbors,
+        } => match read_points_csv_3d(&input) {
+            Ok(pts) => {
+                let filtered = survey_cad::filter_noise(&pts, radius, min_neighbors);
+                if let Err(e) = write_points_csv_3d(&output, &filtered) {
+                    eprintln!("Error writing {}: {}", output, e);
+                } else {
+                    println!("Wrote {}", output);
+                }
+            }
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        Commands::ClassifyCloud {
+            input,
+            output,
+            cell_size,
+            ground_threshold,
+            veg_threshold,
+        } => match read_points_csv_3d(&input) {
+            Ok(pts) => {
+                let classes =
+                    survey_cad::classify_points(&pts, cell_size, ground_threshold, veg_threshold);
+                if let Err(e) = write_points_classified(&output, &pts, &classes) {
+                    eprintln!("Error writing {}: {}", output, e);
+                } else {
+                    println!("Wrote {}", output);
+                }
+            }
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
         #[cfg(feature = "render")]
