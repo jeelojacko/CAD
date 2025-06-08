@@ -169,6 +169,78 @@ impl PointDatabase {
         }
         result
     }
+
+    /// Generates linework and block references using a [`CodeLibrary`].
+    /// Codes marked with `linework` are connected in the order points appear.
+    /// Codes with a `block` mapping create [`BlockRef`]s at the point location.
+    pub fn field_to_finish(
+        &self,
+        library: &crate::surveying::code_library::CodeLibrary,
+    ) -> (Vec<Polyline>, Vec<crate::surveying::code_library::BlockRef>) {
+        use super::field_code::CodeAction;
+        use crate::surveying::code_library::BlockRef;
+        use std::collections::BTreeMap;
+
+        let mut active: BTreeMap<String, Vec<Point>> = BTreeMap::new();
+        let mut lines = Vec::new();
+        let mut blocks = Vec::new();
+
+        for p in &self.points {
+            let pt2d = Point::new(p.point.x, p.point.y);
+
+            for code in &p.codes {
+                if let Some(entry) = library.get(code) {
+                    if let Some(name) = &entry.block {
+                        blocks.push(BlockRef {
+                            location: p.point.clone(),
+                            name: name.clone(),
+                            attributes: entry.attributes.clone(),
+                        });
+                    }
+                    if entry.linework {
+                        active.entry(code.clone()).or_default().push(pt2d.clone());
+                    }
+                }
+            }
+
+            for fc in p.field_codes() {
+                let lw = library.get(&fc.code).map(|e| e.linework).unwrap_or(true);
+                if !lw {
+                    continue;
+                }
+                match fc.action {
+                    CodeAction::Begin => {
+                        if let Some(pts) = active.remove(&fc.code) {
+                            if pts.len() >= 2 {
+                                lines.push(Polyline::new(pts));
+                            }
+                        }
+                        active.insert(fc.code, vec![pt2d.clone()]);
+                    }
+                    CodeAction::Continue => {
+                        active.entry(fc.code).or_default().push(pt2d.clone());
+                    }
+                    CodeAction::End => {
+                        if let Some(mut pts) = active.remove(&fc.code) {
+                            pts.push(pt2d.clone());
+                            if pts.len() >= 2 {
+                                lines.push(Polyline::new(pts));
+                            }
+                        }
+                    }
+                    CodeAction::None => {}
+                }
+            }
+        }
+
+        for (_code, pts) in active {
+            if pts.len() >= 2 {
+                lines.push(Polyline::new(pts));
+            }
+        }
+
+        (lines, blocks)
+    }
 }
 
 #[cfg(test)]
@@ -342,5 +414,46 @@ mod tests {
         assert!(res.residuals.iter().all(|v| v.abs() < 1e-6));
         assert_eq!(parcel.boundary.len(), 3);
         assert!((parcel.area() - 1000.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn field_to_finish_generates_blocks_and_lines() {
+        use crate::surveying::code_library::CodeLibrary;
+        let json = r#"{
+            "codes": {
+                "TREE": {"block": "tree", "attributes": {"type": "oak"}},
+                "CURB": {"linework": true}
+            }
+        }"#;
+        let path = std::env::temp_dir().join("codes.json");
+        std::fs::write(&path, json).unwrap();
+        let lib = CodeLibrary::from_json(path.to_str().unwrap()).unwrap();
+
+        let mut db = PointDatabase::new();
+        db.add_point(SurveyPoint::new(
+            Some(1),
+            Point3::new(0.0, 0.0, 0.0),
+            None,
+            vec!["TREE".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(2),
+            Point3::new(1.0, 0.0, 0.0),
+            None,
+            vec!["BCURB".into()],
+        ));
+        db.add_point(SurveyPoint::new(
+            Some(3),
+            Point3::new(1.0, 1.0, 0.0),
+            None,
+            vec!["ECURB".into()],
+        ));
+        let (lines, blocks) = db.field_to_finish(&lib);
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].name, "tree");
+        assert_eq!(blocks[0].attributes.get("type").unwrap(), "oak");
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].vertices.len(), 2);
+        std::fs::remove_file(path).ok();
     }
 }
