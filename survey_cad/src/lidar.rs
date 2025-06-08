@@ -86,3 +86,97 @@ pub fn classify_points(
     }
     classes
 }
+
+/// Extract linear breaklines from a point cloud based on slope between
+/// nearby points.
+///
+/// Points within `radius` are connected when the vertical slope between
+/// them exceeds `slope_threshold` (rise over run). The result is a list of
+/// index pairs into the input array representing detected breaklines.
+pub fn extract_breaklines(
+    points: &[Point3],
+    radius: f64,
+    slope_threshold: f64,
+) -> Vec<(usize, usize)> {
+    let mut lines = Vec::new();
+    for i in 0..points.len() {
+        let a = points[i];
+        for j in (i + 1)..points.len() {
+            let b = points[j];
+            let dx = a.x - b.x;
+            let dy = a.y - b.y;
+            let horiz = (dx * dx + dy * dy).sqrt();
+            if horiz <= radius && horiz > f64::EPSILON {
+                let dz = (a.z - b.z).abs();
+                if dz / horiz >= slope_threshold {
+                    lines.push((i, j));
+                }
+            }
+        }
+    }
+    lines
+}
+
+#[cfg(feature = "render")]
+use bevy::asset::RenderAssetUsages;
+#[cfg(feature = "render")]
+use bevy::prelude::Mesh;
+#[cfg(feature = "render")]
+use bevy::render::mesh::{Indices, PrimitiveTopology};
+
+/// Builds a textured mesh from a point cloud using Delaunay triangulation.
+///
+/// The mesh is suitable for basic visualization of the point cloud surface.
+#[cfg(feature = "render")]
+pub fn point_cloud_to_mesh(points: &[Point3]) -> Mesh {
+    use crate::dtm::Tin;
+    let tin = Tin::from_points(points.to_vec());
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    let positions: Vec<[f32; 3]> = tin
+        .vertices
+        .iter()
+        .map(|p| [p.x as f32, p.y as f32, p.z as f32])
+        .collect();
+    let min_x = positions.iter().fold(f32::INFINITY, |m, v| m.min(v[0]));
+    let max_x = positions.iter().fold(f32::NEG_INFINITY, |m, v| m.max(v[0]));
+    let min_y = positions.iter().fold(f32::INFINITY, |m, v| m.min(v[1]));
+    let max_y = positions.iter().fold(f32::NEG_INFINITY, |m, v| m.max(v[1]));
+    let width = (max_x - min_x).max(f32::EPSILON);
+    let height = (max_y - min_y).max(f32::EPSILON);
+    let uvs: Vec<[f32; 2]> = positions
+        .iter()
+        .map(|p| [(p[0] - min_x) / width, (p[1] - min_y) / height])
+        .collect();
+    let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
+    let indices: Vec<u32> = tin
+        .triangles
+        .iter()
+        .flat_map(|t| [t[0] as u32, t[1] as u32, t[2] as u32])
+        .collect();
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_indices(Indices::U32(indices));
+    mesh
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn breakline_detection_basic() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+        ];
+        let lines = extract_breaklines(&pts, 1.1, 0.5);
+        assert!(lines.contains(&(0, 2)) || lines.contains(&(2, 0)));
+        assert!(lines.contains(&(1, 3)) || lines.contains(&(3, 1)));
+    }
+}
