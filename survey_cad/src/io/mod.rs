@@ -18,6 +18,7 @@ pub mod landxml;
 pub mod las;
 #[cfg(feature = "shapefile")]
 pub mod shp;
+pub mod ifc;
 
 /// Reads a file to string.
 pub fn read_to_string(path: &str) -> io::Result<String> {
@@ -859,5 +860,28 @@ mod tests {
         let contents = read_to_string(path.to_str().unwrap()).unwrap();
         assert!(contents.starts_with("1,2.0,1.0,3.0"));
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_ifc_points_creates_file() {
+        let path = std::env::temp_dir().join("pts.ifc");
+        let pts = vec![Point3::new(0.0, 1.0, 2.0)];
+        ifc::write_ifc_points(path.to_str().unwrap(), &pts, Some(4326)).unwrap();
+        let contents = read_to_string(path.to_str().unwrap()).unwrap();
+        assert!(contents.contains("IFCCARTESIANPOINT"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[cfg(feature = "shapefile")]
+    #[test]
+    fn shp_point_record_to_feature() {
+        use crate::io::shp::{point_record_to_feature, PointRecord};
+        use shapefile::dbase::FieldValue;
+        let mut attrs = std::collections::BTreeMap::new();
+        attrs.insert("NAME".to_string(), FieldValue::Character(Some("A".into())));
+        let rec = PointRecord { geom: Point::new(1.0, 2.0), geom_z: None, attrs };
+        let feat = point_record_to_feature(rec, Some("test".into()));
+        assert_eq!(feat.class.as_deref(), Some("test"));
+        assert_eq!(feat.attributes.get("NAME").unwrap(), "A");
     }
 }

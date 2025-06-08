@@ -10,6 +10,7 @@ pub mod intersection;
 pub mod io;
 pub mod layers;
 pub mod lidar;
+pub mod gis;
 pub mod local_grid;
 pub mod parcel;
 #[cfg(feature = "pmetra")]

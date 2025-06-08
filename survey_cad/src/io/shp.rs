@@ -7,6 +7,7 @@ use shapefile::{
 use shapefile::dbase::{FieldName, FieldValue, Record};
 use shapefile::dbase::TableWriterBuilder;
 use std::io;
+use crate::gis::Feature;
 
 /// Record type for a point geometry and its attributes.
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +52,53 @@ fn build_table_builder(attrs: &BTreeMap<String, FieldValue>) -> TableWriterBuild
         };
     }
     builder
+}
+
+fn field_value_to_string(v: &FieldValue) -> String {
+    match v {
+        FieldValue::Character(Some(s)) => s.clone(),
+        FieldValue::Character(None) => String::new(),
+        FieldValue::Numeric(Some(n)) => n.to_string(),
+        FieldValue::Numeric(None) => String::new(),
+        FieldValue::Logical(Some(b)) => b.to_string(),
+        FieldValue::Logical(None) => String::new(),
+        FieldValue::Date(Some(d)) => format!("{:04}-{:02}-{:02}", d.year(), d.month(), d.day()),
+        FieldValue::Date(None) => String::new(),
+        FieldValue::Float(Some(f)) => f.to_string(),
+        FieldValue::Float(None) => String::new(),
+        FieldValue::Integer(i) => i.to_string(),
+        FieldValue::Currency(c) => c.to_string(),
+        FieldValue::DateTime(dt) => dt.to_string(),
+        FieldValue::Double(d) => d.to_string(),
+        FieldValue::Memo(s) => s.clone(),
+    }
+}
+
+pub fn point_record_to_feature(rec: PointRecord, class: Option<String>) -> Feature<Point> {
+    let attrs = rec
+        .attrs
+        .iter()
+        .map(|(k, v)| (k.clone(), field_value_to_string(v)))
+        .collect();
+    Feature { class, attributes: attrs, geometry: rec.geom }
+}
+
+pub fn polyline_record_to_feature(rec: PolylineRecord, class: Option<String>) -> Feature<crate::geometry::Polyline> {
+    let attrs = rec
+        .attrs
+        .iter()
+        .map(|(k, v)| (k.clone(), field_value_to_string(v)))
+        .collect();
+    Feature { class, attributes: attrs, geometry: rec.geom }
+}
+
+pub fn polygon_record_to_feature(rec: PolygonRecord, class: Option<String>) -> Feature<Vec<Point>> {
+    let attrs = rec
+        .attrs
+        .iter()
+        .map(|(k, v)| (k.clone(), field_value_to_string(v)))
+        .collect();
+    Feature { class, attributes: attrs, geometry: rec.geom }
 }
 
 /// Reads a shapefile containing Point geometries and returns them as [`Point`] values.
