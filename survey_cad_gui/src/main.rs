@@ -1,17 +1,27 @@
 #![allow(deprecated)]
 use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
 use bevy_editor_cam::prelude::*;
 use survey_cad::geometry::{Point, Point3, Polyline};
 use survey_cad::{crs::Crs, geometry::distance};
+
+#[derive(Copy, Clone, ValueEnum)]
+enum WorkspaceProfile {
+    Surveyor,
+    Engineer,
+    Gis,
+}
 
 #[derive(Parser)]
 struct Args {
     /// EPSG code for the working coordinate system
     #[arg(long, default_value_t = 4326)]
     epsg: u32,
+    /// Workspace profile (surveyor, engineer, gis)
+    #[arg(long, value_enum, default_value_t = WorkspaceProfile::Surveyor)]
+    profile: WorkspaceProfile,
 }
 
 #[derive(Resource, Default)]
@@ -31,6 +41,9 @@ struct CadLine {
 
 #[derive(Resource)]
 struct WorkingCrs(Crs);
+
+#[derive(Resource)]
+struct CurrentProfile(WorkspaceProfile);
 
 #[derive(Resource, Default)]
 struct AlignmentData {
@@ -220,6 +233,7 @@ fn main() {
     println!("Using EPSG {}", args.epsg);
     App::new()
         .insert_resource(WorkingCrs(Crs::from_epsg(args.epsg)))
+        .insert_resource(CurrentProfile(args.profile))
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
@@ -283,7 +297,12 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<WorkingCrs>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    working: Res<WorkingCrs>,
+    profile: Res<CurrentProfile>,
+) {
     println!("GUI working CRS: {}", working.0.definition());
     commands.spawn(Camera2dBundle::default());
     commands.spawn((
@@ -301,8 +320,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
         },
         ..default()
     });
-    spawn_toolbar(&mut commands, &asset_server);
-    let (parcel_text, grade_text) = spawn_edit_panel(&mut commands, &asset_server);
+    spawn_toolbar(&mut commands, &asset_server, profile.0);
+    let (parcel_text, grade_text) = spawn_edit_panel(&mut commands, &asset_server, profile.0);
     let section_label = spawn_sections_panel(&mut commands, &asset_server);
     commands.insert_resource(ParcelData { parcels: Vec::new(), text: Some(parcel_text) });
     commands.insert_resource(GradeInfo { text: Some(grade_text) });
@@ -311,7 +330,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, working: Res<Wo
     let _ = spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
 
-fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+fn spawn_toolbar(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    profile: WorkspaceProfile,
+) {
     commands
         .spawn(NodeBundle {
             node: Node {
@@ -356,6 +379,39 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
             }
 
             parent
+                .spawn(ButtonBundle {
+                    node: Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    background_color: BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                    ..default()
+                })
+                .with_children(|button| {
+                    let label = match profile {
+                        WorkspaceProfile::Surveyor => "Survey",
+                        WorkspaceProfile::Engineer => "Engineering",
+                        WorkspaceProfile::Gis => "GIS",
+                    };
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        TextSpan::new(label),
+                    ));
+                });
+
+            parent
                 .spawn(ButtonBundle::default())
                 .with_children(|b| {
                     b.spawn((
@@ -389,7 +445,11 @@ fn spawn_toolbar(commands: &mut Commands, asset_server: &Res<AssetServer>) {
         });
 }
 
-fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) -> (Entity, Entity) {
+fn spawn_edit_panel(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    profile: WorkspaceProfile,
+) -> (Entity, Entity) {
     let mut parcel_text = Entity::from_raw(0);
     let mut grade_text = Entity::from_raw(0);
     commands
@@ -408,31 +468,33 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
             ..default()
         })
         .with_children(|parent| {
-            parent.spawn((
-                TextLayout::default(),
-                TextFont {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextColor::WHITE,
-                TextSpan::new("Alignment Editor"),
-            ));
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Add Selected"),
-                    ));
-                })
-                .insert(AddAlignmentButton);
+            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+                parent.spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Alignment Editor"),
+                ));
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Add Selected"),
+                        ));
+                    })
+                    .insert(AddAlignmentButton);
+            }
 
             parent.spawn((
                 TextLayout::default(),
@@ -444,69 +506,76 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
                 TextColor::WHITE,
                 TextSpan::new("Surface Editor"),
             ));
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Add Points"),
-                    ));
-                })
-                .insert(AddSurfaceButton);
+            if matches!(profile, WorkspaceProfile::Surveyor) {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Add Points"),
+                        ));
+                    })
+                    .insert(AddSurfaceButton);
 
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Add Breakline"),
-                    ));
-                })
-                .insert(AddBreaklineButton);
+            if matches!(profile, WorkspaceProfile::Surveyor) {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Add Breakline"),
+                        ));
+                    })
+                    .insert(AddBreaklineButton);
+            }
 
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Add Hole"),
-                    ));
-                })
-                .insert(AddHoleButton);
+            if matches!(profile, WorkspaceProfile::Surveyor) {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Add Hole"),
+                        ));
+                    })
+                    .insert(AddHoleButton);
+            }
 
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Add Parcel"),
-                    ));
-                })
-                .insert(AddParcelButton);
+            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Gis) {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Add Parcel"),
+                        ));
+                    })
+                    .insert(AddParcelButton);
+            }
 
             parcel_text = parent
                 .spawn((
@@ -534,24 +603,42 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
                 ))
                 .id();
 
-            parent.spawn((
-                TextLayout::default(),
-                TextFont {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextColor::WHITE,
-                TextSpan::new("Corridor Params"),
-            ));
-            for (label, ctl) in [
-                ("Width -", CorridorControl::WidthDec),
-                ("Width +", CorridorControl::WidthInc),
-                ("Interval -", CorridorControl::IntervalDec),
-                ("Interval +", CorridorControl::IntervalInc),
-                ("Offset -", CorridorControl::OffsetDec),
-                ("Offset +", CorridorControl::OffsetInc),
-            ] {
+            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+                parent.spawn((
+                    TextLayout::default(),
+                    TextFont {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor::WHITE,
+                    TextSpan::new("Corridor Params"),
+                ));
+                for (label, ctl) in [
+                    ("Width -", CorridorControl::WidthDec),
+                    ("Width +", CorridorControl::WidthInc),
+                    ("Interval -", CorridorControl::IntervalDec),
+                    ("Interval +", CorridorControl::IntervalInc),
+                    ("Offset -", CorridorControl::OffsetDec),
+                    ("Offset +", CorridorControl::OffsetInc),
+                ] {
+                    parent
+                        .spawn(ButtonBundle::default())
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                TextSpan::new(label),
+                            ));
+                        })
+                        .insert(CorridorButton(ctl));
+                }
+
                 parent
                     .spawn(ButtonBundle::default())
                     .with_children(|b| {
@@ -563,75 +650,61 @@ fn spawn_edit_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) ->
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new(label),
+                            TextSpan::new("Build Surface"),
                         ));
                     })
-                    .insert(CorridorButton(ctl));
+                    .insert(BuildSurfaceButton);
+
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Grade Slope"),
+                        ));
+                    })
+                    .insert(GradeButton);
             }
 
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Build Surface"),
-                    ));
-                })
-                .insert(BuildSurfaceButton);
+            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Show Profile"),
+                        ));
+                    })
+                    .insert(ShowProfileButton);
 
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Grade Slope"),
-                    ));
-                })
-                .insert(GradeButton);
-
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Show Profile"),
-                    ));
-                })
-                .insert(ShowProfileButton);
-
-            parent
-                .spawn(ButtonBundle::default())
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor::WHITE,
-                        TextSpan::new("Show Sections"),
-                    ));
-                })
-                .insert(ShowSectionsButton);
+                parent
+                    .spawn(ButtonBundle::default())
+                    .with_children(|b| {
+                        b.spawn((
+                            TextLayout::default(),
+                            TextFont {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                ..default()
+                            },
+                            TextColor::WHITE,
+                            TextSpan::new("Show Sections"),
+                        ));
+                    })
+                    .insert(ShowSectionsButton);
+            }
 
             parent
                 .spawn(ButtonBundle::default())

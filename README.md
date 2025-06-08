@@ -111,6 +111,16 @@ Generate a mass haul diagram:
 $ cargo run -p survey_cad_cli -- mass-haul design.csv ground.csv halign.csv valign.csv 10.0 --interval 10.0 --offset-step 1.0
 ```
 
+## GUI Workspace Profiles
+
+The `survey_cad_gui` binary now accepts a `--profile` option to tailor the
+interface for different roles. Available profiles are `surveyor`, `engineer` and
+`gis`. The default profile is `surveyor`.
+
+```bash
+$ cargo run -p survey_cad_gui -- --profile engineer
+```
+
 ## Continuous Integration
 
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
