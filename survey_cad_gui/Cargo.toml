@@ -8,4 +8,5 @@ bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "
 survey_cad = { path = "../survey_cad", features = ["shapefile"] }
 rfd = "0.15"
 clap = { version = "4", features = ["derive"] }
+bevy_editor_cam = "0.5"
 
