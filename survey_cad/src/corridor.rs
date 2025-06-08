@@ -140,6 +140,37 @@ pub fn extract_cross_sections(
     sections
 }
 
+/// Generates cross-sections along a 2D polyline using a ground TIN.
+pub fn extract_polyline_cross_sections(
+    tin: &Tin,
+    polyline: &crate::geometry::Polyline,
+    width: f64,
+    interval: f64,
+    offset_step: f64,
+) -> Vec<CrossSection> {
+    let mut sections = Vec::new();
+    let length = polyline.length();
+    let mut station = 0.0;
+    while station <= length {
+        if let (Some(center), Some(dir)) = (polyline.point_at(station), polyline.direction_at(station)) {
+            let normal = (-dir.1, dir.0);
+            let mut pts = Vec::new();
+            let mut offset = -width;
+            while offset <= width {
+                let x = center.x + offset * normal.0;
+                let y = center.y + offset * normal.1;
+                if let Some(z) = tin.elevation_at(x, y) {
+                    pts.push(Point3::new(x, y, z));
+                }
+                offset += offset_step;
+            }
+            sections.push(CrossSection::new(station, pts));
+        }
+        station += interval;
+    }
+    sections
+}
+
 /// Generates design cross-sections from subassemblies with optional
 /// superelevation and variable offsets.
 pub fn extract_design_cross_sections(
@@ -400,6 +431,7 @@ mod tests {
     use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
     use crate::geometry::{Point, Point3};
     use crate::superelevation::SuperelevationPoint;
+    use crate::geometry::Polyline;
 
     #[test]
     fn flat_cross_sections() {
@@ -415,6 +447,26 @@ mod tests {
         let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
         let align = Alignment::new(halign, valign);
         let sections = extract_cross_sections(&tin, &align, 5.0, 5.0, 2.5);
+        assert_eq!(sections.len(), 3);
+        for sec in sections {
+            assert_eq!(sec.points.len(), 5);
+            for p in sec.points {
+                assert!((p.z - 0.0).abs() < 1e-6);
+            }
+        }
+    }
+
+    #[test]
+    fn polyline_cross_sections_flat() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
+        ];
+        let tin = Tin::from_points(pts);
+        let pl = Polyline::new(vec![Point::new(0.0, 5.0), Point::new(10.0, 5.0)]);
+        let sections = extract_polyline_cross_sections(&tin, &pl, 5.0, 5.0, 2.5);
         assert_eq!(sections.len(), 3);
         for sec in sections {
             assert_eq!(sec.points.len(), 5);
