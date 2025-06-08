@@ -7,12 +7,7 @@ pub use cogo::{bearing, forward, line_intersection};
 
 pub mod adjustment;
 pub use adjustment::{
-    adjust_network,
-    adjust_network_report,
-    AdjustResult,
-    AdjustReport,
-    IterationRecord,
-    Observation,
+    adjust_network, adjust_network_report, AdjustReport, AdjustResult, IterationRecord, Observation,
 };
 
 pub mod least_squares;
@@ -35,7 +30,7 @@ pub use observation_db::{
 };
 
 pub mod stakeout;
-pub use stakeout::stakeout_position;
+pub use stakeout::{grid_stakeout_points, optimal_stationing, stakeout_position};
 
 /// Representation of a simple survey station.
 #[derive(Debug)]

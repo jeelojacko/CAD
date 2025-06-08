@@ -1,10 +1,14 @@
 use crate::alignment::{HorizontalAlignment, HorizontalElement};
-use crate::geometry::{Point, Arc};
+use crate::geometry::{Arc, Point};
 
 /// Computes the stakeout position at a given station and offset along a
 /// horizontal alignment. Tangent segments use a perpendicular offset while
 /// curves apply a radial offset.
-pub fn stakeout_position(alignment: &HorizontalAlignment, station: f64, offset: f64) -> Option<Point> {
+pub fn stakeout_position(
+    alignment: &HorizontalAlignment,
+    station: f64,
+    offset: f64,
+) -> Option<Point> {
     if station < 0.0 || station > alignment.length() {
         return None;
     }
@@ -25,7 +29,10 @@ pub fn stakeout_position(alignment: &HorizontalAlignment, station: f64, offset: 
                     if nlen.abs() < f64::EPSILON {
                         base
                     } else {
-                        Point::new(base.x + offset * norm.0 / nlen, base.y + offset * norm.1 / nlen)
+                        Point::new(
+                            base.x + offset * norm.0 / nlen,
+                            base.y + offset * norm.1 / nlen,
+                        )
                     }
                 }
             });
@@ -35,7 +42,6 @@ pub fn stakeout_position(alignment: &HorizontalAlignment, station: f64, offset: 
     None
 }
 
-/// Computes a stakeout point on a tangent segment.
 fn tangent_point(start: Point, end: Point, distance: f64, offset: f64) -> Point {
     let dx = end.x - start.x;
     let dy = end.y - start.y;
@@ -51,10 +57,50 @@ fn tangent_point(start: Point, end: Point, distance: f64, offset: f64) -> Point 
     Point::new(x + offset * nx, y + offset * ny)
 }
 
-/// Computes a stakeout point on a circular curve using a radial offset.
 fn curve_point(arc: &Arc, distance: f64, offset: f64) -> Point {
-    let dir = if arc.end_angle >= arc.start_angle { 1.0 } else { -1.0 };
+    let dir = if arc.end_angle >= arc.start_angle {
+        1.0
+    } else {
+        -1.0
+    };
     let ang = arc.start_angle + distance / arc.radius * dir;
     let r = arc.radius + offset;
     Point::new(arc.center.x + r * ang.cos(), arc.center.y + r * ang.sin())
+}
+
+/// Generates a sorted list of station values that include all alignment element boundaries
+/// and evenly spaced stations at the provided interval. Duplicate stations are removed.
+pub fn optimal_stationing(alignment: &HorizontalAlignment, interval: f64) -> Vec<f64> {
+    let mut stations = alignment.stations();
+    if interval > 0.0 {
+        let mut s = 0.0;
+        let len = alignment.length();
+        while s <= len {
+            stations.push(s);
+            s += interval;
+        }
+    }
+    stations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    stations.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+    stations
+}
+
+/// Returns stakeout points for a rectangular grid defined by its minimum and maximum corners
+/// using the given spacing. Points are ordered row by row starting at the minimum corner.
+pub fn grid_stakeout_points(min: Point, max: Point, spacing: f64) -> Vec<Point> {
+    if spacing <= 0.0 || max.x <= min.x || max.y <= min.y {
+        return Vec::new();
+    }
+    let nx = ((max.x - min.x) / spacing).floor() as usize;
+    let ny = ((max.y - min.y) / spacing).floor() as usize;
+    let mut pts = Vec::new();
+    for j in 0..=ny {
+        for i in 0..=nx {
+            pts.push(Point::new(
+                min.x + i as f64 * spacing,
+                min.y + j as f64 * spacing,
+            ));
+        }
+    }
+    pts
 }

@@ -12,17 +12,18 @@ use survey_cad::{
     alignment::{
         Alignment, HorizontalAlignment, HorizontalElement, VerticalAlignment, VerticalElement,
     },
-    corridor::{corridor_volume, corridor_mass_haul},
+    corridor::{corridor_mass_haul, corridor_volume},
     crs::Crs,
     dtm::Tin,
     geometry::{Point, Point3},
     io::{
         landxml::read_landxml_surface, read_lines, read_points_csv, read_points_geojson,
-        read_to_string, write_points_csv, write_points_dxf, write_points_geojson, write_string,
+        read_to_string, write_points_csv, write_points_csv_gnss, write_points_dxf,
+        write_points_geojson, write_points_raw, write_string,
     },
     surveying::{
-        bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle,
-        Station, Traverse,
+        bearing, forward, level_elevation, line_intersection, optimal_stationing,
+        stakeout_position, station_distance, vertical_angle, Station, Traverse,
     },
 };
 
@@ -65,13 +66,22 @@ fn read_points_csv_3d(path: &str) -> std::io::Result<Vec<Point3>> {
             ));
         }
         let x = parts[0].trim().parse::<f64>().map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         let y = parts[1].trim().parse::<f64>().map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         let z = parts[2].trim().parse::<f64>().map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("line {}: {}", idx + 1, e))
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("line {}: {}", idx + 1, e),
+            )
         })?;
         pts.push(Point3::new(x, y, z));
     }
@@ -498,6 +508,16 @@ enum Commands {
         out_csv: String,
         out_xml: String,
     },
+    /// Compute optimal station points along an alignment and export to a file.
+    Stakeout {
+        halign: String,
+        output: String,
+        format: String,
+        #[arg(long, default_value_t = 10.0)]
+        interval: f64,
+        #[arg(long, default_value_t = 0.0)]
+        offset: f64,
+    },
 }
 
 fn main() {
@@ -701,11 +721,17 @@ fn main() {
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
         #[cfg(feature = "shapefile")]
-        Commands::Contours { surface, output, interval, smooth } => match read_surface(&surface) {
+        Commands::Contours {
+            surface,
+            output,
+            interval,
+            smooth,
+        } => match read_surface(&surface) {
             Ok(tin) => {
                 let (lines, lines_z) = tin.contour_polylines(interval, smooth);
                 if output.to_ascii_lowercase().ends_with(".shp") {
-                    match survey_cad::io::shp::write_polylines_shp(&output, &lines, Some(&lines_z)) {
+                    match survey_cad::io::shp::write_polylines_shp(&output, &lines, Some(&lines_z))
+                    {
                         Ok(()) => println!("Wrote {}", output),
                         Err(e) => eprintln!("Error writing {}: {}", output, e),
                     }
@@ -1208,6 +1234,47 @@ fn main() {
                 }
             }
             Err(e) => eprintln!("Error reading network: {}", e),
+        },
+        Commands::Stakeout {
+            halign,
+            output,
+            format,
+            interval,
+            offset,
+        } => match read_points_csv(&halign, None, None) {
+            Ok(pts) => {
+                let hal = HorizontalAlignment::new(pts);
+                let stas = optimal_stationing(&hal, interval);
+                let mut out_pts = Vec::new();
+                for s in stas {
+                    if let Some(p) = stakeout_position(&hal, s, offset) {
+                        out_pts.push(p);
+                    }
+                }
+                match format.as_str() {
+                    "csv" => {
+                        if let Err(e) = write_points_csv(&output, &out_pts, None, None) {
+                            eprintln!("Error writing {}: {}", output, e);
+                        }
+                    }
+                    "csv-gnss" => {
+                        let pts3: Vec<Point3> =
+                            out_pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
+                        if let Err(e) = write_points_csv_gnss(&output, &pts3) {
+                            eprintln!("Error writing {}: {}", output, e);
+                        }
+                    }
+                    "raw" => {
+                        let pts3: Vec<Point3> =
+                            out_pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
+                        if let Err(e) = write_points_raw(&output, &pts3) {
+                            eprintln!("Error writing {}: {}", output, e);
+                        }
+                    }
+                    _ => eprintln!("Unknown format {}", format),
+                }
+            }
+            Err(e) => eprintln!("Error reading {}: {}", halign, e),
         },
     }
 }
