@@ -17,6 +17,12 @@ pub use code_library::{BlockRef, CodeEntry, CodeLibrary};
 pub mod point_db;
 pub use point_db::{PointDatabase, SurveyPoint};
 
+pub mod observation_db;
+pub use observation_db::{
+    ObservationDB, ObservationRecord, ObsType, ObservationData, QueryFilter,
+    TraverseLeg,
+};
+
 /// Representation of a simple survey station.
 #[derive(Debug)]
 pub struct Station {
