@@ -22,8 +22,16 @@ impl Spiral {
     }
 
     pub(crate) fn point_at(&self, s: f64) -> Point {
-        let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
-        let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
+        let k0 = if self.start_radius.is_infinite() {
+            0.0
+        } else {
+            1.0 / self.start_radius
+        };
+        let k1 = if self.end_radius.is_infinite() {
+            0.0
+        } else {
+            1.0 / self.end_radius
+        };
         let kp = (k1 - k0) / self.length;
 
         if kp.abs() < f64::EPSILON {
@@ -56,8 +64,16 @@ impl Spiral {
     }
 
     pub(crate) fn direction_at(&self, s: f64) -> (f64, f64) {
-        let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
-        let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
+        let k0 = if self.start_radius.is_infinite() {
+            0.0
+        } else {
+            1.0 / self.start_radius
+        };
+        let k1 = if self.end_radius.is_infinite() {
+            0.0
+        } else {
+            1.0 / self.end_radius
+        };
         let kp = (k1 - k0) / self.length;
         let theta = self.orientation + k0 * s + 0.5 * kp * s * s;
         (theta.cos(), theta.sin())
@@ -187,6 +203,26 @@ impl HorizontalAlignment {
         Self { elements }
     }
 
+    /// Creates a new empty alignment. Elements can be added with
+    /// [`HorizontalAlignmentBuilder`].
+    pub fn empty() -> Self {
+        Self {
+            elements: Vec::new(),
+        }
+    }
+
+    /// Returns the station value at the start of each element.
+    pub fn stations(&self) -> Vec<f64> {
+        let mut out = Vec::new();
+        let mut sta = 0.0;
+        out.push(sta);
+        for elem in &self.elements {
+            sta += elem.length();
+            out.push(sta);
+        }
+        out
+    }
+
     /// Total length of the alignment.
     pub fn length(&self) -> f64 {
         self.elements.iter().map(|e| e.length()).sum()
@@ -222,6 +258,42 @@ impl HorizontalAlignment {
             remaining -= len;
         }
         None
+    }
+}
+
+/// Builder for [`HorizontalAlignment`].
+#[derive(Debug, Default)]
+pub struct HorizontalAlignmentBuilder {
+    elements: Vec<HorizontalElement>,
+}
+
+impl HorizontalAlignmentBuilder {
+    pub fn new() -> Self {
+        Self {
+            elements: Vec::new(),
+        }
+    }
+
+    pub fn add_tangent(mut self, start: Point, end: Point) -> Self {
+        self.elements
+            .push(HorizontalElement::Tangent { start, end });
+        self
+    }
+
+    pub fn add_curve(mut self, arc: Arc) -> Self {
+        self.elements.push(HorizontalElement::Curve { arc });
+        self
+    }
+
+    pub fn add_spiral(mut self, spiral: Spiral) -> Self {
+        self.elements.push(HorizontalElement::Spiral { spiral });
+        self
+    }
+
+    pub fn build(self) -> HorizontalAlignment {
+        HorizontalAlignment {
+            elements: self.elements,
+        }
     }
 }
 
@@ -263,6 +335,50 @@ impl VerticalAlignment {
             });
         }
         Self { elements }
+    }
+
+    /// Appends a parabolic vertical curve to the alignment.
+    pub fn add_parabola(
+        &mut self,
+        start_station: f64,
+        end_station: f64,
+        start_elev: f64,
+        start_grade: f64,
+        end_grade: f64,
+    ) {
+        self.elements.push(VerticalElement::Parabola {
+            start_station,
+            end_station,
+            start_elev,
+            start_grade,
+            end_grade,
+        });
+    }
+
+    /// Checks vertical clearance against a ground surface along a horizontal
+    /// alignment. Returns `true` if all stations satisfy the minimum
+    /// clearance.
+    pub fn check_clearance(
+        &self,
+        halign: &HorizontalAlignment,
+        ground: &crate::dtm::Tin,
+        min_clearance: f64,
+        interval: f64,
+    ) -> bool {
+        let length = halign.length();
+        let mut station = 0.0;
+        while station <= length {
+            if let (Some(pt), Some(grade)) = (halign.point_at(station), self.elevation_at(station))
+            {
+                if let Some(gz) = ground.elevation_at(pt.x, pt.y) {
+                    if grade - gz < min_clearance {
+                        return false;
+                    }
+                }
+            }
+            station += interval;
+        }
+        true
     }
 
     /// Elevation at the given station evaluating grades and parabolic curves.
@@ -363,7 +479,9 @@ impl Alignment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dtm::Tin;
     use crate::geometry::Point;
+    use crate::geometry::Point3;
 
     #[test]
     fn point_and_elevation() {
@@ -402,12 +520,39 @@ mod tests {
             start_radius: f64::INFINITY,
             end_radius: 100.0,
         };
-        let halign = HorizontalAlignment { elements: vec![HorizontalElement::Spiral { spiral }] };
+        let halign = HorizontalAlignment {
+            elements: vec![HorizontalElement::Spiral { spiral }],
+        };
         let valign = VerticalAlignment::new(vec![(0.0, 0.0), (50.0, 0.0)]);
         let align = Alignment::new(halign, valign);
         let p = align.point3_at(25.0).unwrap();
         let pt = spiral.point_at(25.0);
         assert!((p.x - pt.x).abs() < 1e-6);
         assert!((p.y - pt.y).abs() < 1e-6);
+    }
+
+    #[test]
+    fn horizontal_stationing() {
+        let halign = HorizontalAlignmentBuilder::new()
+            .add_tangent(Point::new(0.0, 0.0), Point::new(10.0, 0.0))
+            .add_tangent(Point::new(10.0, 0.0), Point::new(20.0, 0.0))
+            .build();
+        let stations = halign.stations();
+        assert_eq!(stations.len(), 3);
+        assert!((stations[2] - 20.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn clearance_check() {
+        let surface = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
+        ]);
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let mut valign = VerticalAlignment::new(vec![(0.0, 1.0), (10.0, 1.0)]);
+        assert!(valign.check_clearance(&halign, &surface, 0.5, 5.0));
+        valign.add_parabola(0.0, 10.0, 0.0, 0.0, 0.0);
+        assert!(!valign.check_clearance(&halign, &surface, 0.5, 5.0));
     }
 }

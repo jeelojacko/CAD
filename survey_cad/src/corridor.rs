@@ -152,7 +152,9 @@ pub fn extract_polyline_cross_sections(
     let length = polyline.length();
     let mut station = 0.0;
     while station <= length {
-        if let (Some(center), Some(dir)) = (polyline.point_at(station), polyline.direction_at(station)) {
+        if let (Some(center), Some(dir)) =
+            (polyline.point_at(station), polyline.direction_at(station))
+        {
             let normal = (-dir.1, dir.0);
             let mut pts = Vec::new();
             let mut offset = -width;
@@ -520,13 +522,70 @@ pub fn corridor_mass_haul(
     haul
 }
 
+/// Maintains cross-sections that update automatically when the alignment or
+/// surface changes.
+#[derive(Debug, Clone)]
+pub struct DynamicCrossSections {
+    alignment: Alignment,
+    surface: Tin,
+    width: f64,
+    interval: f64,
+    offset_step: f64,
+    pub sections: Vec<CrossSection>,
+}
+
+impl DynamicCrossSections {
+    pub fn new(
+        alignment: Alignment,
+        surface: Tin,
+        width: f64,
+        interval: f64,
+        offset_step: f64,
+    ) -> Self {
+        let sections = extract_cross_sections(&surface, &alignment, width, interval, offset_step);
+        Self {
+            alignment,
+            surface,
+            width,
+            interval,
+            offset_step,
+            sections,
+        }
+    }
+
+    /// Replaces the alignment and recomputes cross-sections.
+    pub fn set_alignment(&mut self, alignment: Alignment) {
+        self.alignment = alignment;
+        self.sections = extract_cross_sections(
+            &self.surface,
+            &self.alignment,
+            self.width,
+            self.interval,
+            self.offset_step,
+        );
+    }
+
+    /// Replaces the surface and recomputes cross-sections.
+    pub fn set_surface(&mut self, surface: Tin) {
+        self.surface = surface;
+        self.sections = extract_cross_sections(
+            &self.surface,
+            &self.alignment,
+            self.width,
+            self.interval,
+            self.offset_step,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::DynamicCrossSections;
     use super::*;
     use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+    use crate::geometry::Polyline;
     use crate::geometry::{Point, Point3};
     use crate::superelevation::SuperelevationPoint;
-    use crate::geometry::Polyline;
 
     #[test]
     fn flat_cross_sections() {
@@ -650,5 +709,26 @@ mod tests {
             .map(|p| p.z)
             .fold(f64::INFINITY, f64::min);
         assert!(new_min < initial_z);
+    }
+
+    #[test]
+    fn dynamic_cross_section_updates() {
+        let tin = Tin::from_points(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
+        ]);
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
+        let align = Alignment::new(halign.clone(), valign);
+        let mut secs = DynamicCrossSections::new(align, tin.clone(), 5.0, 5.0, 5.0);
+        let count_initial = secs.sections.len();
+        secs.set_alignment(Alignment::new(
+            HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(5.0, 0.0)]),
+            VerticalAlignment::new(vec![(0.0, 0.0), (5.0, 0.0)]),
+        ));
+        assert!(secs.sections.len() != count_initial);
+        secs.set_surface(tin);
+        assert!(!secs.sections.is_empty());
     }
 }
