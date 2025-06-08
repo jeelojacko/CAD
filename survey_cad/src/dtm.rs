@@ -566,6 +566,49 @@ impl Tin {
         let v_ba = volume_from(other, self);
         (v_ab - v_ba) / 2.0
     }
+
+    /// Returns the cut and fill volumes between two TIN surfaces using a
+    /// symmetric prismoidal calculation. The result is a tuple `(cut, fill)`
+    /// where `cut` is the volume where `self` lies below `other` and `fill`
+    /// is where `self` is above `other`.
+    pub fn cut_fill_between(&self, other: &Tin) -> (f64, f64) {
+        fn cut_fill_from(a: &Tin, b: &Tin) -> (f64, f64) {
+            let mut cut = 0.0;
+            let mut fill = 0.0;
+            for tri in &a.triangles {
+                let a0 = a.vertices[tri[0]];
+                let a1 = a.vertices[tri[1]];
+                let a2 = a.vertices[tri[2]];
+                if let (Some(b0), Some(b1), Some(b2)) = (
+                    b.elevation_at(a0.x, a0.y),
+                    b.elevation_at(a1.x, a1.y),
+                    b.elevation_at(a2.x, a2.y),
+                ) {
+                    let dz0 = a0.z - b0;
+                    let dz1 = a1.z - b1;
+                    let dz2 = a2.z - b2;
+                    let area = polygon_area(&[
+                        Point::new(a0.x, a0.y),
+                        Point::new(a1.x, a1.y),
+                        Point::new(a2.x, a2.y),
+                    ]);
+                    let avg = (dz0 + dz1 + dz2) / 3.0;
+                    if avg > 0.0 {
+                        fill += area * avg;
+                    } else {
+                        cut += area * -avg;
+                    }
+                }
+            }
+            (cut, fill)
+        }
+
+        let (cut_ab, fill_ab) = cut_fill_from(self, other);
+        let (cut_ba, fill_ba) = cut_fill_from(other, self);
+        let cut = (cut_ab + fill_ba) / 2.0;
+        let fill = (fill_ab + cut_ba) / 2.0;
+        (cut, fill)
+    }
 }
 
 /// Surface that automatically rebuilds when its points are modified.
@@ -965,5 +1008,26 @@ mod tests {
         let tin = Tin::from_points(pts);
         let (lines, _z) = tin.contour_polylines(0.5, 0);
         assert!(!lines.is_empty());
+    }
+
+    #[test]
+    fn cut_fill_between_flat() {
+        let design_pts = vec![
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let ground_pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let design = Tin::from_points(design_pts);
+        let ground = Tin::from_points(ground_pts);
+        let (cut, fill) = design.cut_fill_between(&ground);
+        assert!(cut.abs() < 1e-6);
+        assert!((fill - 1.0).abs() < 1e-6);
     }
 }

@@ -105,6 +105,12 @@ Compute cut/fill volume along an alignment:
 $ cargo run -p survey_cad_cli -- corridor-volume design.csv ground.csv halign.csv valign.csv 10.0 --interval 10.0 --offset-step 1.0
 ```
 
+Generate a mass haul diagram:
+
+```bash
+$ cargo run -p survey_cad_cli -- mass-haul design.csv ground.csv halign.csv valign.csv 10.0 --interval 10.0 --offset-step 1.0
+```
+
 ## Continuous Integration
 
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
