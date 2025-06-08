@@ -2,6 +2,10 @@ use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
 use pipe_network;
 use std::str::FromStr;
+#[cfg(feature = "fgdb")]
+use survey_cad::io::fgdb::read_points_fgdb;
+#[cfg(feature = "kml")]
+use survey_cad::io::kml::{read_points_kml, write_points_kml};
 #[cfg(feature = "render")]
 use survey_cad::render::{render_point, render_points};
 use survey_cad::{
@@ -256,6 +260,16 @@ enum Commands {
         #[arg(long)]
         dst_epsg: Option<u32>,
     },
+    /// Export points from a CSV file to KML or KMZ.
+    #[cfg(feature = "kml")]
+    ExportKml {
+        input: String,
+        output: String,
+        #[arg(long)]
+        src_epsg: Option<u32>,
+        #[arg(long)]
+        dst_epsg: Option<u32>,
+    },
     /// Import points from a GeoJSON file to CSV.
     ImportGeojson {
         input: String,
@@ -264,6 +278,23 @@ enum Commands {
         src_epsg: Option<u32>,
         #[arg(long)]
         dst_epsg: Option<u32>,
+    },
+    /// Import points from a KML or KMZ file to CSV.
+    #[cfg(feature = "kml")]
+    ImportKml {
+        input: String,
+        output: String,
+        #[arg(long)]
+        src_epsg: Option<u32>,
+        #[arg(long)]
+        dst_epsg: Option<u32>,
+    },
+    /// Import points from a File Geodatabase layer to CSV.
+    #[cfg(feature = "fgdb")]
+    ImportFgdb {
+        path: String,
+        layer: String,
+        output: String,
     },
     /// Import survey points from a text file in a given format to CSV.
     ImportPoints {
@@ -461,6 +492,19 @@ fn main() {
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
+        #[cfg(feature = "kml")]
+        Commands::ExportKml {
+            input,
+            output,
+            src_epsg,
+            dst_epsg,
+        } => match read_points_csv(&input, src_epsg, dst_epsg) {
+            Ok(pts) => match write_points_kml(&output, &pts) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
         Commands::ImportGeojson {
             input,
             output,
@@ -472,6 +516,31 @@ fn main() {
                 Err(e) => eprintln!("Error writing {}: {}", output, e),
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "kml")]
+        Commands::ImportKml {
+            input,
+            output,
+            src_epsg,
+            dst_epsg,
+        } => match read_points_kml(&input) {
+            Ok(pts) => match write_points_csv(&output, &pts, src_epsg, dst_epsg) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", input, e),
+        },
+        #[cfg(feature = "fgdb")]
+        Commands::ImportFgdb {
+            path,
+            layer,
+            output,
+        } => match read_points_fgdb(&path, &layer) {
+            Ok(pts) => match write_points_csv(&output, &pts, None, None) {
+                Ok(()) => println!("Wrote {}", output),
+                Err(e) => eprintln!("Error writing {}: {}", output, e),
+            },
+            Err(e) => eprintln!("Error reading {}: {}", path, e),
         },
         Commands::ImportPoints {
             format,
@@ -734,8 +803,7 @@ fn main() {
                             }
                         }
                     }
-                    let (result, report) =
-                        adjust_network_report(&pts, &fixed, &obs, 1e-6, 10);
+                    let (result, report) = adjust_network_report(&pts, &fixed, &obs, 1e-6, 10);
                     println!("iterations: {}", report.iterations.len());
                     for (name, p) in names.iter().zip(result.points.iter()) {
                         println!("{}, {:.3}, {:.3}", name, p.x, p.y);
