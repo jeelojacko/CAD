@@ -16,6 +16,8 @@ pub mod pmetra;
 pub mod render;
 pub mod sheet;
 pub mod snap;
+pub mod workspace;
+pub mod grip;
 pub mod styles;
 pub mod subassembly;
 pub mod superelevation;
