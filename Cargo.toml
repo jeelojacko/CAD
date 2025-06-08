@@ -5,6 +5,7 @@ members = [
     "bevy_pmetra",
     "survey_cad_gui",
     "cad_import", "pipe_network",
+    "survey_cad_python",
 ]
 resolver = "2"
 
