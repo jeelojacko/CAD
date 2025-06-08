@@ -10,7 +10,7 @@ pub use adjustment::{adjust_network, AdjustResult, Observation};
 
 pub mod least_squares;
 pub use least_squares::{
-    LSResult, conditional_ls, free_network_ls, parametric_ls,
+    conditional_ls, free_network_ls, parametric_ls, redundancy_analysis, LSAnalysis, LSResult,
 };
 
 pub mod field_code;
@@ -24,8 +24,7 @@ pub use point_db::{PointDatabase, SurveyPoint};
 
 pub mod observation_db;
 pub use observation_db::{
-    ObservationDB, ObservationRecord, ObsType, ObservationData, QueryFilter,
-    TraverseLeg,
+    ObsType, ObservationDB, ObservationData, ObservationRecord, QueryFilter, TraverseLeg,
 };
 
 pub mod stakeout;
