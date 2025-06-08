@@ -5,8 +5,10 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 
 use crate::crs::Crs;
 
-use crate::geometry::{Arc, Point, Polyline};
+use crate::geometry::{Arc, Point, Point3, Polyline};
 
+#[cfg(feature = "e57")]
+pub mod e57;
 #[cfg(feature = "fgdb")]
 pub mod fgdb;
 #[cfg(feature = "kml")]
@@ -14,8 +16,6 @@ pub mod kml;
 pub mod landxml;
 #[cfg(feature = "las")]
 pub mod las;
-#[cfg(feature = "e57")]
-pub mod e57;
 #[cfg(feature = "shapefile")]
 pub mod shp;
 
@@ -110,6 +110,25 @@ pub fn write_points_csv(
             _ => (p.x, p.y),
         };
         writeln!(file, "{},{}", x, y)?;
+    }
+    Ok(())
+}
+
+/// Writes 3D points to a CSV file in `x,y,z` format commonly used for GNSS exports.
+pub fn write_points_csv_gnss(path: &str, points: &[Point3]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    for p in points {
+        writeln!(file, "{},{},{}", p.x, p.y, p.z)?;
+    }
+    Ok(())
+}
+
+/// Writes a simple RAW file with point number, northing, easting and elevation.
+/// This format is compatible with many total station controllers.
+pub fn write_points_raw(path: &str, points: &[Point3]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    for (i, p) in points.iter().enumerate() {
+        writeln!(file, "{},{},{},{}", i + 1, p.y, p.x, p.z)?;
     }
     Ok(())
 }
@@ -819,6 +838,26 @@ mod tests {
         landxml::write_landxml_superelevation(path.to_str().unwrap(), &table).unwrap();
         let read = landxml::read_landxml_superelevation(path.to_str().unwrap()).unwrap();
         assert_eq!(read.len(), 2);
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_points_csv_gnss_creates_file() {
+        let path = std::env::temp_dir().join("gnss.csv");
+        let pts = vec![Point3::new(1.0, 2.0, 3.0)];
+        write_points_csv_gnss(path.to_str().unwrap(), &pts).unwrap();
+        let contents = read_to_string(path.to_str().unwrap()).unwrap();
+        assert!(contents.starts_with("1.0,2.0,3.0"));
+        std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn write_points_raw_creates_file() {
+        let path = std::env::temp_dir().join("pts.raw");
+        let pts = vec![Point3::new(1.0, 2.0, 3.0)];
+        write_points_raw(path.to_str().unwrap(), &pts).unwrap();
+        let contents = read_to_string(path.to_str().unwrap()).unwrap();
+        assert!(contents.starts_with("1,2.0,1.0,3.0"));
         std::fs::remove_file(path).ok();
     }
 }
