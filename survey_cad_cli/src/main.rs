@@ -1,6 +1,8 @@
 use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
 use pipe_network;
+use shell_words;
+use std::io::BufRead;
 use std::str::FromStr;
 #[cfg(feature = "fgdb")]
 use survey_cad::io::fgdb::read_points_fgdb;
@@ -28,7 +30,7 @@ use survey_cad::{
 };
 
 #[cfg(feature = "las")]
-use survey_cad::io::las::read_points_las;
+use survey_cad::io::las::{read_points_las, write_points_las};
 #[cfg(feature = "shapefile")]
 use survey_cad::io::shp::{
     read_points_shp, read_polygons_shp, read_polylines_shp, write_points_shp, write_polygons_shp,
@@ -37,6 +39,71 @@ use survey_cad::io::shp::{
 
 fn no_render() -> bool {
     std::env::var("SURVEY_CAD_TEST").is_ok()
+}
+
+fn macro_record(path: &str) {
+    use std::io::{self, Write};
+    let stdin = io::stdin();
+    let mut file = match std::fs::File::create(path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Error writing {}: {}", path, e);
+            return;
+        }
+    };
+    println!("Enter commands, empty line to finish:");
+    for line in stdin.lock().lines() {
+        match line {
+            Ok(l) => {
+                if l.trim().is_empty() {
+                    break;
+                }
+                if let Err(e) = writeln!(file, "{}", l) {
+                    eprintln!("Error writing {}: {}", path, e);
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!("Input error: {}", e);
+                break;
+            }
+        }
+    }
+}
+
+fn macro_play(path: &str, epsg: u32) {
+    let lines = match read_lines(path) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Error reading {}: {}", path, e);
+            return;
+        }
+    };
+    let exe = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("Cannot locate executable: {}", e);
+            return;
+        }
+    };
+    for line in lines {
+        let mut args = match shell_words::split(&line) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("Invalid line '{}': {}", line, e);
+                continue;
+            }
+        };
+        args.insert(0, format!("--epsg={}", epsg));
+        match std::process::Command::new(&exe).args(&args).status() {
+            Ok(status) => {
+                if !status.success() {
+                    eprintln!("Command '{}' failed", line);
+                }
+            }
+            Err(e) => eprintln!("Failed to run '{}': {}", line, e),
+        }
+    }
 }
 
 #[cfg(feature = "las")]
@@ -551,6 +618,19 @@ enum Commands {
         #[arg(long, default_value_t = 0.0)]
         offset: f64,
     },
+    /// Record or play a command macro.
+    Macro {
+        #[command(subcommand)]
+        action: MacroAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum MacroAction {
+    /// Record commands to a file. Enter commands line by line, blank line to finish.
+    Record { file: String },
+    /// Play commands from a file.
+    Play { file: String },
 }
 
 fn main() {
@@ -1342,6 +1422,10 @@ fn main() {
                 }
             }
             Err(e) => eprintln!("Error reading {}: {}", halign, e),
+        },
+        Commands::Macro { action } => match action {
+            MacroAction::Record { file } => macro_record(&file),
+            MacroAction::Play { file } => macro_play(&file, cli.epsg),
         },
     }
 }
