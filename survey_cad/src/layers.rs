@@ -73,4 +73,14 @@ impl LayerManager {
     {
         self.layers.values().filter(|l| predicate(l)).collect()
     }
+
+    /// Iterator over all layer names.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.layers.keys().map(|k| k.as_str())
+    }
+
+    /// Iterator over all layers.
+    pub fn iter(&self) -> impl Iterator<Item = &Layer> {
+        self.layers.values()
+    }
 }
