@@ -21,7 +21,7 @@ impl Spiral {
         self.point_at(self.length)
     }
 
-    fn point_at(&self, s: f64) -> Point {
+    pub(crate) fn point_at(&self, s: f64) -> Point {
         let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
         let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
         let kp = (k1 - k0) / self.length;
@@ -55,7 +55,7 @@ impl Spiral {
         Point::new(self.start.x + dx, self.start.y + dy)
     }
 
-    fn direction_at(&self, s: f64) -> (f64, f64) {
+    pub(crate) fn direction_at(&self, s: f64) -> (f64, f64) {
         let k0 = if self.start_radius.is_infinite() { 0.0 } else { 1.0 / self.start_radius };
         let k1 = if self.end_radius.is_infinite() { 0.0 } else { 1.0 / self.end_radius };
         let kp = (k1 - k0) / self.length;
@@ -63,7 +63,7 @@ impl Spiral {
         (theta.cos(), theta.sin())
     }
 
-    fn length(&self) -> f64 {
+    pub(crate) fn length(&self) -> f64 {
         self.length
     }
 }
@@ -80,7 +80,7 @@ pub enum HorizontalElement {
 }
 
 impl HorizontalElement {
-    fn length(&self) -> f64 {
+    pub(crate) fn length(&self) -> f64 {
         match self {
             HorizontalElement::Tangent { start, end } => distance(*start, *end),
             HorizontalElement::Curve { arc } => arc.length(),

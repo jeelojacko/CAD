@@ -501,6 +501,42 @@ impl Tin {
         let base = min_self.min(min_other);
         self.volume_to_elevation(base) - other.volume_to_elevation(base)
     }
+
+    /// Calculates the volume between two TIN surfaces using the prismoidal
+    /// method. The calculation is symmetric with respect to the two surfaces
+    /// to reduce bias from differing triangulations. Only areas where both
+    /// surfaces contain data contribute to the result. Positive values indicate
+    /// that `self` lies above `other` on average.
+    pub fn prismoidal_volume_between(&self, other: &Tin) -> f64 {
+        fn volume_from(a: &Tin, b: &Tin) -> f64 {
+            let mut vol = 0.0;
+            for tri in &a.triangles {
+                let a0 = a.vertices[tri[0]];
+                let a1 = a.vertices[tri[1]];
+                let a2 = a.vertices[tri[2]];
+                if let (Some(b0), Some(b1), Some(b2)) = (
+                    b.elevation_at(a0.x, a0.y),
+                    b.elevation_at(a1.x, a1.y),
+                    b.elevation_at(a2.x, a2.y),
+                ) {
+                    let dz0 = a0.z - b0;
+                    let dz1 = a1.z - b1;
+                    let dz2 = a2.z - b2;
+                    let area = polygon_area(&[
+                        Point::new(a0.x, a0.y),
+                        Point::new(a1.x, a1.y),
+                        Point::new(a2.x, a2.y),
+                    ]);
+                    vol += area * (dz0 + dz1 + dz2) / 3.0;
+                }
+            }
+            vol
+        }
+
+        let v_ab = volume_from(self, other);
+        let v_ba = volume_from(other, self);
+        (v_ab - v_ba) / 2.0
+    }
 }
 
 /// Surface that automatically rebuilds when its points are modified.
@@ -639,6 +675,39 @@ mod tests {
         let ground = Tin::from_points(ground_pts);
         let vol = design.volume_between(&ground);
         assert!((vol - 20.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn prismoidal_volume_between_flat() {
+        let design_pts = vec![
+            Point3::new(0.0, -1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
+            Point3::new(10.0, -1.0, 1.0),
+            Point3::new(10.0, 1.0, 1.0),
+        ];
+        let ground_pts = vec![
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(10.0, -1.0, 0.0),
+            Point3::new(10.0, 1.0, 0.0),
+        ];
+        let design = Tin::from_points(design_pts);
+        let ground = Tin::from_points(ground_pts);
+        let vol = design.prismoidal_volume_between(&ground);
+        assert!((vol - 20.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn prismoidal_volume_identical_zero() {
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let a = Tin::from_points(pts.clone());
+        let b = Tin::from_points(pts);
+        let vol = a.prismoidal_volume_between(&b);
+        assert!(vol.abs() < 1e-6);
     }
 
     #[test]
