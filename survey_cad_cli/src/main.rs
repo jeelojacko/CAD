@@ -12,7 +12,7 @@ use survey_cad::{
     alignment::{
         Alignment, HorizontalAlignment, HorizontalElement, VerticalAlignment, VerticalElement,
     },
-    corridor::corridor_volume,
+    corridor::{corridor_volume, corridor_mass_haul},
     crs::Crs,
     dtm::Tin,
     geometry::{Point, Point3},
@@ -428,6 +428,18 @@ enum Commands {
     },
     /// Compute cut/fill volume between two surfaces along an alignment.
     CorridorVolume {
+        design: String,
+        ground: String,
+        halign: String,
+        valign: String,
+        width: f64,
+        #[arg(long, default_value_t = 10.0)]
+        interval: f64,
+        #[arg(long, default_value_t = 1.0)]
+        offset_step: f64,
+    },
+    /// Generate a mass haul diagram between two surfaces along an alignment.
+    MassHaul {
         design: String,
         ground: String,
         halign: String,
@@ -932,6 +944,37 @@ fn main() {
                     let align = Alignment::new(hal, val);
                     let vol = corridor_volume(&des, &grd, &align, width, interval, offset_step);
                     println!("Volume: {:.3}", vol);
+                }
+                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", design, e),
+                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),
+                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign, e),
+                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign, e),
+            }
+        }
+        Commands::MassHaul {
+            design,
+            ground,
+            halign,
+            valign,
+            width,
+            interval,
+            offset_step,
+        } => {
+            match (
+                read_surface(&design),
+                read_surface(&ground),
+                read_points_csv(&halign, None, None),
+                read_points_csv(&valign, None, None),
+            ) {
+                (Ok(des), Ok(grd), Ok(h_pts), Ok(v_pts)) => {
+                    let hal = HorizontalAlignment::new(h_pts);
+                    let v_pairs: Vec<(f64, f64)> = v_pts.iter().map(|p| (p.x, p.y)).collect();
+                    let val = VerticalAlignment::new(v_pairs);
+                    let align = Alignment::new(hal, val);
+                    let haul = corridor_mass_haul(&des, &grd, &align, width, interval, offset_step);
+                    for (sta, vol) in haul {
+                        println!("{:.3},{:.3}", sta, vol);
+                    }
                 }
                 (Err(e), _, _, _) => eprintln!("Error reading {}: {}", design, e),
                 (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),

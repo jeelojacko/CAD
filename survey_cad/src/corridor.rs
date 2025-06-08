@@ -425,6 +425,101 @@ pub fn corridor_volume(
     volume
 }
 
+/// Calculates separate cut and fill volumes along an alignment.
+/// Returns `(cut, fill)` using the average end area method.
+pub fn corridor_cut_fill(
+    design: &Tin,
+    ground: &Tin,
+    alignment: &Alignment,
+    width: f64,
+    station_interval: f64,
+    offset_step: f64,
+) -> (f64, f64) {
+    let design_sections =
+        extract_cross_sections(design, alignment, width, station_interval, offset_step);
+    let ground_sections =
+        extract_cross_sections(ground, alignment, width, station_interval, offset_step);
+    let count = design_sections.len().min(ground_sections.len());
+    if count < 2 {
+        return (0.0, 0.0);
+    }
+
+    let mut cut_areas = vec![0.0; count];
+    let mut fill_areas = vec![0.0; count];
+    for i in 0..count {
+        let d = &design_sections[i];
+        let g = &ground_sections[i];
+        let n = d.points.len().min(g.points.len());
+        if n < 2 {
+            continue;
+        }
+        for j in 0..(n - 1) {
+            let dz1 = d.points[j].z - g.points[j].z;
+            let dz2 = d.points[j + 1].z - g.points[j + 1].z;
+            let area = (dz1 + dz2) * 0.5 * offset_step;
+            if area > 0.0 {
+                fill_areas[i] += area;
+            } else {
+                cut_areas[i] += -area;
+            }
+        }
+    }
+
+    let mut cut = 0.0;
+    let mut fill = 0.0;
+    for i in 0..(count - 1) {
+        cut += (cut_areas[i] + cut_areas[i + 1]) * 0.5 * station_interval;
+        fill += (fill_areas[i] + fill_areas[i + 1]) * 0.5 * station_interval;
+    }
+    (cut, fill)
+}
+
+/// Computes a mass haul diagram along an alignment. The returned vector
+/// contains `(station, cumulative_volume)` pairs where positive values
+/// represent fill and negative values represent cut.
+pub fn corridor_mass_haul(
+    design: &Tin,
+    ground: &Tin,
+    alignment: &Alignment,
+    width: f64,
+    station_interval: f64,
+    offset_step: f64,
+) -> Vec<(f64, f64)> {
+    let design_sections =
+        extract_cross_sections(design, alignment, width, station_interval, offset_step);
+    let ground_sections =
+        extract_cross_sections(ground, alignment, width, station_interval, offset_step);
+    let count = design_sections.len().min(ground_sections.len());
+    if count == 0 {
+        return Vec::new();
+    }
+
+    let mut areas = vec![0.0; count];
+    for i in 0..count {
+        let d = &design_sections[i];
+        let g = &ground_sections[i];
+        let n = d.points.len().min(g.points.len());
+        if n < 2 {
+            continue;
+        }
+        for j in 0..(n - 1) {
+            let dz1 = d.points[j].z - g.points[j].z;
+            let dz2 = d.points[j + 1].z - g.points[j + 1].z;
+            areas[i] += (dz1 + dz2) * 0.5 * offset_step;
+        }
+    }
+
+    let mut haul = Vec::new();
+    let mut cumulative = 0.0;
+    haul.push((design_sections[0].station, 0.0));
+    for i in 1..count {
+        let vol = (areas[i - 1] + areas[i]) * 0.5 * station_interval;
+        cumulative += vol;
+        haul.push((design_sections[i].station, cumulative));
+    }
+    haul
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
