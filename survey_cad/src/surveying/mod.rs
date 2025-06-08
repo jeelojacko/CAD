@@ -8,6 +8,11 @@ pub use cogo::{bearing, forward, line_intersection};
 pub mod adjustment;
 pub use adjustment::{adjust_network, AdjustResult, Observation};
 
+pub mod least_squares;
+pub use least_squares::{
+    LSResult, conditional_ls, free_network_ls, parametric_ls,
+};
+
 pub mod field_code;
 pub use field_code::{CodeAction, FieldCode};
 
