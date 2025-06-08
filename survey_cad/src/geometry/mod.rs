@@ -190,6 +190,76 @@ impl Polyline {
             .map(|pair| distance(pair[0], pair[1]))
             .sum()
     }
+
+    /// Returns the position at a distance along the polyline.
+    pub fn point_at(&self, dist: f64) -> Option<Point> {
+        if self.vertices.len() < 2 {
+            return None;
+        }
+
+        if dist <= 0.0 {
+            return Some(self.vertices[0]);
+        }
+
+        let mut remaining = dist;
+        for pair in self.vertices.windows(2) {
+            let seg_len = distance(pair[0], pair[1]);
+            if remaining <= seg_len {
+                let t = if seg_len.abs() < f64::EPSILON {
+                    0.0
+                } else {
+                    remaining / seg_len
+                };
+                return Some(Point::new(
+                    pair[0].x + t * (pair[1].x - pair[0].x),
+                    pair[0].y + t * (pair[1].y - pair[0].y),
+                ));
+            }
+            remaining -= seg_len;
+        }
+
+        self.vertices.last().copied()
+    }
+
+    /// Returns a unit tangent direction at a distance along the polyline.
+    pub fn direction_at(&self, dist: f64) -> Option<(f64, f64)> {
+        if self.vertices.len() < 2 {
+            return None;
+        }
+
+        if dist < 0.0 {
+            return None;
+        }
+
+        let mut remaining = dist;
+        for pair in self.vertices.windows(2) {
+            let seg_len = distance(pair[0], pair[1]);
+            if remaining <= seg_len {
+                let dx = pair[1].x - pair[0].x;
+                let dy = pair[1].y - pair[0].y;
+                let len = (dx * dx + dy * dy).sqrt();
+                if len.abs() < f64::EPSILON {
+                    return Some((0.0, 0.0));
+                } else {
+                    return Some((dx / len, dy / len));
+                }
+            }
+            remaining -= seg_len;
+        }
+
+        if let Some(pair) = self.vertices[self.vertices.len().saturating_sub(2)..].windows(2).next() {
+            let dx = pair[1].x - pair[0].x;
+            let dy = pair[1].y - pair[0].y;
+            let len = (dx * dx + dy * dy).sqrt();
+            if len.abs() < f64::EPSILON {
+                Some((0.0, 0.0))
+            } else {
+                Some((dx / len, dy / len))
+            }
+        } else {
+            None
+        }
+    }
 }
 
 /// Representation of a planar polygonal surface.
@@ -250,6 +320,16 @@ mod tests {
         ];
         let pl = Polyline::new(pts);
         assert!((pl.length() - 10.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn polyline_point_and_direction() {
+        let pts = vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)];
+        let pl = Polyline::new(pts);
+        let p = pl.point_at(5.0).unwrap();
+        assert!((p.x - 5.0).abs() < 1e-6 && p.y.abs() < 1e-6);
+        let dir = pl.direction_at(5.0).unwrap();
+        assert!((dir.0 - 1.0).abs() < 1e-6 && dir.1.abs() < 1e-6);
     }
 
     #[test]
