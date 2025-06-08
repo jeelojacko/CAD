@@ -11,6 +11,9 @@ pub use adjustment::{adjust_network, AdjustResult, Observation};
 pub mod field_code;
 pub use field_code::{CodeAction, FieldCode};
 
+pub mod code_library;
+pub use code_library::{BlockRef, CodeEntry, CodeLibrary};
+
 pub mod point_db;
 pub use point_db::{PointDatabase, SurveyPoint};
 
