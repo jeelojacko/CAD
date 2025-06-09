@@ -180,13 +180,15 @@ fn build_vertical_curve(
 
     let x_high = x_high.clamp(0.0, length);
     let high_station = start_station + x_high;
-    let high_elev =
+    let high_elev_raw =
         start_elev + grade_in * x_high + 0.5 * (grade_out - grade_in) / length * x_high * x_high;
 
     let curve_at_intersection =
         start_elev + grade_in * l1 + 0.5 * (grade_out - grade_in) / length * l1 * l1;
     let b_elev = b.elevation_at(station)?;
-    let grade_adjustment = curve_at_intersection - b_elev;
+    let offset = curve_at_intersection - b_elev;
+    let high_elev = high_elev_raw - offset;
+    let grade_adjustment = 0.0;
 
     Some(VerticalCurveInfo {
         length,
