@@ -97,13 +97,19 @@ pub fn conditional_ls(
     w_vec: &DVector<f64>,
     p: &DMatrix<f64>,
 ) -> Option<DVector<f64>> {
-    let n = b * p * b.transpose();
+    // `p` is provided as a weight matrix (inverse of the observation
+    // variances).  For the conditional adjustment formulation the
+    // inverse of this matrix is required.  Using the pseudoinverse
+    // ensures stable behaviour for singular matrices as well.
+    let p_inv = pseudoinverse(p, 1e-12);
+
+    let n = b * &p_inv * b.transpose();
     let rhs = w_vec.clone();
     let lambda = n.clone().lu().solve(&rhs).or_else(|| {
         let pinv = pseudoinverse(&n, 1e-12);
         Some(pinv * rhs)
     })?;
-    let v = -p * b.transpose() * lambda;
+    let v = -&p_inv * b.transpose() * lambda;
     Some(v)
 }
 
