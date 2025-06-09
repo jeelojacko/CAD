@@ -183,7 +183,7 @@ impl Tin {
         points: Vec<Point3>,
         breaklines: Option<&[(usize, usize)]>,
         outer_boundary: Option<&[usize]>,
-    ) -> Self {
+    ) -> Result<Self, cdt::Error> {
         let coords: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
         let mut edges: Vec<(usize, usize)> = Vec::new();
         if let Some(bl) = breaklines {
@@ -202,16 +202,16 @@ impl Tin {
             edges = refine_edges_for_points(&points, &edges);
             let mut adj_coords = coords.clone();
             nudge_points_on_edges(&mut adj_coords, &edges);
-            let tris = cdt::triangulate_with_edges(&adj_coords, &edges).unwrap();
+            let tris = cdt::triangulate_with_edges(&adj_coords, &edges)?;
             let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
-            return Self { vertices: points, triangles };
+            return Ok(Self { vertices: points, triangles });
         }
-        let tris = cdt::triangulate_points(&coords).unwrap();
+        let tris = cdt::triangulate_points(&coords)?;
         let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
-        Self {
+        Ok(Self {
             vertices: points,
             triangles,
-        }
+        })
     }
 
     /// Builds a constrained TIN with optional breaklines, outer boundary and
@@ -223,7 +223,7 @@ impl Tin {
         breaklines: Option<&[(usize, usize)]>,
         outer_boundary: Option<&[usize]>,
         holes: &[Vec<usize>],
-    ) -> Self {
+    ) -> Result<Self, cdt::Error> {
         let coords: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
         let mut edges: Vec<(usize, usize)> = Vec::new();
         if let Some(bl) = breaklines {
@@ -250,19 +250,19 @@ impl Tin {
             edges = refine_edges_for_points(&points, &edges);
             let mut adj_coords = coords.clone();
             nudge_points_on_edges(&mut adj_coords, &edges);
-            let tris = cdt::triangulate_with_edges(&adj_coords, &edges).unwrap();
+            let tris = cdt::triangulate_with_edges(&adj_coords, &edges)?;
             let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
-            return Self { vertices: points, triangles };
+            return Ok(Self { vertices: points, triangles });
         }
 
-        let tris = cdt::triangulate_points(&coords).unwrap();
+        let tris = cdt::triangulate_points(&coords)?;
         let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
-        Self { vertices: points, triangles }
+        Ok(Self { vertices: points, triangles })
     }
 
     /// Returns a new TIN with the same vertices but enforcing the provided
     /// breaklines.
-    pub fn with_breaklines(&self, breaklines: &[(usize, usize)]) -> Self {
+    pub fn with_breaklines(&self, breaklines: &[(usize, usize)]) -> Result<Self, cdt::Error> {
         Tin::from_points_constrained(self.vertices.clone(), Some(breaklines), None)
     }
 
@@ -274,7 +274,7 @@ impl Tin {
         breaklines: &[ClassifiedBreakline],
         outer_boundary: Option<&[usize]>,
         holes: &[Vec<usize>],
-    ) -> Self {
+    ) -> Result<Self, cdt::Error> {
         let hard: Vec<(usize, usize)> = breaklines
             .iter()
             .filter(|b| matches!(b.kind, BreaklineKind::Hard))
@@ -284,12 +284,12 @@ impl Tin {
     }
 
     /// Returns a new TIN with an updated outer boundary.
-    pub fn with_boundary(&self, boundary: &[usize]) -> Self {
+    pub fn with_boundary(&self, boundary: &[usize]) -> Result<Self, cdt::Error> {
         Tin::from_points_constrained(self.vertices.clone(), None, Some(boundary))
     }
 
     /// Returns a new TIN with interior hole boundaries applied.
-    pub fn with_holes(&self, holes: &[Vec<usize>]) -> Self {
+    pub fn with_holes(&self, holes: &[Vec<usize>]) -> Result<Self, cdt::Error> {
         Tin::from_points_constrained_with_holes(self.vertices.clone(), None, None, holes)
     }
 
@@ -743,33 +743,36 @@ impl DynamicTin {
     }
 
     /// Rebuilds the internal TIN using current points and constraints.
-    pub fn rebuild(&mut self) {
+    pub fn rebuild(&mut self) -> Result<(), cdt::Error> {
         self.tin = Tin::from_points_constrained_with_holes(
             self.points.clone(),
             Some(&self.breaklines),
             self.boundary.as_deref(),
             &self.holes,
-        );
+        )?;
+        Ok(())
     }
 
     /// Updates a single point and rebuilds the surface.
-    pub fn update_point(&mut self, index: usize, point: Point3) {
+    pub fn update_point(&mut self, index: usize, point: Point3) -> Result<(), cdt::Error> {
         if let Some(p) = self.points.get_mut(index) {
             *p = point;
-            self.rebuild();
+            self.rebuild()?;
         }
+        Ok(())
     }
 
     /// Adds a breakline and rebuilds the surface.
-    pub fn add_breakline(&mut self, start: usize, end: usize) {
+    pub fn add_breakline(&mut self, start: usize, end: usize) -> Result<(), cdt::Error> {
         if !self
             .breaklines
             .iter()
             .any(|&(a, b)| (a == start && b == end) || (a == end && b == start))
         {
             self.breaklines.push((start, end));
-            self.rebuild();
+            self.rebuild()?;
         }
+        Ok(())
     }
 
     /// Returns a reference to the underlying TIN.
@@ -855,7 +858,7 @@ mod tests {
         ];
         let boundary = vec![0usize, 1, 2, 3];
         let breaklines = vec![(0usize, 2usize)];
-        let tin = Tin::from_points_constrained(pts, Some(&breaklines), Some(&boundary));
+        let tin = Tin::from_points_constrained(pts, Some(&breaklines), Some(&boundary)).unwrap();
         assert!(tin
             .triangles
             .iter()
@@ -976,7 +979,7 @@ mod tests {
             Point3::new(0.5, 0.5, 0.0),
         ];
         let tin = Tin::from_points(pts.clone());
-        let edited = tin.with_breaklines(&[(0usize, 2usize)]);
+        let edited = tin.with_breaklines(&[(0usize, 2usize)]).unwrap();
         assert!(edited
             .triangles
             .iter()
@@ -1033,7 +1036,7 @@ mod tests {
                 kind: BreaklineKind::Soft,
             },
         ];
-        let tin = Tin::from_points_classified(pts, &breaklines, None, &[]);
+        let tin = Tin::from_points_classified(pts, &breaklines, None, &[]).unwrap();
         assert!(tin
             .triangles
             .iter()
@@ -1049,7 +1052,7 @@ mod tests {
         ];
         let mut dtin = DynamicTin::new(pts);
         let z_before = dtin.tin.vertices[0].z;
-        dtin.update_point(0, Point3::new(0.0, 0.0, 5.0));
+        dtin.update_point(0, Point3::new(0.0, 0.0, 5.0)).unwrap();
         let z_after = dtin.tin.vertices[0].z;
         assert!(z_after - z_before > 4.9);
     }

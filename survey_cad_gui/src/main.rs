@@ -1466,6 +1466,7 @@ fn build_tin(data: &SurfaceData) -> survey_cad::dtm::Tin {
         None,
         &data.holes,
     )
+    .unwrap()
 }
 
 fn handle_build_surface(
