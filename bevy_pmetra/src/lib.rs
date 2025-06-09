@@ -1,4 +1,3 @@
-#![allow(deprecated)]
 use bevy::prelude::*;
 use bevy::prelude::{Cuboid, Mesh3d, MeshMaterial3d};
 
@@ -15,14 +14,15 @@ impl Plugin for ParametricBox {
             move |mut commands: Commands,
                   mut meshes: ResMut<Assets<Mesh>>,
                   mut materials: ResMut<Assets<StandardMaterial>>| {
-                commands.spawn(PbrBundle {
-                    mesh: Mesh3d::from(meshes.add(Mesh::from(Cuboid::new(size.x, size.y, size.z)))),
-                    material: MeshMaterial3d::from(materials.add(StandardMaterial {
+                commands.spawn((
+                    Mesh3d::from(meshes.add(Mesh::from(Cuboid::new(size.x, size.y, size.z)))),
+                    MeshMaterial3d::from(materials.add(StandardMaterial {
                         base_color: Color::srgb(0.8, 0.8, 0.8),
                         ..default()
                     })),
-                    ..default()
-                });
+                    Transform::default(),
+                    Visibility::default(),
+                ));
             },
         );
     }
