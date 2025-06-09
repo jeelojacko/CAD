@@ -158,6 +158,21 @@ struct SectionsVisible(bool);
 struct PlanVisible(bool);
 
 #[derive(Resource, Default)]
+struct ContextMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Component)]
+struct ContextButton(ContextAction);
+
+#[derive(Clone, Copy)]
+enum ContextAction {
+    DeletePoints,
+    RaiseElevation,
+    LowerElevation,
+}
+
+#[derive(Resource, Default)]
 struct ParcelData {
     parcels: Vec<survey_cad::parcel::Parcel>,
     text: Option<Entity>,
@@ -255,11 +270,14 @@ fn main() {
         .insert_resource(ProfileVisible::default())
         .insert_resource(SectionsVisible::default())
         .insert_resource(PlanVisible::default())
+        .insert_resource(ContextMenuState::default())
         .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
                 handle_mouse_clicks,
+                open_context_menu,
+                handle_context_menu_buttons,
                 drag_point,
                 create_line,
                 update_lines,
@@ -879,6 +897,66 @@ fn handle_mouse_clicks(
     }
 }
 
+fn open_context_menu(
+    mut commands: Commands,
+    buttons: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
+    asset_server: Res<AssetServer>,
+    mut state: ResMut<ContextMenuState>,
+    selected: Res<SelectedPoints>,
+) {
+    if buttons.just_pressed(MouseButton::Right) && !selected.0.is_empty() {
+        if let Some(pos) = windows.single().cursor_position() {
+            if let Some(e) = state.entity.take() {
+                commands.entity(e).despawn_recursive();
+            }
+            let height = windows.single().height();
+            let menu = commands
+                .spawn(NodeBundle {
+                    node: Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(pos.x),
+                        bottom: Val::Px(height - pos.y),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    background_color: BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+                    ..default()
+                })
+                .with_children(|parent| {
+                    for (label, action) in [
+                        ("Delete", ContextAction::DeletePoints),
+                        ("Raise 0.1", ContextAction::RaiseElevation),
+                        ("Lower 0.1", ContextAction::LowerElevation),
+                    ] {
+                        parent
+                            .spawn(ButtonBundle::default())
+                            .with_children(|b| {
+                                b.spawn((
+                                    TextLayout::default(),
+                                    TextFont {
+                                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                        font_size: 12.0,
+                                        ..default()
+                                    },
+                                    TextColor::WHITE,
+                                    TextSpan::new(label),
+                                ));
+                            })
+                            .insert(ContextButton(action));
+                    }
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+    if state.entity.is_some() && buttons.just_pressed(MouseButton::Left) {
+        if let Some(e) = state.entity.take() {
+            commands.entity(e).despawn_recursive();
+        }
+    }
+}
+
 fn drag_point(
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform)>,
@@ -912,16 +990,68 @@ fn camera_pan_zoom(
     buttons: Res<ButtonInput<MouseButton>>,
     mut motion_evr: EventReader<MouseMotion>,
     mut wheel_evr: EventReader<MouseWheel>,
+    menu: Res<ContextMenuState>,
 ){
     let (mut transform, mut projection) = camera_q.single_mut();
     for ev in wheel_evr.read() {
         let factor = 1.0 - ev.y * 0.1;
         projection.scale = (projection.scale * factor).clamp(0.1, 1000.0);
     }
-    if buttons.pressed(MouseButton::Right) {
+    if menu.entity.is_none() && buttons.pressed(MouseButton::Right) {
         for ev in motion_evr.read() {
             transform.translation.x -= ev.delta.x * projection.scale;
             transform.translation.y += ev.delta.y * projection.scale;
+        }
+    }
+}
+
+fn handle_context_menu_buttons(
+    interactions: Query<(&Interaction, &ContextButton), Changed<Interaction>>,
+    mut commands: Commands,
+    mut selected: ResMut<SelectedPoints>,
+    mut points: Query<&mut Transform, With<CadPoint>>,
+    mut data: ResMut<SurfaceData>,
+    mut dirty: ResMut<SurfaceDirty>,
+    mut menu: ResMut<ContextMenuState>,
+) {
+    for (interaction, button) in &interactions {
+        if *interaction == Interaction::Pressed {
+            match button.0 {
+                ContextAction::DeletePoints => {
+                    for e in selected.0.drain(..) {
+                        commands.entity(e).despawn_recursive();
+                    }
+                }
+                ContextAction::RaiseElevation => {
+                    for &e in &selected.0 {
+                        if let Ok(mut t) = points.get_mut(e) {
+                            t.translation.z += 0.1;
+                            if let Some(&idx) = data.point_map.get(&e) {
+                                if let Some(v) = data.vertices.get_mut(idx) {
+                                    v.z = t.translation.z as f64;
+                                    dirty.0 = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                ContextAction::LowerElevation => {
+                    for &e in &selected.0 {
+                        if let Ok(mut t) = points.get_mut(e) {
+                            t.translation.z -= 0.1;
+                            if let Some(&idx) = data.point_map.get(&e) {
+                                if let Some(v) = data.vertices.get_mut(idx) {
+                                    v.z = t.translation.z as f64;
+                                    dirty.0 = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(ent) = menu.entity.take() {
+                commands.entity(ent).despawn_recursive();
+            }
         }
     }
 }

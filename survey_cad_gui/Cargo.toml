@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "bevy_sprite", "x11", "bevy_ui", "bevy_pbr"] }
-survey_cad = { path = "../survey_cad", features = ["shapefile"] }
+survey_cad = { path = "../survey_cad" }
 rfd = "0.15"
 clap = { version = "4", features = ["derive"] }
 bevy_editor_cam = "0.5"
