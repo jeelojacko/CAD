@@ -14,9 +14,9 @@ fn parametric_basic() {
 
 #[test]
 fn conditional_basic() {
-    // Condition: x1 + x2 = 0 with observations x1=1, x2=-2
-    let b = DMatrix::from_row_slice(1, 2, &[1.0, 1.0]);
-    let wv = DVector::from_vec(vec![1.0 + -2.0]);
+    // Condition: x1 - x2 = 0 with observations x1=1, x2=-2
+    let b = DMatrix::from_row_slice(1, 2, &[1.0, -1.0]);
+    let wv = DVector::from_vec(vec![1.0 - -2.0]);
     let p = DMatrix::identity(2, 2);
     let v = conditional_ls(&b, &wv, &p).unwrap();
     // Corrections should move to x1=-0.5, x2=-0.5 => v1=-1.5, v2=1.5
