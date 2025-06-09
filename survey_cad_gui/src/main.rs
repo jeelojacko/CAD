@@ -1,4 +1,4 @@
-#![allow(deprecated)]
+#![allow(deprecated, clippy::type_complexity, clippy::too_many_arguments)]
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::*;
@@ -53,10 +53,6 @@ struct WorkingCrs(Crs);
 
 #[derive(Resource)]
 struct CurrentProfile(WorkspaceProfile);
-
-#[derive(Resource)]
-struct CurrentTheme(Theme);
-
 #[derive(Resource)]
 struct ThemeColors {
     toolbar_bg: Color,
@@ -291,7 +287,6 @@ fn main() {
     App::new()
         .insert_resource(WorkingCrs(Crs::from_epsg(args.epsg)))
         .insert_resource(CurrentProfile(args.profile))
-        .insert_resource(CurrentTheme(args.theme))
         .insert_resource(ThemeColors::new(args.theme))
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
@@ -1698,7 +1693,7 @@ fn handle_grade_button(
     tin_res: Res<SurfaceTins>,
     selected: Res<SelectedPoints>,
     points: Query<&Transform, With<CadPoint>>,
-    mut info: ResMut<GradeInfo>,
+    info: ResMut<GradeInfo>,
     mut spans: Query<&mut TextSpan>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
@@ -2113,7 +2108,7 @@ fn handle_save_button(
 }
 
 fn init_ui_scale(windows: Query<&Window>, mut ui_scale: ResMut<UiScale>) {
-    ui_scale.0 = windows.single().resolution.scale_factor() as f32;
+    ui_scale.0 = windows.single().resolution.scale_factor();
 }
 
 fn update_lod_meshes(
