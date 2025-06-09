@@ -50,9 +50,9 @@ impl LocalGrid {
     }
 
     /// Saves this grid definition to a JSON file.
-    pub fn save(&self, path: &str) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(self).unwrap();
-        std::fs::write(path, json)
+    pub fn save(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json).map_err(|e| e.into())
     }
 
     /// Loads a grid definition from a JSON file.
