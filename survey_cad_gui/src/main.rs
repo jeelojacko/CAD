@@ -362,21 +362,19 @@ fn setup(
     theme: Res<ThemeColors>,
 ) {
     println!("GUI working CRS: {}", working.0.definition());
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d);
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
-            ..default()
-        },
+        Camera3d::default(),
+        Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
         EditorCam::default(),
     ));
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
+    commands.spawn((
+        DirectionalLight {
             shadows_enabled: false,
             ..default()
         },
-        ..default()
-    });
+        Transform::default(),
+    ));
     spawn_toolbar(&mut commands, &asset_server, profile.0, &theme);
     let (parcel_text, grade_text) =
         spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme);
@@ -403,22 +401,22 @@ fn spawn_toolbar(
     theme: &ThemeColors,
 ) {
     commands
-        .spawn(NodeBundle {
-            node: Node {
+        .spawn((
+            Node {
                 width: Val::Percent(100.0),
                 height: Val::Px(30.0),
                 justify_content: JustifyContent::FlexStart,
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: BackgroundColor(theme.toolbar_bg),
-            ..default()
-        })
+            BackgroundColor(theme.toolbar_bg),
+        ))
         .with_children(|parent| {
             for label in ["File", "Edit", "View"] {
                 parent
-                    .spawn(ButtonBundle {
-                        node: Node {
+                    .spawn((
+                        Button,
+                        Node {
                             margin: UiRect::all(Val::Px(5.0)),
                             padding: UiRect::new(
                                 Val::Px(10.0),
@@ -428,9 +426,8 @@ fn spawn_toolbar(
                             ),
                             ..default()
                         },
-                        background_color: BackgroundColor(theme.button_bg),
-                        ..default()
-                    })
+                        BackgroundColor(theme.button_bg),
+                    ))
                     .with_children(|button| {
                         button.spawn((
                             TextLayout::default(),
@@ -446,8 +443,9 @@ fn spawn_toolbar(
             }
 
             parent
-                .spawn(ButtonBundle {
-                    node: Node {
+                .spawn((
+                    Button,
+                    Node {
                         margin: UiRect::all(Val::Px(5.0)),
                         padding: UiRect::new(
                             Val::Px(10.0),
@@ -457,9 +455,8 @@ fn spawn_toolbar(
                         ),
                         ..default()
                     },
-                    background_color: BackgroundColor(theme.button_bg),
-                    ..default()
-                })
+                    BackgroundColor(theme.button_bg),
+                ))
                 .with_children(|button| {
                     let label = match profile {
                         WorkspaceProfile::Surveyor => "Survey",
@@ -479,7 +476,7 @@ fn spawn_toolbar(
                 });
 
             parent
-                .spawn(ButtonBundle::default())
+                .spawn(Button)
                 .with_children(|b| {
                     b.spawn((
                         TextLayout::default(),
@@ -495,7 +492,7 @@ fn spawn_toolbar(
                 .insert(OpenButton);
 
             parent
-                .spawn(ButtonBundle::default())
+                .spawn(Button)
                 .with_children(|b| {
                     b.spawn((
                         TextLayout::default(),
@@ -521,8 +518,8 @@ fn spawn_edit_panel(
     let mut parcel_text = Entity::from_raw(0);
     let mut grade_text = Entity::from_raw(0);
     commands
-        .spawn(NodeBundle {
-            node: Node {
+        .spawn((
+            Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
                 top: Val::Px(30.0),
@@ -532,9 +529,8 @@ fn spawn_edit_panel(
                 align_items: AlignItems::FlexStart,
                 ..default()
             },
-            background_color: BackgroundColor(theme.panel_bg),
-            ..default()
-        })
+            BackgroundColor(theme.panel_bg),
+        ))
         .with_children(|parent| {
             if matches!(
                 profile,
@@ -551,7 +547,7 @@ fn spawn_edit_panel(
                     TextSpan::new("Alignment Editor"),
                 ));
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -579,7 +575,7 @@ fn spawn_edit_panel(
             ));
             if matches!(profile, WorkspaceProfile::Surveyor) {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -597,7 +593,7 @@ fn spawn_edit_panel(
 
             if matches!(profile, WorkspaceProfile::Surveyor) {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -615,7 +611,7 @@ fn spawn_edit_panel(
 
             if matches!(profile, WorkspaceProfile::Surveyor) {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -633,7 +629,7 @@ fn spawn_edit_panel(
 
             if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Gis) {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -698,7 +694,7 @@ fn spawn_edit_panel(
                     ("Offset +", CorridorControl::OffsetInc),
                 ] {
                     parent
-                        .spawn(ButtonBundle::default())
+                        .spawn(Button)
                         .with_children(|b| {
                             b.spawn((
                                 TextLayout::default(),
@@ -715,7 +711,7 @@ fn spawn_edit_panel(
                 }
 
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -731,7 +727,7 @@ fn spawn_edit_panel(
                     .insert(BuildSurfaceButton);
 
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -752,7 +748,7 @@ fn spawn_edit_panel(
                 WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer
             ) {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -768,7 +764,7 @@ fn spawn_edit_panel(
                     .insert(ShowProfileButton);
 
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -785,7 +781,7 @@ fn spawn_edit_panel(
             }
 
             parent
-                .spawn(ButtonBundle::default())
+                .spawn(Button)
                 .with_children(|b| {
                     b.spawn((
                         TextLayout::default(),
@@ -810,8 +806,8 @@ fn spawn_sections_panel(
 ) -> Entity {
     let mut label = Entity::from_raw(0);
     commands
-        .spawn(NodeBundle {
-            node: Node {
+        .spawn((
+            Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
                 bottom: Val::Px(0.0),
@@ -822,12 +818,11 @@ fn spawn_sections_panel(
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            background_color: BackgroundColor(theme.panel_bg),
-            ..default()
-        })
+            BackgroundColor(theme.panel_bg),
+        ))
         .with_children(|parent| {
             parent
-                .spawn(ButtonBundle::default())
+                .spawn(Button)
                 .with_children(|b| {
                     b.spawn((
                         TextLayout::default(),
@@ -854,7 +849,7 @@ fn spawn_sections_panel(
                 ))
                 .id();
             parent
-                .spawn(ButtonBundle::default())
+                .spawn(Button)
                 .with_children(|b| {
                     b.spawn((
                         TextLayout::default(),
@@ -878,7 +873,7 @@ fn spawn_sections_panel(
                 ("Design", SectionControl::ToggleDesign),
             ] {
                 parent
-                    .spawn(ButtonBundle::default())
+                    .spawn(Button)
                     .with_children(|b| {
                         b.spawn((
                             TextLayout::default(),
@@ -900,15 +895,12 @@ fn spawn_sections_panel(
 fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
     commands
         .spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::srgb(1.0, 0.0, 0.0),
-                    custom_size: Some(Vec2::splat(5.0)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
+            Sprite {
+                color: Color::srgb(1.0, 0.0, 0.0),
+                custom_size: Some(Vec2::splat(5.0)),
                 ..default()
             },
+            Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
             CadPoint,
         ))
         .id()
@@ -977,17 +969,16 @@ fn open_context_menu(
             }
             let height = windows.single().height();
             let menu = commands
-                .spawn(NodeBundle {
-                    node: Node {
+                .spawn((
+                    Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(pos.x),
                         bottom: Val::Px(height - pos.y),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
-                    background_color: BackgroundColor(theme.context_bg),
-                    ..default()
-                })
+                    BackgroundColor(theme.context_bg),
+                ))
                 .with_children(|parent| {
                     for (label, action) in [
                         ("Delete", ContextAction::DeletePoints),
@@ -995,7 +986,7 @@ fn open_context_menu(
                         ("Lower 0.1", ContextAction::LowerElevation),
                     ] {
                         parent
-                            .spawn(ButtonBundle::default())
+                            .spawn(Button)
                             .with_children(|b| {
                                 b.spawn((
                                     TextLayout::default(),
@@ -1160,16 +1151,13 @@ fn create_line(
         let a = points.get(selected.0[0]).unwrap().translation;
         let b = points.get(selected.0[1]).unwrap().translation;
         commands.spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::WHITE,
-                    custom_size: Some(Vec2::new(a.distance(b), 2.0)),
-                    ..default()
-                },
-                transform: Transform::from_translation((a + b) / 2.0)
-                    .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+            Sprite {
+                color: Color::WHITE,
+                custom_size: Some(Vec2::new(a.distance(b), 2.0)),
                 ..default()
             },
+            Transform::from_translation((a + b) / 2.0)
+                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
             CadLine {
                 start: selected.0[0],
                 end: selected.0[1],
@@ -1205,16 +1193,15 @@ fn update_surface_edges(
                 let va = Vec2::new(a.x as f32, a.y as f32);
                 let vb = Vec2::new(b.x as f32, b.y as f32);
                 commands
-                    .spawn(SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::rgb(1.0, 0.5, 0.0),
+                    .spawn((
+                        Sprite {
+                            color: Color::srgb(1.0, 0.5, 0.0),
                             custom_size: Some(Vec2::new(va.distance(vb), 2.0)),
                             ..default()
                         },
-                        transform: Transform::from_translation(((va + vb) / 2.0).extend(0.0))
+                        Transform::from_translation(((va + vb) / 2.0).extend(0.0))
                             .with_rotation(Quat::from_rotation_z((vb - va).y.atan2((vb - va).x))),
-                        ..default()
-                    })
+                    ))
                     .insert(BreaklineEdge);
             }
         }
@@ -1226,18 +1213,17 @@ fn update_surface_edges(
                     let va = Vec2::new(a.x as f32, a.y as f32);
                     let vb = Vec2::new(b.x as f32, b.y as f32);
                     commands
-                        .spawn(SpriteBundle {
-                            sprite: Sprite {
-                                color: Color::rgb(0.5, 0.0, 0.5),
+                        .spawn((
+                            Sprite {
+                                color: Color::srgb(0.5, 0.0, 0.5),
                                 custom_size: Some(Vec2::new(va.distance(vb), 2.0)),
                                 ..default()
                             },
-                            transform: Transform::from_translation(((va + vb) / 2.0).extend(0.0))
+                            Transform::from_translation(((va + vb) / 2.0).extend(0.0))
                                 .with_rotation(Quat::from_rotation_z(
                                     (vb - va).y.atan2((vb - va).x),
                                 )),
-                            ..default()
-                        })
+                        ))
                         .insert(HoleEdge);
                 }
             }
@@ -1265,15 +1251,11 @@ fn maybe_update_surface(
         let handle = meshes.add(high_mesh);
         let low_handle = meshes.add(low_mesh);
         let mat = materials.add(StandardMaterial {
-            base_color: Color::rgb(0.0, 1.0, 0.0),
+            base_color: Color::srgb(0.0, 1.0, 0.0),
             ..default()
         });
         commands
-            .spawn(PbrBundle {
-                mesh: Mesh3d(handle.clone()),
-                material: MeshMaterial3d(mat),
-                ..default()
-            })
+            .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
             .insert(SurfaceMesh)
             .insert(LevelOfDetail {
                 high: handle.clone(),
@@ -1491,15 +1473,11 @@ fn handle_build_surface(
         let handle = meshes.add(high_mesh);
         let low_handle = meshes.add(low_mesh);
         let mat = materials.add(StandardMaterial {
-            base_color: Color::rgb(0.0, 1.0, 0.0),
+            base_color: Color::srgb(0.0, 1.0, 0.0),
             ..default()
         });
         commands
-            .spawn(PbrBundle {
-                mesh: Mesh3d(handle.clone()),
-                material: MeshMaterial3d(mat),
-                ..default()
-            })
+            .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
             .insert(SurfaceMesh)
             .insert(LevelOfDetail {
                 high: handle.clone(),
@@ -1729,16 +1707,13 @@ fn update_alignment_lines(
                 let a = t1.translation;
                 let b = t2.translation;
                 commands.spawn((
-                    SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::WHITE,
-                            custom_size: Some(Vec2::new(a.distance(b), 2.0)),
-                            ..default()
-                        },
-                        transform: Transform::from_translation((a + b) / 2.0)
-                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                    Sprite {
+                        color: Color::WHITE,
+                        custom_size: Some(Vec2::new(a.distance(b), 2.0)),
                         ..default()
                     },
+                    Transform::from_translation((a + b) / 2.0)
+                        .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
                     CadLine {
                         start: pair[0],
                         end: pair[1],
@@ -1767,16 +1742,13 @@ fn update_profile_lines(
                 let a = Vec2::new(t1.translation.x, t1.translation.y + offset);
                 let b = Vec2::new(t2.translation.x, t2.translation.y + offset);
                 commands.spawn((
-                    SpriteBundle {
-                        sprite: Sprite {
-                            color: Color::rgb(0.0, 0.0, 1.0),
-                            custom_size: Some(Vec2::new(a.distance(b), 2.0)),
-                            ..default()
-                        },
-                        transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
-                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                    Sprite {
+                        color: Color::srgb(0.0, 0.0, 1.0),
+                        custom_size: Some(Vec2::new(a.distance(b), 2.0)),
                         ..default()
                     },
+                    Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                        .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
                     ProfileLine,
                 ));
             }
@@ -1918,16 +1890,13 @@ fn update_section_lines(
                 let b = Vec2::new(off_b as f32 * h_scale, base + elev_b as f32 * v_scale);
                 let ent = cmds
                     .spawn((
-                        SpriteBundle {
-                            sprite: Sprite {
-                                color,
-                                custom_size: Some(Vec2::new(a.distance(b).max(1.0), 1.0)),
-                                ..default()
-                            },
-                            transform: Transform::from_translation(((a + b) / 2.0).extend(0.0))
-                                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                        Sprite {
+                            color,
+                            custom_size: Some(Vec2::new(a.distance(b).max(1.0), 1.0)),
                             ..default()
                         },
+                        Transform::from_translation(((a + b) / 2.0).extend(0.0))
+                            .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
                         SectionLine,
                     ))
                     .id();
@@ -1941,7 +1910,7 @@ fn update_section_lines(
                     survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
                 draw_section(
                     &clone,
-                    Color::rgb(1.0, 1.0, 0.0),
+                    Color::srgb(1.0, 1.0, 0.0),
                     &mut commands,
                     &mut view.entities,
                 );
@@ -1953,7 +1922,7 @@ fn update_section_lines(
                     survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
                 draw_section(
                     &clone,
-                    Color::rgb(1.0, 0.0, 0.0),
+                    Color::srgb(1.0, 0.0, 0.0),
                     &mut commands,
                     &mut view.entities,
                 );
@@ -2008,15 +1977,11 @@ fn handle_open_button(
                     let mesh = build_surface_mesh(&tin);
                     let handle = meshes.add(mesh);
                     let mat = materials.add(StandardMaterial {
-                        base_color: Color::rgb(0.0, 1.0, 0.0),
+                        base_color: Color::srgb(0.0, 1.0, 0.0),
                         ..default()
                     });
                     commands
-                        .spawn(PbrBundle {
-                            mesh: Mesh3d(handle),
-                            material: MeshMaterial3d(mat),
-                            ..default()
-                        })
+                        .spawn((Mesh3d(handle), MeshMaterial3d(mat)))
                         .insert(SurfaceMesh);
                     surface_tin.0.push(tin);
                 } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
