@@ -82,12 +82,13 @@ impl Subassembly {
 impl Tin {
     /// Returns the interpolated elevation at (x,y) if the point lies within the TIN.
     pub fn elevation_at(&self, x: f64, y: f64) -> Option<f64> {
+        const EPS: f64 = 1e-8;
         for tri in &self.triangles {
             let a = self.vertices[tri[0]];
             let b = self.vertices[tri[1]];
             let c = self.vertices[tri[2]];
             if let Some((u, v, w)) = barycentric(Point::new(x, y), a, b, c) {
-                if u >= 0.0 && v >= 0.0 && w >= 0.0 {
+                if u >= -EPS && v >= -EPS && w >= -EPS {
                     return Some(u * a.z + v * b.z + w * c.z);
                 }
             }

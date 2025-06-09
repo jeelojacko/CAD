@@ -83,7 +83,12 @@ fn refine_edges_for_points(points: &[Point3], edges: &[(usize, usize)]) -> Vec<(
             last = idx;
         }
         refined.push((last, b));
+        if !mids.is_empty() {
+            refined.push((a, b));
+        }
     }
+    refined.sort_unstable();
+    refined.dedup();
     refined
 }
 
