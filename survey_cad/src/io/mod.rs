@@ -557,14 +557,9 @@ pub fn write_dwg(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
         .arg(tmp.path())
         .arg(path)
         .status()
-        .map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to spawn dxf2dwg: {e}"),
-            )
-        })?;
+        .map_err(|e| io::Error::other(format!("failed to spawn dxf2dwg: {e}")))?;
     if !status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "dxf2dwg failed"));
+        return Err(io::Error::other("dxf2dwg failed"));
     }
     Ok(())
 }
@@ -582,14 +577,9 @@ pub fn read_dwg(path: &str) -> io::Result<Vec<DxfEntity>> {
         .arg(path)
         .arg(tmp.path())
         .status()
-        .map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to spawn dwg2dxf: {e}"),
-            )
-        })?;
+        .map_err(|e| io::Error::other(format!("failed to spawn dwg2dxf: {e}")))?;
     if !status.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "dwg2dxf failed"));
+        return Err(io::Error::other("dwg2dxf failed"));
     }
     read_dxf(tmp.path().to_str().unwrap())
 }
