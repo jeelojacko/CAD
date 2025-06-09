@@ -1,5 +1,5 @@
 use crate::geometry::Point3;
-use las::{point::Point as LasPoint, Reader, Writer, point::Format, Builder, Version};
+use las::{point::Format, point::Point as LasPoint, Builder, Reader, Version, Writer};
 use std::io;
 
 /// Reads a LAS file and returns the contained points.
@@ -20,16 +20,16 @@ pub fn write_points_las(path: &str, points: &[Point3]) -> io::Result<()> {
     let mut builder = Builder::default();
     builder.point_format = Format::new(0).unwrap();
     builder.version = Version::new(1, 2);
-    let header = builder
-        .into_header()
-        .map_err(|e| io::Error::other(e))?;
-    let mut writer = Writer::from_path(path, header)
-        .map_err(|e| io::Error::other(e))?;
+    let header = builder.into_header().map_err(io::Error::other)?;
+    let mut writer = Writer::from_path(path, header).map_err(io::Error::other)?;
     for p in points {
-        let lp = LasPoint { x: p.x, y: p.y, z: p.z, ..Default::default() };
-        writer
-            .write_point(lp)
-            .map_err(|e| io::Error::other(e))?;
+        let lp = LasPoint {
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            ..Default::default()
+        };
+        writer.write_point(lp).map_err(io::Error::other)?;
     }
-    writer.close().map_err(|e| io::Error::other(e))
+    writer.close().map_err(io::Error::other)
 }

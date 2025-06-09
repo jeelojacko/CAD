@@ -61,7 +61,10 @@ pub struct PointDatabase {
 impl PointDatabase {
     /// Creates a new empty database.
     pub fn new() -> Self {
-        Self { points: Vec::new(), history: Vec::new() }
+        Self {
+            points: Vec::new(),
+            history: Vec::new(),
+        }
     }
 
     /// Adds a survey point to the database.
@@ -81,7 +84,13 @@ impl PointDatabase {
         self.points.push(point);
     }
 
-    pub fn update_point(&mut self, index: usize, point: SurveyPoint, user: &str, comment: Option<&str>) {
+    pub fn update_point(
+        &mut self,
+        index: usize,
+        point: SurveyPoint,
+        user: &str,
+        comment: Option<&str>,
+    ) {
         if let Some(old) = self.points.get_mut(index) {
             let old_clone = old.clone();
             *old = point.clone();
@@ -90,7 +99,10 @@ impl PointDatabase {
                 user: user.to_string(),
                 timestamp: Utc::now(),
                 comment: comment.map(|s| s.to_string()),
-                change: PointChange::Modified { old: old_clone, new: point },
+                change: PointChange::Modified {
+                    old: old_clone,
+                    new: point,
+                },
             });
         }
     }
@@ -171,7 +183,7 @@ impl PointDatabase {
                     .push(Point::new(p.point.x, p.point.y));
             }
         }
-        map.into_iter().map(|(_, pts)| Polyline::new(pts)).collect()
+        map.into_values().map(Polyline::new).collect()
     }
 
     /// Generates linework by interpreting field codes using begin/continue/end
@@ -192,14 +204,14 @@ impl PointDatabase {
                                 result.push(Polyline::new(pts));
                             }
                         }
-                        active.insert(fc.code, vec![pt.clone()]);
+                        active.insert(fc.code, vec![pt]);
                     }
                     CodeAction::Continue => {
-                        active.entry(fc.code).or_default().push(pt.clone());
+                        active.entry(fc.code).or_default().push(pt);
                     }
                     CodeAction::End => {
                         if let Some(mut pts) = active.remove(&fc.code) {
-                            pts.push(pt.clone());
+                            pts.push(pt);
                             if pts.len() >= 2 {
                                 result.push(Polyline::new(pts));
                             }
@@ -239,13 +251,13 @@ impl PointDatabase {
                 if let Some(entry) = library.get(code) {
                     if let Some(name) = &entry.block {
                         blocks.push(BlockRef {
-                            location: p.point.clone(),
+                            location: p.point,
                             name: name.clone(),
                             attributes: entry.attributes.clone(),
                         });
                     }
                     if entry.linework {
-                        active.entry(code.clone()).or_default().push(pt2d.clone());
+                        active.entry(code.clone()).or_default().push(pt2d);
                     }
                 }
             }
@@ -262,14 +274,14 @@ impl PointDatabase {
                                 lines.push(Polyline::new(pts));
                             }
                         }
-                        active.insert(fc.code, vec![pt2d.clone()]);
+                        active.insert(fc.code, vec![pt2d]);
                     }
                     CodeAction::Continue => {
-                        active.entry(fc.code).or_default().push(pt2d.clone());
+                        active.entry(fc.code).or_default().push(pt2d);
                     }
                     CodeAction::End => {
                         if let Some(mut pts) = active.remove(&fc.code) {
-                            pts.push(pt2d.clone());
+                            pts.push(pt2d);
                             if pts.len() >= 2 {
                                 lines.push(Polyline::new(pts));
                             }

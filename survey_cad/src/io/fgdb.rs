@@ -7,10 +7,8 @@ use gdal::Dataset;
 
 /// Reads Point features from an ESRI File Geodatabase layer.
 pub fn read_points_fgdb(path: &str, layer_name: &str) -> io::Result<Vec<Point>> {
-    let ds = Dataset::open(path).map_err(|e| io::Error::other(e))?;
-    let mut layer = ds
-        .layer_by_name(layer_name)
-        .map_err(|e| io::Error::other(e))?;
+    let ds = Dataset::open(path).map_err(io::Error::other)?;
+    let mut layer = ds.layer_by_name(layer_name).map_err(io::Error::other)?;
     let mut pts = Vec::new();
     for feature in layer.features() {
         if let Some(geom) = feature.geometry() {

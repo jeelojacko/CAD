@@ -67,7 +67,7 @@ impl LayerManager {
     }
 
     /// Returns all layers matching `predicate`.
-    pub fn filter<'a, F>(&'a self, predicate: F) -> Vec<&'a Layer>
+    pub fn filter<F>(&self, predicate: F) -> Vec<&Layer>
     where
         F: Fn(&Layer) -> bool,
     {

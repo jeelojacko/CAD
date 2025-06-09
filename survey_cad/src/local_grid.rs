@@ -58,9 +58,8 @@ impl LocalGrid {
     /// Loads a grid definition from a JSON file.
     pub fn load(path: &str) -> std::io::Result<Self> {
         let data = std::fs::read_to_string(path)?;
-        let grid: LocalGrid = serde_json::from_str(&data).map_err(|e| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-        })?;
+        let grid: LocalGrid = serde_json::from_str(&data)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         Ok(grid)
     }
 }
@@ -71,7 +70,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let grid = LocalGrid::new(Point::new(100.0, 200.0), 0.78539816339, 2.0);
+        let grid = LocalGrid::new(Point::new(100.0, 200.0), std::f64::consts::FRAC_PI_4, 2.0);
         let global = Point::new(110.0, 210.0);
         let local = grid.to_local(global);
         let back = grid.from_local(local);
@@ -79,4 +78,3 @@ mod tests {
         assert!((back.y - global.y).abs() < 1e-6);
     }
 }
-

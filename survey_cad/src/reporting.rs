@@ -1,19 +1,20 @@
+use crate::geometry::Point;
 #[cfg(feature = "reporting")]
 use genpdf::{elements::Paragraph, Alignment, Document};
 #[cfg(feature = "reporting")]
-use umya_spreadsheet::{self, Spreadsheet, writer::xlsx};
-use crate::geometry::Point;
+use umya_spreadsheet::{self, writer::xlsx, Spreadsheet};
 
 #[cfg(feature = "reporting")]
 fn write_pdf(path: &str, title: &str, rows: &[String]) -> std::io::Result<()> {
     let font_family = genpdf::fonts::from_files("/usr/share/fonts", "LiberationSans", None)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
     let mut doc = Document::new(font_family);
     doc.set_title(title);
     for r in rows {
         doc.push(Paragraph::new(r).aligned(Alignment::Left));
     }
-    doc.render_to_file(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    doc.render_to_file(path)
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(feature = "reporting")]
@@ -26,7 +27,7 @@ fn write_excel(path: &str, rows: &[Vec<String>]) -> std::io::Result<()> {
                 .set_value(val);
         }
     }
-    xlsx::write(&wb, path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    xlsx::write(&wb, path).map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 #[cfg(feature = "reporting")]
