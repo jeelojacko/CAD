@@ -1,4 +1,4 @@
-#![allow(deprecated, clippy::type_complexity, clippy::too_many_arguments)]
+#![allow(clippy::type_complexity, clippy::too_many_arguments)]
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::*;
