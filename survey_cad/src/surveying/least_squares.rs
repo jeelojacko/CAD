@@ -58,9 +58,9 @@ pub fn parametric_ls(
         let m = n.nrows();
         let k = c.nrows();
         let mut mtx = DMatrix::<f64>::zeros(m + k, m + k);
-        mtx.slice_mut((0, 0), (m, m)).copy_from(&n);
-        mtx.slice_mut((0, m), (m, k)).copy_from(&c.transpose());
-        mtx.slice_mut((m, 0), (k, m)).copy_from(c);
+        mtx.view_mut((0, 0), (m, m)).copy_from(&n);
+        mtx.view_mut((0, m), (m, k)).copy_from(&c.transpose());
+        mtx.view_mut((m, 0), (k, m)).copy_from(c);
         let mut rhs = DVector::<f64>::zeros(m + k);
         rhs.rows_mut(0, m).copy_from(&u);
         rhs.rows_mut(m, k).copy_from(d);

@@ -1,5 +1,5 @@
 use crate::geometry::Point3;
-use e57::{E57Reader, E57Writer, PointCloudWriter, Record, RecordValue};
+use e57::{E57Reader, E57Writer, Record, RecordValue};
 use uuid::Uuid;
 use std::io;
 

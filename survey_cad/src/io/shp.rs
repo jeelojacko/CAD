@@ -68,7 +68,15 @@ fn field_value_to_string(v: &FieldValue) -> String {
         FieldValue::Float(None) => String::new(),
         FieldValue::Integer(i) => i.to_string(),
         FieldValue::Currency(c) => c.to_string(),
-        FieldValue::DateTime(dt) => dt.to_string(),
+        FieldValue::DateTime(dt) => format!(
+            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+            dt.date().year(),
+            dt.date().month(),
+            dt.date().day(),
+            dt.time().hours(),
+            dt.time().minutes(),
+            dt.time().seconds()
+        ),
         FieldValue::Double(d) => d.to_string(),
         FieldValue::Memo(s) => s.clone(),
     }

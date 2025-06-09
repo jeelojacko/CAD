@@ -26,7 +26,7 @@ proj = { version = "0.30", features = ["network"] }
 proj-sys = "0.26"
 shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
-kml = { version = "0.9", features = ["zip"], optional = true }
+kml = { version = "0.9", features = ["zip", "geo-types"], optional = true }
 e57 = { version = "0.11", optional = true }
 gdal = { version = "0.18", optional = true }
 nalgebra = { version = "0.32", default-features = false, features = ["std"] }
@@ -35,9 +35,11 @@ fresnel = "0.1"
 uuid = { version = "1", optional = true }
 genpdf = { version = "0.2", optional = true }
 umya-spreadsheet = { version = "1.1", optional = true }
+geo-types = "0.7"
 
 [dev-dependencies]
 assert_fs = "1"
+predicates = "2"
 
 [features]
 default = []

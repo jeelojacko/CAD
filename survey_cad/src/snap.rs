@@ -1,4 +1,4 @@
-use crate::geometry::{distance, Arc, Line, Point, Polyline};
+use crate::geometry::{distance, Line, Point};
 use crate::io::DxfEntity;
 use crate::surveying::line_intersection;
 

@@ -90,7 +90,7 @@ impl Parcel {
         if edges.is_empty() {
             return Self::new(Vec::new());
         }
-        let (mut a, mut b) = edges.pop().unwrap();
+        let (a, mut b) = edges.pop().unwrap();
         let mut order = vec![a, b];
         while !edges.is_empty() {
             if let Some(pos) = edges.iter().position(|&(x, _)| x == b) {
