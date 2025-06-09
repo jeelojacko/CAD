@@ -17,6 +17,8 @@ jobs:
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
+      - name: Install GDAL
+        run: sudo apt-get update && sudo apt-get install -y libgdal-dev
       - name: Build survey_cad_cli
         run: cargo build -p survey_cad_cli --release
       - name: Upload binary
