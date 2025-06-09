@@ -472,6 +472,7 @@ enum Commands {
     #[cfg(feature = "e57")]
     ExportE57 { input: String, output: String },
     /// Filter noise from a CSV point cloud.
+    #[cfg(feature = "las")]
     FilterNoise {
         input: String,
         output: String,
@@ -481,6 +482,7 @@ enum Commands {
         min_neighbors: usize,
     },
     /// Classify a CSV point cloud into ground, vegetation and buildings.
+    #[cfg(feature = "las")]
     ClassifyCloud {
         input: String,
         output: String,
@@ -897,6 +899,7 @@ fn main() {
             },
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
+        #[cfg(feature = "las")]
         Commands::FilterNoise {
             input,
             output,
@@ -913,6 +916,7 @@ fn main() {
             }
             Err(e) => eprintln!("Error reading {}: {}", input, e),
         },
+        #[cfg(feature = "las")]
         Commands::ClassifyCloud {
             input,
             output,
