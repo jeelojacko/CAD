@@ -195,8 +195,8 @@ pub fn adjust_network_report(
     let mut current = points.to_vec();
     let mut iterations = Vec::new();
     let mut converged = false;
-    let mut final_n = DMatrix::<f64>::zeros(0, 0);
-    let mut final_res = DVector::<f64>::zeros(0);
+    let final_n;
+    let final_res;
 
     for _ in 0..max_iter {
         let (a, l, w) = build_matrices(&current, observations, &index_map, count);
@@ -218,8 +218,6 @@ pub fn adjust_network_report(
             delta: delta.clone(),
             residuals: v.clone(),
         });
-        final_n = n;
-        final_res = v;
 
         if delta.amax() < tol {
             converged = true;

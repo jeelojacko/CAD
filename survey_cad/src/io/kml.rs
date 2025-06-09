@@ -3,24 +3,28 @@ use std::io;
 
 use kml::types::{Geometry as KmlGeometry, Placemark, Point as KmlPoint};
 use kml::{Kml, KmlReader, KmlWriter};
+use geo_types::{Geometry, GeometryCollection};
 
 /// Reads Point geometries from a KML or KMZ file.
 pub fn read_points_kml(path: &str) -> io::Result<Vec<Point>> {
-    let mut reader = if path.to_ascii_lowercase().ends_with(".kmz") {
-        KmlReader::<_, f64>::from_kmz_path(path)
+    let kml = if path.to_ascii_lowercase().ends_with(".kmz") {
+        let mut reader = KmlReader::<_, f64>::from_kmz_path(path)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        reader
+            .read()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
     } else {
-        KmlReader::<_, f64>::from_path(path)
+        let mut reader = KmlReader::<_, f64>::from_path(path)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        reader
+            .read()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
     };
-    let kml = reader
-        .read()
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    let collection = geo_types::GeometryCollection::<f64>::try_from(kml)
+    let collection = GeometryCollection::<f64>::try_from(kml)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut pts = Vec::new();
     for geom in collection {
-        if let geo_types::Geometry::Point(p) = geom {
+        if let Geometry::Point(p) = geom {
             pts.push(Point::new(p.x(), p.y()));
         }
     }

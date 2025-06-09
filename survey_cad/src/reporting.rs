@@ -1,7 +1,7 @@
 #[cfg(feature = "reporting")]
 use genpdf::{elements::Paragraph, Alignment, Document};
 #[cfg(feature = "reporting")]
-use umya_spreadsheet::{Workbook, Worksheet};
+use umya_spreadsheet::{self, Spreadsheet, writer::xlsx};
 use crate::geometry::Point;
 
 #[cfg(feature = "reporting")]
@@ -18,15 +18,15 @@ fn write_pdf(path: &str, title: &str, rows: &[String]) -> std::io::Result<()> {
 
 #[cfg(feature = "reporting")]
 fn write_excel(path: &str, rows: &[Vec<String>]) -> std::io::Result<()> {
-    let mut wb = Workbook::new();
-    let mut ws = Worksheet::new();
+    let mut wb: Spreadsheet = umya_spreadsheet::new_file();
+    let ws = wb.get_sheet_mut(&0).unwrap();
     for (r_idx, row) in rows.iter().enumerate() {
         for (c_idx, val) in row.iter().enumerate() {
-            ws.get_cell_by_column_and_row_mut((c_idx + 1) as u32, (r_idx + 1) as u32).set_value(val);
+            ws.get_cell_by_column_and_row_mut((c_idx + 1) as u32, (r_idx + 1) as u32)
+                .set_value(val);
         }
     }
-    wb.add_worksheet(ws);
-    wb.write(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+    xlsx::write(&wb, path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
 }
 
 #[cfg(feature = "reporting")]

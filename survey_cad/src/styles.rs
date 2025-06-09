@@ -1,5 +1,4 @@
 /// Basic styling structures for drawing entities.
-
 /// Represents the weight of a line in millimeters.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LineWeight(pub f32);

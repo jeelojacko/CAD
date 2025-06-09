@@ -10,7 +10,7 @@ use std::io::{self, Write};
 
 use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
 use crate::corridor::CrossSection;
-use crate::geometry::{Point, Point3};
+use crate::geometry::Point;
 
 fn sample_horizontal(halign: &HorizontalAlignment, step: f64) -> Vec<Point> {
     let len = halign.length();

@@ -1,5 +1,5 @@
 use crate::geometry::Point3;
-use las::{point::Point as LasPoint, Reader, Writer, point::Format, Builder, Write as _, Version};
+use las::{point::Point as LasPoint, Reader, Writer, point::Format, Builder, Version};
 use std::io;
 
 /// Reads a LAS file and returns the contained points.

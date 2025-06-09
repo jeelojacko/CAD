@@ -1,4 +1,4 @@
-use crate::geometry::{distance, Arc, Point, Point3, Polyline};
+use crate::geometry::{distance, Arc, Point, Point3};
 
 /// Euler spiral segment described analytically.
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -104,16 +104,6 @@ impl HorizontalElement {
         }
     }
 
-    fn start_point(&self) -> Point {
-        match self {
-            HorizontalElement::Tangent { start, .. } => *start,
-            HorizontalElement::Curve { arc } => Point::new(
-                arc.center.x + arc.radius * arc.start_angle.cos(),
-                arc.center.y + arc.radius * arc.start_angle.sin(),
-            ),
-            HorizontalElement::Spiral { spiral } => spiral.start_point(),
-        }
-    }
 
     fn end_point(&self) -> Point {
         match self {
