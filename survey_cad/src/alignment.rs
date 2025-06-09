@@ -345,6 +345,59 @@ impl VerticalAlignment {
         });
     }
 
+    /// Returns the elevation contributed by a single vertical element at the
+    /// given station if the element spans the station.
+    fn element_elevation(elem: &VerticalElement, station: f64) -> Option<f64> {
+        match *elem {
+            VerticalElement::Grade {
+                start_station,
+                end_station,
+                start_elev,
+                end_elev,
+            } => {
+                if station >= start_station && station <= end_station {
+                    let t = (station - start_station) / (end_station - start_station);
+                    Some(start_elev + t * (end_elev - start_elev))
+                } else {
+                    None
+                }
+            }
+            VerticalElement::Parabola {
+                start_station,
+                end_station,
+                start_elev,
+                start_grade,
+                end_grade,
+            } => {
+                if station >= start_station && station <= end_station {
+                    let l = end_station - start_station;
+                    let x = station - start_station;
+                    let g1 = start_grade;
+                    let g2 = end_grade;
+                    let dz = g1 * x + 0.5 * (g2 - g1) / l * x * x;
+                    Some(start_elev + dz)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    /// Returns the lowest elevation of all elements at the given station.
+    fn min_elevation_at(&self, station: f64) -> Option<f64> {
+        let mut min_val: Option<f64> = None;
+        for e in &self.elements {
+            if let Some(z) = Self::element_elevation(e, station) {
+                min_val = Some(min_val.map_or(z, |m| m.min(z)));
+            }
+        }
+        if min_val.is_none() {
+            self.elevation_at(station)
+        } else {
+            min_val
+        }
+    }
+
     /// Checks vertical clearance against a ground surface along a horizontal
     /// alignment. Returns `true` if all stations satisfy the minimum
     /// clearance.
@@ -358,7 +411,7 @@ impl VerticalAlignment {
         let length = halign.length();
         let mut station = 0.0;
         while station <= length {
-            if let (Some(pt), Some(grade)) = (halign.point_at(station), self.elevation_at(station))
+            if let (Some(pt), Some(grade)) = (halign.point_at(station), self.min_elevation_at(station))
             {
                 if let Some(gz) = ground.elevation_at(pt.x, pt.y) {
                     if grade - gz < min_clearance {

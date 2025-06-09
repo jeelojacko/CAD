@@ -94,7 +94,7 @@ pub fn daylight_to_surface(
             alignment.vertical.elevation_at(station),
         ) {
             let normal = (-dir.1, dir.0);
-            let side = if slope >= 0.0 {
+            let side = if slope <= 0.0 {
                 normal
             } else {
                 (-normal.0, -normal.1)
@@ -107,7 +107,7 @@ pub fn daylight_to_surface(
                 max_dist,
             ) {
                 let dist = (p.x - center.x) * side.0 + (p.y - center.y) * side.1;
-                let offset = if slope >= 0.0 { dist } else { -dist };
+                let offset = if slope <= 0.0 { dist } else { -dist };
                 let profile = vec![(0.0, 0.0), (offset, slope * dist)];
                 table.push(ProfilePoint { station, profile });
             }
