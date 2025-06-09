@@ -104,9 +104,13 @@ pub fn extract_breaklines(
             let dx = a.x - b.x;
             let dy = a.y - b.y;
             let horiz = (dx * dx + dy * dy).sqrt();
-            if horiz <= radius && horiz > f64::EPSILON {
-                let dz = (a.z - b.z).abs();
-                if dz / horiz >= slope_threshold {
+            let dz = (a.z - b.z).abs();
+            if horiz <= radius {
+                if horiz <= f64::EPSILON {
+                    if dz > 0.0 {
+                        lines.push((i, j));
+                    }
+                } else if dz / horiz >= slope_threshold {
                     lines.push((i, j));
                 }
             }

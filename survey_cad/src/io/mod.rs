@@ -119,7 +119,7 @@ pub fn write_points_csv(
 pub fn write_points_csv_gnss(path: &str, points: &[Point3]) -> io::Result<()> {
     let mut file = File::create(path)?;
     for p in points {
-        writeln!(file, "{},{},{}", p.x, p.y, p.z)?;
+        writeln!(file, "{:.1},{:.1},{:.1}", p.x, p.y, p.z)?;
     }
     Ok(())
 }
@@ -129,7 +129,7 @@ pub fn write_points_csv_gnss(path: &str, points: &[Point3]) -> io::Result<()> {
 pub fn write_points_raw(path: &str, points: &[Point3]) -> io::Result<()> {
     let mut file = File::create(path)?;
     for (i, p) in points.iter().enumerate() {
-        writeln!(file, "{},{},{},{}", i + 1, p.y, p.x, p.z)?;
+        writeln!(file, "{},{:.1},{:.1},{:.1}", i + 1, p.y, p.x, p.z)?;
     }
     Ok(())
 }

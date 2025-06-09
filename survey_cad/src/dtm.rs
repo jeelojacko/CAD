@@ -50,17 +50,56 @@ fn cross(a: Point3, b: Point3) -> Point3 {
     }
 }
 
-fn triangle_slope_deg(a: Point3, b: Point3, c: Point3) -> f64 {
+fn point_on_segment(a: Point3, b: Point3, p: Point3, tol: f64) -> bool {
     let ab = subtract(b, a);
-    let ac = subtract(c, a);
-    let n = cross(ab, ac);
-    if n.z.abs() < f64::EPSILON {
+    let ap = subtract(p, a);
+    let cross = cross(ab, ap);
+    if cross.x.abs() > tol || cross.y.abs() > tol || cross.z.abs() > tol {
+        return false;
+    }
+    let dot = (ap.x * ab.x + ap.y * ab.y + ap.z * ab.z) / (ab.x * ab.x + ab.y * ab.y + ab.z * ab.z);
+    dot >= 0.0 - tol && dot <= 1.0 + tol
+}
+
+fn refine_edges_for_points(points: &[Point3], edges: &[(usize, usize)]) -> Vec<(usize, usize)> {
+    let mut refined = Vec::new();
+    for &(a, b) in edges {
+        let pa = points[a];
+        let pb = points[b];
+        let mut mids: Vec<(usize, f64)> = Vec::new();
+        for (i, &p) in points.iter().enumerate() {
+            if i == a || i == b {
+                continue;
+            }
+            if point_on_segment(pa, pb, p, 1e-6) {
+                let t = ((p.x - pa.x).powi(2) + (p.y - pa.y).powi(2) + (p.z - pa.z).powi(2)).sqrt();
+                mids.push((i, t));
+            }
+        }
+        mids.sort_by(|x, y| x.1.partial_cmp(&y.1).unwrap());
+        let mut last = a;
+        for (idx, _) in mids {
+            refined.push((last, idx));
+            last = idx;
+        }
+        refined.push((last, b));
+    }
+    refined
+}
+
+fn edge_slope(p: Point3, q: Point3) -> f64 {
+    let dx = p.x - q.x;
+    let dy = p.y - q.y;
+    let horiz = (dx * dx + dy * dy).sqrt();
+    if horiz <= f64::EPSILON {
         90.0
     } else {
-        ((n.x * n.x + n.y * n.y).sqrt() / n.z.abs())
-            .atan()
-            .to_degrees()
+        ((p.z - q.z).abs() / horiz).atan().to_degrees()
     }
+}
+
+fn triangle_slope_deg(a: Point3, b: Point3, c: Point3) -> f64 {
+    edge_slope(a, b).max(edge_slope(a, c)).max(edge_slope(b, c))
 }
 
 fn barycentric(p: Point, a: Point3, b: Point3, c: Point3) -> Option<(f64, f64, f64)> {
@@ -126,6 +165,9 @@ impl Tin {
             }
         }
 
+        if !edges.is_empty() {
+            edges = refine_edges_for_points(&points, &edges);
+        }
         let tris = if edges.is_empty() {
             cdt::triangulate_points(&coords).unwrap()
         } else {
@@ -168,6 +210,10 @@ impl Tin {
                 }
                 edges.push((*hole.last().unwrap(), hole[0]));
             }
+        }
+
+        if !edges.is_empty() {
+            edges = refine_edges_for_points(&points, &edges);
         }
 
         let tris = if edges.is_empty() {

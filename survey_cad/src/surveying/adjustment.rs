@@ -165,43 +165,9 @@ pub fn adjust_network(
     fixed: &[usize],
     observations: &[Observation],
 ) -> AdjustResult {
-    let fixed_set: HashSet<usize> = fixed.iter().cloned().collect();
-    let mut index_map = HashMap::new();
-    let mut count = 0usize;
-    for i in 0..points.len() {
-        if !fixed_set.contains(&i) {
-            index_map.insert(i, count);
-            count += 2;
-        }
-    }
-
-    let (a, l, w) = build_matrices(points, observations, &index_map, count);
-
-    let at = a.transpose();
-    let n = &at * &w * &a;
-    let u = &at * &w * &l;
-    let delta = match n.clone().lu().solve(&u) {
-        Some(d) => d,
-        None => {
-            return AdjustResult {
-                points: points.to_vec(),
-                residuals: vec![],
-            }
-        }
-    };
-    let v = &a * &delta - &l;
-
-    let mut adj = points.to_vec();
-    for (idx, pidx) in index_map.iter() {
-        adj[*idx].x += delta[*pidx];
-        adj[*idx].y += delta[*pidx + 1];
-    }
-
-    AdjustResult {
-        points: adj,
-        residuals: v.iter().copied().collect(),
-    }
+    adjust_network_report(points, fixed, observations, 1e-8, 20).0
 }
+
 
 /// Adjusts a 2D network returning a detailed adjustment report.
 pub fn adjust_network_report(
