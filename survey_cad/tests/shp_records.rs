@@ -21,7 +21,7 @@ fn point_record_roundtrip() {
     );
     let rec = PointRecord {
         geom: Point::new(1.0, 2.0),
-        geom_z: None,
+        geom_z: Some(Point3::new(1.0, 2.0, 3.0)),
         attrs,
     };
     let file = NamedTempFile::new().unwrap();
@@ -41,7 +41,7 @@ fn polyline_record_roundtrip() {
     let pl = Polyline::new(vec![Point::new(0.0, 0.0), Point::new(1.0, 0.0)]);
     let rec = PolylineRecord {
         geom: pl.clone(),
-        geom_z: None,
+        geom_z: Some(vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0)]),
         attrs,
     };
     let file = NamedTempFile::new().unwrap();
@@ -66,7 +66,12 @@ fn polygon_record_roundtrip() {
     ];
     let rec = PolygonRecord {
         geom: poly.clone(),
-        geom_z: None,
+        geom_z: Some(vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+        ]),
         attrs,
     };
     let file = NamedTempFile::new().unwrap();
