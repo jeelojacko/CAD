@@ -270,6 +270,9 @@ mod tests {
     use super::*;
     use survey_cad::io::write_points_dxf;
 
+    type SurveyPointResult = io::Result<Vec<SurveyPoint>>;
+    type SurveyPointReaderFn = fn(&str) -> SurveyPointResult;
+
     #[test]
     fn read_written_dxf_points() {
         let path = std::env::temp_dir().join("import_pts.dxf");
@@ -299,7 +302,7 @@ mod tests {
         use std::fs::write;
 
         let content = "1,100.0,200.0,50.0,TEST";
-        let brands: [(&str, fn(&str) -> io::Result<Vec<SurveyPoint>>); 4] = [
+        let brands: [(&str, SurveyPointReaderFn); 4] = [
             ("leica.raw", instrument::read_leica_raw),
             ("trimble.raw", instrument::read_trimble_raw),
             ("topcon.raw", instrument::read_topcon_raw),
