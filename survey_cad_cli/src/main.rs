@@ -1,7 +1,7 @@
 use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
-use pipe_network;
-use shell_words;
+#[cfg(feature = "e57")]
+use survey_cad::io::e57::{read_points_e57, write_points_e57};
 use std::io::BufRead;
 use std::str::FromStr;
 #[cfg(feature = "fgdb")]
@@ -106,7 +106,7 @@ fn macro_play(path: &str, epsg: u32) {
     }
 }
 
-#[cfg(feature = "las")]
+#[cfg(any(feature = "las", feature = "e57"))]
 fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
     use std::io::Write;
     let mut file = std::fs::File::create(path)?;
@@ -116,7 +116,7 @@ fn write_points_csv_3d(path: &str, points: &[Point3]) -> std::io::Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "las")]
+#[cfg(any(feature = "las", feature = "e57"))]
 fn read_points_csv_3d(path: &str) -> std::io::Result<Vec<Point3>> {
     use std::io::{self};
     let lines = read_lines(path)?;

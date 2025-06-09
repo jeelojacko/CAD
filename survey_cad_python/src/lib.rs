@@ -44,7 +44,7 @@ fn station_distance(a: &Point, b: &Point) -> f64 {
 }
 
 #[pymodule]
-fn survey_cad_python(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn survey_cad_python(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Point>()?;
     m.add_function(wrap_pyfunction!(station_distance, m)?)?;
     Ok(())
