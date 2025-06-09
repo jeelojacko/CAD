@@ -10,3 +10,6 @@ rfd = "0.15"
 clap = { version = "4", features = ["derive"] }
 bevy_editor_cam = "0.5"
 
+
+[features]
+shapefile = ["survey_cad/shapefile"]
