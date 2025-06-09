@@ -1,9 +1,9 @@
 use cad_import::{read_point_file, PointFileFormat};
 use clap::{Parser, Subcommand};
-#[cfg(feature = "e57")]
-use survey_cad::io::e57::{read_points_e57, write_points_e57};
 use std::io::BufRead;
 use std::str::FromStr;
+#[cfg(feature = "e57")]
+use survey_cad::io::e57::{read_points_e57, write_points_e57};
 #[cfg(feature = "fgdb")]
 use survey_cad::io::fgdb::read_points_fgdb;
 #[cfg(feature = "kml")]
@@ -1026,7 +1026,7 @@ fn main() {
                         names.push(parts[0].trim().to_string());
                         let x: f64 = parts[1].trim().parse().unwrap_or(0.0);
                         let y: f64 = parts[2].trim().parse().unwrap_or(0.0);
-                        if parts.get(3).map_or(false, |v| v.trim() == "1") {
+                        if parts.get(3).is_some_and(|v| v.trim() == "1") {
                             fixed.push(idx);
                         }
                         pts.push(Point::new(x, y));
