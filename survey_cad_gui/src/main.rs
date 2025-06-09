@@ -1,9 +1,9 @@
 #![allow(deprecated)]
-use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion, MouseWheel};
+use bevy::prelude::*;
+use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
-use bevy_editor_cam::prelude::*;
 use survey_cad::geometry::{Point, Point3, Polyline};
 use survey_cad::{crs::Crs, geometry::distance};
 
@@ -14,6 +14,12 @@ enum WorkspaceProfile {
     Gis,
 }
 
+#[derive(Copy, Clone, ValueEnum)]
+enum Theme {
+    Dark,
+    Light,
+}
+
 #[derive(Parser)]
 struct Args {
     /// EPSG code for the working coordinate system
@@ -22,6 +28,9 @@ struct Args {
     /// Workspace profile (surveyor, engineer, gis)
     #[arg(long, value_enum, default_value_t = WorkspaceProfile::Surveyor)]
     profile: WorkspaceProfile,
+    /// UI theme (dark or light)
+    #[arg(long, value_enum, default_value_t = Theme::Dark)]
+    theme: Theme,
 }
 
 #[derive(Resource, Default)]
@@ -44,6 +53,39 @@ struct WorkingCrs(Crs);
 
 #[derive(Resource)]
 struct CurrentProfile(WorkspaceProfile);
+
+#[derive(Resource)]
+struct CurrentTheme(Theme);
+
+#[derive(Resource)]
+struct ThemeColors {
+    toolbar_bg: Color,
+    button_bg: Color,
+    panel_bg: Color,
+    context_bg: Color,
+    text: Color,
+}
+
+impl ThemeColors {
+    fn new(theme: Theme) -> Self {
+        match theme {
+            Theme::Dark => Self {
+                toolbar_bg: Color::srgb(0.2, 0.2, 0.2),
+                button_bg: Color::srgb(0.3, 0.3, 0.3),
+                panel_bg: Color::srgb(0.15, 0.15, 0.15),
+                context_bg: Color::srgb(0.2, 0.2, 0.2),
+                text: Color::WHITE,
+            },
+            Theme::Light => Self {
+                toolbar_bg: Color::srgb(0.9, 0.9, 0.9),
+                button_bg: Color::srgb(0.8, 0.8, 0.8),
+                panel_bg: Color::srgb(0.95, 0.95, 0.95),
+                context_bg: Color::srgb(0.9, 0.9, 0.9),
+                text: Color::BLACK,
+            },
+        }
+    }
+}
 
 #[derive(Resource, Default)]
 struct AlignmentData {
@@ -249,6 +291,8 @@ fn main() {
     App::new()
         .insert_resource(WorkingCrs(Crs::from_epsg(args.epsg)))
         .insert_resource(CurrentProfile(args.profile))
+        .insert_resource(CurrentTheme(args.theme))
+        .insert_resource(ThemeColors::new(args.theme))
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
@@ -271,7 +315,7 @@ fn main() {
         .insert_resource(SectionsVisible::default())
         .insert_resource(PlanVisible::default())
         .insert_resource(ContextMenuState::default())
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
             Update,
             (
@@ -320,13 +364,13 @@ fn setup(
     asset_server: Res<AssetServer>,
     working: Res<WorkingCrs>,
     profile: Res<CurrentProfile>,
+    theme: Res<ThemeColors>,
 ) {
     println!("GUI working CRS: {}", working.0.definition());
     commands.spawn(Camera2dBundle::default());
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(0.0, -50.0, 50.0)
-                .looking_at(Vec3::ZERO, Vec3::Z),
+            transform: Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
             ..default()
         },
         EditorCam::default(),
@@ -338,12 +382,21 @@ fn setup(
         },
         ..default()
     });
-    spawn_toolbar(&mut commands, &asset_server, profile.0);
-    let (parcel_text, grade_text) = spawn_edit_panel(&mut commands, &asset_server, profile.0);
-    let section_label = spawn_sections_panel(&mut commands, &asset_server);
-    commands.insert_resource(ParcelData { parcels: Vec::new(), text: Some(parcel_text) });
-    commands.insert_resource(GradeInfo { text: Some(grade_text) });
-    commands.insert_resource(SectionView { label: Some(section_label), ..Default::default() });
+    spawn_toolbar(&mut commands, &asset_server, profile.0, &theme);
+    let (parcel_text, grade_text) =
+        spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme);
+    let section_label = spawn_sections_panel(&mut commands, &asset_server, &theme);
+    commands.insert_resource(ParcelData {
+        parcels: Vec::new(),
+        text: Some(parcel_text),
+    });
+    commands.insert_resource(GradeInfo {
+        text: Some(grade_text),
+    });
+    commands.insert_resource(SectionView {
+        label: Some(section_label),
+        ..Default::default()
+    });
     // Example content
     let _ = spawn_point(&mut commands, Point::new(0.0, 0.0));
 }
@@ -352,6 +405,7 @@ fn spawn_toolbar(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     profile: WorkspaceProfile,
+    theme: &ThemeColors,
 ) {
     commands
         .spawn(NodeBundle {
@@ -362,7 +416,7 @@ fn spawn_toolbar(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            background_color: BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+            background_color: BackgroundColor(theme.toolbar_bg),
             ..default()
         })
         .with_children(|parent| {
@@ -379,7 +433,7 @@ fn spawn_toolbar(
                             ),
                             ..default()
                         },
-                        background_color: BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                        background_color: BackgroundColor(theme.button_bg),
                         ..default()
                     })
                     .with_children(|button| {
@@ -390,7 +444,7 @@ fn spawn_toolbar(
                                 font_size: 14.0,
                                 ..default()
                             },
-                            TextColor::WHITE,
+                            TextColor(theme.text),
                             TextSpan::new(label),
                         ));
                     });
@@ -408,7 +462,7 @@ fn spawn_toolbar(
                         ),
                         ..default()
                     },
-                    background_color: BackgroundColor(Color::srgb(0.3, 0.3, 0.3)),
+                    background_color: BackgroundColor(theme.button_bg),
                     ..default()
                 })
                 .with_children(|button| {
@@ -424,7 +478,7 @@ fn spawn_toolbar(
                             font_size: 14.0,
                             ..default()
                         },
-                        TextColor::WHITE,
+                        TextColor(theme.text),
                         TextSpan::new(label),
                     ));
                 });
@@ -439,7 +493,7 @@ fn spawn_toolbar(
                             font_size: 12.0,
                             ..default()
                         },
-                        TextColor::WHITE,
+                        TextColor(theme.text),
                         TextSpan::new("Open"),
                     ));
                 })
@@ -455,7 +509,7 @@ fn spawn_toolbar(
                             font_size: 12.0,
                             ..default()
                         },
-                        TextColor::WHITE,
+                        TextColor(theme.text),
                         TextSpan::new("Save"),
                     ));
                 })
@@ -467,6 +521,7 @@ fn spawn_edit_panel(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     profile: WorkspaceProfile,
+    theme: &ThemeColors,
 ) -> (Entity, Entity) {
     let mut parcel_text = Entity::from_raw(0);
     let mut grade_text = Entity::from_raw(0);
@@ -482,11 +537,14 @@ fn spawn_edit_panel(
                 align_items: AlignItems::FlexStart,
                 ..default()
             },
-            background_color: BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+            background_color: BackgroundColor(theme.panel_bg),
             ..default()
         })
         .with_children(|parent| {
-            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+            if matches!(
+                profile,
+                WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer
+            ) {
                 parent.spawn((
                     TextLayout::default(),
                     TextFont {
@@ -540,6 +598,7 @@ fn spawn_edit_panel(
                         ));
                     })
                     .insert(AddSurfaceButton);
+            }
 
             if matches!(profile, WorkspaceProfile::Surveyor) {
                 parent
@@ -621,7 +680,10 @@ fn spawn_edit_panel(
                 ))
                 .id();
 
-            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+            if matches!(
+                profile,
+                WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer
+            ) {
                 parent.spawn((
                     TextLayout::default(),
                     TextFont {
@@ -690,7 +752,10 @@ fn spawn_edit_panel(
                     .insert(GradeButton);
             }
 
-            if matches!(profile, WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer) {
+            if matches!(
+                profile,
+                WorkspaceProfile::Surveyor | WorkspaceProfile::Engineer
+            ) {
                 parent
                     .spawn(ButtonBundle::default())
                     .with_children(|b| {
@@ -743,7 +808,11 @@ fn spawn_edit_panel(
     (parcel_text, grade_text)
 }
 
-fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) -> Entity {
+fn spawn_sections_panel(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    theme: &ThemeColors,
+) -> Entity {
     let mut label = Entity::from_raw(0);
     commands
         .spawn(NodeBundle {
@@ -758,7 +827,7 @@ fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            background_color: BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+            background_color: BackgroundColor(theme.panel_bg),
             ..default()
         })
         .with_children(|parent| {
@@ -836,18 +905,18 @@ fn spawn_sections_panel(commands: &mut Commands, asset_server: &Res<AssetServer>
 fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
     commands
         .spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::srgb(1.0, 0.0, 0.0),
-                custom_size: Some(Vec2::splat(5.0)),
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::srgb(1.0, 0.0, 0.0),
+                    custom_size: Some(Vec2::splat(5.0)),
+                    ..default()
+                },
+                transform: Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
                 ..default()
             },
-            transform: Transform::from_translation(Vec3::new(p.x as f32, p.y as f32, 0.0)),
-            ..default()
-        },
-        CadPoint,
-    ))
-    .id()
+            CadPoint,
+        ))
+        .id()
 }
 
 fn cursor_world_pos(
@@ -904,6 +973,7 @@ fn open_context_menu(
     asset_server: Res<AssetServer>,
     mut state: ResMut<ContextMenuState>,
     selected: Res<SelectedPoints>,
+    theme: Res<ThemeColors>,
 ) {
     if buttons.just_pressed(MouseButton::Right) && !selected.0.is_empty() {
         if let Some(pos) = windows.single().cursor_position() {
@@ -920,7 +990,7 @@ fn open_context_menu(
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
-                    background_color: BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+                    background_color: BackgroundColor(theme.context_bg),
                     ..default()
                 })
                 .with_children(|parent| {
@@ -991,7 +1061,7 @@ fn camera_pan_zoom(
     mut motion_evr: EventReader<MouseMotion>,
     mut wheel_evr: EventReader<MouseWheel>,
     menu: Res<ContextMenuState>,
-){
+) {
     let (mut transform, mut projection) = camera_q.single_mut();
     for ev in wheel_evr.read() {
         let factor = 1.0 - ev.y * 0.1;
@@ -1168,7 +1238,9 @@ fn update_surface_edges(
                                 ..default()
                             },
                             transform: Transform::from_translation(((va + vb) / 2.0).extend(0.0))
-                                .with_rotation(Quat::from_rotation_z((vb - va).y.atan2((vb - va).x))),
+                                .with_rotation(Quat::from_rotation_z(
+                                    (vb - va).y.atan2((vb - va).x),
+                                )),
                             ..default()
                         })
                         .insert(HoleEdge);
@@ -1197,11 +1269,22 @@ fn maybe_update_surface(
         let low_mesh = build_lowres_surface_mesh(&tin);
         let handle = meshes.add(high_mesh);
         let low_handle = meshes.add(low_mesh);
-        let mat = materials.add(StandardMaterial { base_color: Color::rgb(0.0, 1.0, 0.0), ..default() });
+        let mat = materials.add(StandardMaterial {
+            base_color: Color::rgb(0.0, 1.0, 0.0),
+            ..default()
+        });
         commands
-            .spawn(PbrBundle { mesh: Mesh3d(handle.clone()), material: MeshMaterial3d(mat), ..default() })
+            .spawn(PbrBundle {
+                mesh: Mesh3d(handle.clone()),
+                material: MeshMaterial3d(mat),
+                ..default()
+            })
             .insert(SurfaceMesh)
-            .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
+            .insert(LevelOfDetail {
+                high: handle.clone(),
+                low: low_handle.clone(),
+                threshold: 2.0,
+            });
         tin_res.0.push(tin);
         dirty_flag.0 = false;
     }
@@ -1313,16 +1396,15 @@ fn handle_add_hole(
                     hole.push(idx);
                 }
             }
-            if let Some(pos) = data
-                .holes
-                .iter()
-                .position(|h| *h == hole)
-            {
+            if let Some(pos) = data.holes.iter().position(|h| *h == hole) {
                 data.holes.remove(pos);
                 println!("Removed hole with {} vertices", hole.len());
             } else {
                 data.holes.push(hole);
-                println!("Added hole with {} vertices", data.holes.last().unwrap().len());
+                println!(
+                    "Added hole with {} vertices",
+                    data.holes.last().unwrap().len()
+                );
             }
             dirty.0 = true;
         }
@@ -1423,15 +1505,22 @@ fn handle_build_surface(
                 ..default()
             })
             .insert(SurfaceMesh)
-            .insert(LevelOfDetail { high: handle.clone(), low: low_handle.clone(), threshold: 2.0 });
+            .insert(LevelOfDetail {
+                high: handle.clone(),
+                low: low_handle.clone(),
+                threshold: 2.0,
+            });
         tin_res.0.push(tin);
     }
 }
 
 fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
-    use bevy::render::mesh::{Indices, PrimitiveTopology};
     use bevy::asset::RenderAssetUsages;
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    use bevy::render::mesh::{Indices, PrimitiveTopology};
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
     let positions: Vec<[f32; 3]> = tin
         .vertices
         .iter()
@@ -1451,21 +1540,32 @@ fn build_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
     mesh
 }
 fn build_lowres_surface_mesh(tin: &survey_cad::dtm::Tin) -> Mesh {
-    use bevy::render::mesh::{Indices, PrimitiveTopology};
     use bevy::asset::RenderAssetUsages;
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
-    let positions: Vec<[f32; 3]> = tin.vertices.iter().map(|p| [p.x as f32, p.y as f32, p.z as f32]).collect();
+    use bevy::render::mesh::{Indices, PrimitiveTopology};
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    let positions: Vec<[f32; 3]> = tin
+        .vertices
+        .iter()
+        .map(|p| [p.x as f32, p.y as f32, p.z as f32])
+        .collect();
     let normals = vec![[0.0, 0.0, 1.0]; positions.len()];
     let uvs = vec![[0.0, 0.0]; positions.len()];
     let step = (tin.triangles.len() / 10).max(1);
-    let indices: Vec<u32> = tin.triangles.iter().step_by(step).flat_map(|t| [t[0] as u32, t[1] as u32, t[2] as u32]).collect();
+    let indices: Vec<u32> = tin
+        .triangles
+        .iter()
+        .step_by(step)
+        .flat_map(|t| [t[0] as u32, t[1] as u32, t[2] as u32])
+        .collect();
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
     mesh.insert_indices(Indices::U32(indices));
     mesh
 }
-
 
 fn handle_show_profile(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ShowProfileButton>)>,
@@ -1506,7 +1606,9 @@ fn handle_show_sections(
             view.design.clear();
             if let (Some(tin), true) = (tin_res.0.last(), data.points.len() > 1) {
                 use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
-                use survey_cad::corridor::{extract_cross_sections, extract_design_cross_sections, Subassembly};
+                use survey_cad::corridor::{
+                    extract_cross_sections, extract_design_cross_sections, Subassembly,
+                };
                 let mut pts = Vec::new();
                 let mut v_pairs = Vec::new();
                 for (i, e) in data.points.iter().enumerate() {
@@ -1529,17 +1631,12 @@ fn handle_show_sections(
                 view.design = extract_design_cross_sections(&align, &[sub], None, params.interval);
             }
             if !view.sections.is_empty() {
-                if let Some((idx, _)) = view
-                    .sections
-                    .iter()
-                    .enumerate()
-                    .min_by(|a, b| {
-                        (a.1.station - keep_station)
-                            .abs()
-                            .partial_cmp(&(b.1.station - keep_station).abs())
-                            .unwrap()
-                    })
-                {
+                if let Some((idx, _)) = view.sections.iter().enumerate().min_by(|a, b| {
+                    (a.1.station - keep_station)
+                        .abs()
+                        .partial_cmp(&(b.1.station - keep_station).abs())
+                        .unwrap()
+                }) {
                     view.current = idx;
                     view.station = view.sections[idx].station;
                 } else {
@@ -1699,7 +1796,11 @@ fn polyline_point_at(pts: &[Point], dist: f64) -> Option<Point> {
     for pair in pts.windows(2) {
         let seg_len = distance(pair[0], pair[1]);
         if remaining <= seg_len {
-            let t = if seg_len == 0.0 { 0.0 } else { remaining / seg_len };
+            let t = if seg_len == 0.0 {
+                0.0
+            } else {
+                remaining / seg_len
+            };
             return Some(Point::new(
                 pair[0].x + t * (pair[1].x - pair[0].x),
                 pair[0].y + t * (pair[1].y - pair[0].y),
@@ -1840,14 +1941,26 @@ fn update_section_lines(
 
         if view.show_ground {
             if let Some(sec) = view.sections.get(view.current) {
-                let clone = survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
-                draw_section(&clone, Color::rgb(1.0, 1.0, 0.0), &mut commands, &mut view.entities);
+                let clone =
+                    survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
+                draw_section(
+                    &clone,
+                    Color::rgb(1.0, 1.0, 0.0),
+                    &mut commands,
+                    &mut view.entities,
+                );
             }
         }
         if view.show_design {
             if let Some(sec) = view.design.get(view.current) {
-                let clone = survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
-                draw_section(&clone, Color::rgb(1.0, 0.0, 0.0), &mut commands, &mut view.entities);
+                let clone =
+                    survey_cad::corridor::CrossSection::new(sec.station, sec.points.clone());
+                draw_section(
+                    &clone,
+                    Color::rgb(1.0, 0.0, 0.0),
+                    &mut commands,
+                    &mut view.entities,
+                );
             }
         }
     }
@@ -1874,8 +1987,12 @@ fn handle_open_button(
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(path) = rfd::FileDialog::new().pick_file() {
             let path_str = path.to_str().unwrap();
-            for e in &points { commands.entity(e).despawn_recursive(); }
-            for e in &surfaces { commands.entity(e).despawn_recursive(); }
+            for e in &points {
+                commands.entity(e).despawn_recursive();
+            }
+            for e in &surfaces {
+                commands.entity(e).despawn_recursive();
+            }
             alignment.points.clear();
             surface_data.vertices.clear();
             surface_data.breaklines.clear();
@@ -1894,9 +2011,16 @@ fn handle_open_button(
                 if let Ok(tin) = landxml::read_landxml_surface(path_str) {
                     let mesh = build_surface_mesh(&tin);
                     let handle = meshes.add(mesh);
-                    let mat = materials.add(StandardMaterial { base_color: Color::rgb(0.0, 1.0, 0.0), ..default() });
+                    let mat = materials.add(StandardMaterial {
+                        base_color: Color::rgb(0.0, 1.0, 0.0),
+                        ..default()
+                    });
                     commands
-                        .spawn(PbrBundle { mesh: Mesh3d(handle), material: MeshMaterial3d(mat), ..default() })
+                        .spawn(PbrBundle {
+                            mesh: Mesh3d(handle),
+                            material: MeshMaterial3d(mat),
+                            ..default()
+                        })
                         .insert(SurfaceMesh);
                     surface_tin.0.push(tin);
                 } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
@@ -1935,7 +2059,9 @@ fn handle_open_button(
             } else if lower.ends_with(".shp") {
                 #[cfg(feature = "shapefile")]
                 if let Ok((pts, _)) = survey_cad::io::shp::read_points_shp(path_str) {
-                    for p in pts { let _ = spawn_point(&mut commands, p); }
+                    for p in pts {
+                        let _ = spawn_point(&mut commands, p);
+                    }
                 }
             }
         }
@@ -1955,7 +2081,9 @@ fn handle_save_button(
             let lower = path_str.to_ascii_lowercase();
             if lower.ends_with(".csv") {
                 let mut pts = Vec::new();
-                for (_, t) in &points { pts.push(Point::new(t.translation.x as f64, t.translation.y as f64)); }
+                for (_, t) in &points {
+                    pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
+                }
                 let _ = write_points_csv(path_str, &pts, None, None);
             } else if lower.ends_with(".xml") {
                 if let Some(tin) = tin_res.0.last() {
@@ -1984,16 +2112,23 @@ fn handle_save_button(
     }
 }
 
+fn init_ui_scale(windows: Query<&Window>, mut ui_scale: ResMut<UiScale>) {
+    ui_scale.0 = windows.single().resolution.scale_factor() as f32;
+}
+
 fn update_lod_meshes(
     camera_q: Query<&OrthographicProjection, With<Camera2d>>,
     mut meshes: Query<(&mut Mesh3d, &LevelOfDetail)>,
 ) {
     let scale = camera_q.single().scale;
     for (mut mesh, lod) in &mut meshes {
-        let target = if scale > lod.threshold { &lod.low } else { &lod.high };
+        let target = if scale > lod.threshold {
+            &lod.low
+        } else {
+            &lod.high
+        };
         if mesh.0 != *target {
             mesh.0 = target.clone();
         }
     }
 }
-

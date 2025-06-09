@@ -121,6 +121,13 @@ interface for different roles. Available profiles are `surveyor`, `engineer` and
 $ cargo run -p survey_cad_gui -- --profile engineer
 ```
 
+The GUI also supports dark and light themes via the `--theme` option and
+automatically scales the interface based on monitor DPI.
+
+```bash
+$ cargo run -p survey_cad_gui -- --theme light
+```
+
 ## Continuous Integration
 
 GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
