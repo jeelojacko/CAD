@@ -22,14 +22,14 @@ pub fn write_points_las(path: &str, points: &[Point3]) -> io::Result<()> {
     builder.version = Version::new(1, 2);
     let header = builder
         .into_header()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(|e| io::Error::other(e))?;
     let mut writer = Writer::from_path(path, header)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(|e| io::Error::other(e))?;
     for p in points {
         let lp = LasPoint { x: p.x, y: p.y, z: p.z, ..Default::default() };
         writer
             .write_point(lp)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(|e| io::Error::other(e))?;
     }
-    writer.close().map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    writer.close().map_err(|e| io::Error::other(e))
 }

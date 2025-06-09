@@ -50,5 +50,5 @@ pub fn write_points_kml(path: &str, points: &[Point]) -> io::Result<()> {
     };
     writer
         .write(&doc)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        .map_err(|e| io::Error::other(e))
 }

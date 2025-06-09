@@ -33,6 +33,12 @@ pub struct PolygonRecord {
     pub attrs: BTreeMap<String, FieldValue>,
 }
 
+/// Output type for polylines with optional Z coordinates.
+pub type PolylineOutput = (Vec<crate::geometry::Polyline>, Option<Vec<Vec<Point3>>>);
+
+/// Output type for polygons with optional Z coordinates.
+pub type PolygonOutput = (Vec<Vec<Point>>, Option<Vec<Vec<Point3>>>);
+
 fn build_table_builder(attrs: &BTreeMap<String, FieldValue>) -> TableWriterBuilder {
     use std::convert::TryFrom;
     let mut builder = TableWriterBuilder::new();
@@ -163,7 +169,7 @@ pub fn write_points_shp(path: &str, points: &[Point], points_z: Option<&[Point3]
 /// Reads a shapefile containing PolyLine geometries and returns them as [`Polyline`] values.
 pub fn read_polylines_shp(
     path: &str,
-) -> io::Result<(Vec<crate::geometry::Polyline>, Option<Vec<Vec<Point3>>>)> {
+) -> io::Result<PolylineOutput> {
     let mut reader =
         ShapeReader::from_path(path).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut lines = Vec::new();
@@ -239,7 +245,7 @@ pub fn write_polylines_shp(
 }
 
 /// Reads a shapefile containing Polygon geometries and returns them as vectors of [`Point`].
-pub fn read_polygons_shp(path: &str) -> io::Result<(Vec<Vec<Point>>, Option<Vec<Vec<Point3>>>)> {
+pub fn read_polygons_shp(path: &str) -> io::Result<PolygonOutput> {
     let mut reader =
         ShapeReader::from_path(path).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut polys = Vec::new();

@@ -99,10 +99,8 @@ pub fn extract_breaklines(
     slope_threshold: f64,
 ) -> Vec<(usize, usize)> {
     let mut lines = Vec::new();
-    for i in 0..points.len() {
-        let a = points[i];
-        for j in (i + 1)..points.len() {
-            let b = points[j];
+    for (i, &a) in points.iter().enumerate() {
+        for (j, &b) in points.iter().enumerate().skip(i + 1) {
             let dx = a.x - b.x;
             let dy = a.y - b.y;
             let horiz = (dx * dx + dy * dy).sqrt();

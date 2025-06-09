@@ -239,14 +239,9 @@ impl Tin {
         let mut verts = self.vertices.clone();
         let mut adj: Vec<Vec<usize>> = vec![Vec::new(); verts.len()];
         for tri in &self.triangles {
-            for i in 0..3 {
-                let a = tri[i];
-                for j in 0..3 {
-                    if i == j {
-                        continue;
-                    }
-                    let b = tri[j];
-                    if !adj[a].contains(&b) {
+            for &a in tri.iter() {
+                for &b in tri.iter() {
+                    if a != b && !adj[a].contains(&b) {
                         adj[a].push(b);
                     }
                 }

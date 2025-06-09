@@ -284,9 +284,7 @@ pub fn intersection_alignment(a: &Alignment, b: &Alignment, radius: f64) -> Opti
         _ => return None,
     }
 
-    h_elems.push(HorizontalElement::Curve {
-        arc: curb.arc.clone(),
-    });
+    h_elems.push(HorizontalElement::Curve { arc: curb.arc });
 
     match b.horizontal.elements.first().unwrap() {
         HorizontalElement::Tangent { end, .. } => {
