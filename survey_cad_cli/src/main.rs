@@ -155,6 +155,7 @@ fn read_points_csv_3d(path: &str) -> std::io::Result<Vec<Point3>> {
     Ok(pts)
 }
 
+#[cfg(feature = "las")]
 fn write_points_classified(
     path: &str,
     points: &[Point3],
