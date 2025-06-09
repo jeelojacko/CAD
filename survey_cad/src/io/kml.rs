@@ -1,9 +1,9 @@
 use crate::geometry::Point;
 use std::io;
 
+use geo_types::{Geometry, GeometryCollection};
 use kml::types::{Geometry as KmlGeometry, Placemark, Point as KmlPoint};
 use kml::{Kml, KmlReader, KmlWriter};
-use geo_types::{Geometry, GeometryCollection};
 
 /// Reads Point geometries from a KML or KMZ file.
 pub fn read_points_kml(path: &str) -> io::Result<Vec<Point>> {
@@ -48,7 +48,5 @@ pub fn write_points_kml(path: &str, points: &[Point]) -> io::Result<()> {
         attrs: Default::default(),
         elements: placemarks,
     };
-    writer
-        .write(&doc)
-        .map_err(|e| io::Error::other(e))
+    writer.write(&doc).map_err(io::Error::other)
 }

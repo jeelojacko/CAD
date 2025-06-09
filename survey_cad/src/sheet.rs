@@ -12,6 +12,14 @@ use crate::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
 use crate::corridor::CrossSection;
 use crate::geometry::Point;
 
+/// Scale factors used for plan/profile sheets.
+#[derive(Debug, Clone, Copy)]
+pub struct PlanProfileScales {
+    pub plan: f64,
+    pub profile_h: f64,
+    pub profile_v: f64,
+}
+
 fn sample_horizontal(halign: &HorizontalAlignment, step: f64) -> Vec<Point> {
     let len = halign.length();
     let mut pts = Vec::new();
@@ -204,9 +212,7 @@ pub fn write_plan_profile_scaled_svg(
     halign: &HorizontalAlignment,
     valign: &VerticalAlignment,
     step: f64,
-    plan_scale: f64,
-    profile_hscale: f64,
-    profile_vscale: f64,
+    scales: PlanProfileScales,
     grid: f64,
 ) -> io::Result<()> {
     let plan = sample_horizontal(halign, step);
@@ -224,12 +230,12 @@ pub fn write_plan_profile_scaled_svg(
     }
 
     let plan_bbox = bbox(&plan).unwrap_or((0.0, 0.0, 0.0, 0.0));
-    let plan_width = (plan_bbox.2 - plan_bbox.0) / plan_scale;
-    let plan_height = (plan_bbox.3 - plan_bbox.1) / plan_scale;
+    let plan_width = (plan_bbox.2 - plan_bbox.0) / scales.plan;
+    let plan_height = (plan_bbox.3 - plan_bbox.1) / scales.plan;
 
     let prof_bbox = bbox(&profile).unwrap_or((0.0, 0.0, 0.0, 0.0));
-    let prof_width = (prof_bbox.2 - prof_bbox.0) / profile_hscale;
-    let prof_height = (prof_bbox.3 - prof_bbox.1) / profile_vscale;
+    let prof_width = (prof_bbox.2 - prof_bbox.0) / scales.profile_h;
+    let prof_height = (prof_bbox.3 - prof_bbox.1) / scales.profile_v;
 
     let width = plan_width.max(prof_width) + 40.0;
     let height = plan_height + prof_height + 60.0;
@@ -252,8 +258,8 @@ pub fn write_plan_profile_scaled_svg(
         .iter()
         .map(|p| {
             Point::new(
-                (p.x - plan_bbox.0) / plan_scale,
-                plan_height - (p.y - plan_bbox.1) / plan_scale,
+                (p.x - plan_bbox.0) / scales.plan,
+                plan_height - (p.y - plan_bbox.1) / scales.plan,
             )
         })
         .collect();
@@ -276,8 +282,8 @@ pub fn write_plan_profile_scaled_svg(
         .iter()
         .map(|p| {
             Point::new(
-                (p.x - prof_bbox.0) / profile_hscale,
-                prof_height - (p.y - prof_bbox.1) / profile_vscale,
+                (p.x - prof_bbox.0) / scales.profile_h,
+                prof_height - (p.y - prof_bbox.1) / scales.profile_v,
             )
         })
         .collect();
