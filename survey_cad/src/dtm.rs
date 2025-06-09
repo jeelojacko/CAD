@@ -78,9 +78,9 @@ fn refine_edges_for_points(points: &[Point3], edges: &[(usize, usize)]) -> Vec<(
         }
         mids.sort_by(|x, y| x.1.partial_cmp(&y.1).unwrap());
         let mut last = a;
-        for (idx, _) in mids {
-            refined.push((last, idx));
-            last = idx;
+        for (idx, _) in &mids {
+            refined.push((last, *idx));
+            last = *idx;
         }
         refined.push((last, b));
         if !mids.is_empty() {
