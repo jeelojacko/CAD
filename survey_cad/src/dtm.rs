@@ -92,6 +92,34 @@ fn refine_edges_for_points(points: &[Point3], edges: &[(usize, usize)]) -> Vec<(
     refined
 }
 
+fn nudge_points_on_edges(coords: &mut [(f64, f64)], edges: &[(usize, usize)]) {
+    const EPS: f64 = 1e-9;
+    for &(a, b) in edges {
+        let (ax, ay) = coords[a];
+        let (bx, by) = coords[b];
+        let dx = bx - ax;
+        let dy = by - ay;
+        let len2 = dx * dx + dy * dy;
+        if len2 <= f64::EPSILON {
+            continue;
+        }
+        let len = len2.sqrt();
+        let nx = -dy / len;
+        let ny = dx / len;
+        for (i, (x, y)) in coords.iter_mut().enumerate() {
+            if i == a || i == b {
+                continue;
+            }
+            let px = *x - ax;
+            let py = *y - ay;
+            if (px * dy - py * dx).abs() <= 1e-9 && (px * dx + py * dy) >= 0.0 && (px * dx + py * dy) <= len2 {
+                *x += nx * EPS;
+                *y += ny * EPS;
+            }
+        }
+    }
+}
+
 fn edge_slope(p: Point3, q: Point3) -> f64 {
     let dx = p.x - q.x;
     let dy = p.y - q.y;
@@ -172,12 +200,13 @@ impl Tin {
 
         if !edges.is_empty() {
             edges = refine_edges_for_points(&points, &edges);
+            let mut adj_coords = coords.clone();
+            nudge_points_on_edges(&mut adj_coords, &edges);
+            let tris = cdt::triangulate_with_edges(&adj_coords, &edges).unwrap();
+            let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
+            return Self { vertices: points, triangles };
         }
-        let tris = if edges.is_empty() {
-            cdt::triangulate_points(&coords).unwrap()
-        } else {
-            cdt::triangulate_with_edges(&coords, &edges).unwrap()
-        };
+        let tris = cdt::triangulate_points(&coords).unwrap();
         let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
         Self {
             vertices: points,
@@ -219,18 +248,16 @@ impl Tin {
 
         if !edges.is_empty() {
             edges = refine_edges_for_points(&points, &edges);
+            let mut adj_coords = coords.clone();
+            nudge_points_on_edges(&mut adj_coords, &edges);
+            let tris = cdt::triangulate_with_edges(&adj_coords, &edges).unwrap();
+            let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
+            return Self { vertices: points, triangles };
         }
 
-        let tris = if edges.is_empty() {
-            cdt::triangulate_points(&coords).unwrap()
-        } else {
-            cdt::triangulate_with_edges(&coords, &edges).unwrap()
-        };
+        let tris = cdt::triangulate_points(&coords).unwrap();
         let triangles = tris.into_iter().map(|t| [t.0, t.1, t.2]).collect();
-        Self {
-            vertices: points,
-            triangles,
-        }
+        Self { vertices: points, triangles }
     }
 
     /// Returns a new TIN with the same vertices but enforcing the provided
