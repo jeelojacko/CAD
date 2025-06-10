@@ -157,6 +157,8 @@ fail.
 
 Tagged commits start an additional workflow that builds `survey_cad_cli` on
 Windows and attaches the zipped executable to the corresponding GitHub release.
+Manual runs of this workflow automatically create a timestamped tag so
+releases can be generated without manually pushing a new tag.
 
 ## License
 
