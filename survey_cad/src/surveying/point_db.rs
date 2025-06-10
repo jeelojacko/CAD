@@ -116,7 +116,7 @@ impl PointDatabase {
         if src == dst {
             return;
         }
-        if let Some(trans) = crate::crs::CrsTransformer::new(&src, &dst) {
+        if let Some(trans) = CrsTransformer::new(&src, &dst) {
             for p in &mut self.points {
                 if let Some((x, y, z)) = trans.transform(p.point.x, p.point.y, p.point.z) {
                     p.point.x = x;
