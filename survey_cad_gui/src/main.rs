@@ -2134,7 +2134,7 @@ mod tests {
         ));
 
         let lines = world.query::<&CadLine>();
-        for line in lines.iter(world) {
+        for line in lines.iter(&world) {
             if let (Some(_a), Some(_b)) = (
                 world.get::<Transform>(line.start),
                 world.get::<Transform>(line.end),
