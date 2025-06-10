@@ -20,10 +20,11 @@ returning an error if they are missing.
 
 ## Architecture Overview
 
-The workspace contains two crates:
+The workspace contains multiple crates:
 
 - `survey_cad` &mdash; core library with modules for geometry, surveying, file I/O and simple rendering utilities.
 - `survey_cad_cli` &mdash; small command line tool that demonstrates the library capabilities.
+- `survey_cad_python` &mdash; Python bindings built with [PyO3](https://pyo3.rs/).
 
 Each module in the library is focused on a specific set of tasks and can be used
 independently within other Rust projects. Heavy rendering dependencies are
@@ -126,6 +127,26 @@ automatically scales the interface based on monitor DPI.
 
 ```bash
 $ cargo run -p survey_cad_gui -- --theme light
+```
+
+## Python Bindings
+
+The workspace also exposes a small [Python module](survey_cad_python) built with
+`maturin`. Build the extension and use it from Python:
+
+```bash
+$ cd survey_cad_python
+$ maturin develop
+```
+
+Example:
+
+```python
+from survey_cad_python import Point, station_distance
+
+a = Point(0.0, 0.0)
+b = Point(3.0, 4.0)
+print(station_distance(a, b))
 ```
 
 ## Continuous Integration
