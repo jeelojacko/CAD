@@ -2133,7 +2133,7 @@ mod tests {
             Sprite::default(),
         ));
 
-        let lines = world.query::<&CadLine>();
+        let mut lines = world.query::<&CadLine>();
         for line in lines.iter(&world) {
             if let (Some(_a), Some(_b)) = (
                 world.get::<Transform>(line.start),
