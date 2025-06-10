@@ -2119,8 +2119,8 @@ mod tests {
 
         app.update();
 
-        let mut world = app.world_mut();
-        assert_eq!(world.query::<&CadLine>().iter(&world).count(), 0);
+        let world = app.world_mut();
+        assert_eq!(world.query::<&CadLine>().iter(world).count(), 0);
     }
 
     // Ensure that lines referencing missing points do not cause a panic
@@ -2133,8 +2133,8 @@ mod tests {
             Sprite::default(),
         ));
 
-        let mut lines = world.query::<&CadLine>();
-        for line in lines.iter(&world) {
+        let lines = world.query::<&CadLine>();
+        for line in lines.iter(world) {
             if let (Some(_a), Some(_b)) = (
                 world.get::<Transform>(line.start),
                 world.get::<Transform>(line.end),
