@@ -24,7 +24,7 @@ delaunator = "1"
 cdt = "0.1"
 roxmltree = "0.20"
 proj = { version = "0.30", default-features = false }
-proj-sys = "0.26"
+proj-sys = { version = "0.26", features = ["bundled_proj"] }
 shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
 kml = { version = "0.9", features = ["zip", "geo-types"], optional = true }
