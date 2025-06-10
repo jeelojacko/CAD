@@ -12,6 +12,11 @@ pub struct ProfilePoint {
 
 pub type ProfileTable = Vec<ProfilePoint>;
 
+/// Interpolates a profile table at the requested station.
+///
+/// Returns an empty vector if the table is empty. Higher level routines
+/// rely on non-empty tables and this function uses `expect` to assert that
+/// assumption when accessed at the extremes.
 fn profile_at(table: &ProfileTable, station: f64) -> Vec<(f64, f64)> {
     if table.is_empty() {
         return Vec::new();
@@ -40,7 +45,11 @@ fn profile_at(table: &ProfileTable, station: f64) -> Vec<(f64, f64)> {
                 .collect();
         }
     }
-    table.last().unwrap().profile.clone()
+    table
+        .last()
+        .expect("profile_at called on empty table")
+        .profile
+        .clone()
 }
 
 /// 3D cross-section sampled at a station along a corridor.
@@ -738,6 +747,17 @@ mod tests {
         assert_eq!(sections.len(), 2);
         assert!((sections[0].points.first().unwrap().y + 1.0).abs() < 1e-6);
         assert!((sections[1].points.first().unwrap().y + 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn empty_profile_sections() {
+        let halign = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(10.0, 0.0)]);
+        let valign = VerticalAlignment::new(vec![(0.0, 0.0), (10.0, 0.0)]);
+        let align = Alignment::new(halign, valign);
+        let sub = Subassembly::new(Vec::new());
+        let sections = extract_design_cross_sections(&align, &[sub], None, 10.0);
+        assert_eq!(sections.len(), 2);
+        assert!(sections.iter().all(|s| s.points.is_empty()));
     }
 
     #[test]

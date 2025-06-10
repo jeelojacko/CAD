@@ -165,7 +165,10 @@ pub fn mirror(sub: &Subassembly) -> Subassembly {
 
 /// Sequentially joins multiple subassemblies together into a single profile.
 /// Each subassembly should start at `(0.0, 0.0)` and is appended to the
-/// previous one's end.
+/// previous one's end. Empty profiles are skipped.
+///
+/// This function assumes each non-empty subassembly contains at least one
+/// `(offset, elevation)` pair.
 pub fn compose(parts: &[Subassembly]) -> Subassembly {
     let mut profile = Vec::new();
     let mut off = 0.0;
@@ -182,8 +185,10 @@ pub fn compose(parts: &[Subassembly]) -> Subassembly {
             }
             profile.push(p);
         }
-        off += part.profile.last().unwrap().0;
-        elev += part.profile.last().unwrap().1;
+        if let Some(last) = part.profile.last() {
+            off += last.0;
+            elev += last.1;
+        }
     }
     Subassembly::new(profile)
 }
@@ -285,5 +290,13 @@ mod tests {
         assert!(sub.profile_table.is_some());
         let table = sub.profile_table.unwrap();
         assert!(!table.is_empty());
+    }
+
+    #[test]
+    fn compose_skips_empty_profiles() {
+        let empty = Subassembly::new(Vec::new());
+        let lane = lane(3.0, -0.02);
+        let section = compose(&[empty, lane.clone()]);
+        assert_eq!(section.profile, lane.profile);
     }
 }

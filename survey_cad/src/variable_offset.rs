@@ -26,5 +26,8 @@ pub fn offset_at(table: &OffsetTable, station: f64) -> f64 {
             return a.offset + t * (b.offset - a.offset);
         }
     }
-    table.last().unwrap().offset
+    table
+        .last()
+        .expect("offset_at called on empty table")
+        .offset
 }
