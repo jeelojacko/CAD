@@ -17,6 +17,8 @@ jobs:
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
+      - name: Install SQLite3
+        run: choco install -y sqlite
       - name: Build CLI
         run: cargo build -p survey_cad_cli --release
       - name: Package Binary
