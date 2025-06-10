@@ -44,6 +44,15 @@ pub struct SlopeRule {
     pub slope: f64,
 }
 
+fn parse_num<T: std::str::FromStr>(s: &str) -> io::Result<T>
+where
+    T::Err: std::fmt::Display,
+{
+    s.trim()
+        .parse::<T>()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+}
+
 impl Network {
     pub fn structure_index(&self) -> HashMap<&str, usize> {
         let mut map = HashMap::new();
@@ -68,9 +77,9 @@ pub fn read_network_csv(structs: &str, pipes: &str) -> io::Result<Network> {
         }
         network.structures.push(Structure {
             id: parts[0].trim().to_string(),
-            x: parts[1].trim().parse().unwrap_or(0.0),
-            y: parts[2].trim().parse().unwrap_or(0.0),
-            z: parts[3].trim().parse().unwrap_or(0.0),
+            x: parse_num(parts[1])?,
+            y: parse_num(parts[2])?,
+            z: parse_num(parts[3])?,
         });
     }
     for line in p_lines.lines() {
@@ -85,20 +94,20 @@ pub fn read_network_csv(structs: &str, pipes: &str) -> io::Result<Network> {
             id: parts[0].trim().to_string(),
             from: parts[1].trim().to_string(),
             to: parts[2].trim().to_string(),
-            diameter: parts[3].trim().parse().unwrap_or(0.0),
-            c: parts[4].trim().parse().unwrap_or(100.0),
-            start_invert: parts
-                .get(5)
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0.0),
-            end_invert: parts
-                .get(6)
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0.0),
-            design_flow: parts
-                .get(7)
-                .and_then(|v| v.trim().parse().ok())
-                .unwrap_or(0.0),
+            diameter: parse_num(parts[3])?,
+            c: parse_num(parts[4])?,
+            start_invert: match parts.get(5) {
+                Some(v) => parse_num(v)?,
+                None => 0.0,
+            },
+            end_invert: match parts.get(6) {
+                Some(v) => parse_num(v)?,
+                None => 0.0,
+            },
+            design_flow: match parts.get(7) {
+                Some(v) => parse_num(v)?,
+                None => 0.0,
+            },
         });
     }
     Ok(network)
@@ -115,8 +124,8 @@ pub fn read_slope_rules_csv(path: &str) -> io::Result<Vec<SlopeRule>> {
         if parts.len() < 2 {
             continue;
         }
-        let diam = parts[0].trim().parse().unwrap_or(0.0);
-        let slope = parts[1].trim().parse().unwrap_or(0.0);
+        let diam: f64 = parse_num(parts[0])?;
+        let slope: f64 = parse_num(parts[1])?;
         rules.push(SlopeRule {
             min_diameter: diam,
             slope,
@@ -186,9 +195,18 @@ pub fn read_network_landxml(path: &str) -> io::Result<Network> {
         for s in structs.children().filter(|c| c.has_tag_name("Struct")) {
             network.structures.push(Structure {
                 id: s.attribute("id").unwrap_or("").to_string(),
-                x: s.attribute("x").and_then(|v| v.parse().ok()).unwrap_or(0.0),
-                y: s.attribute("y").and_then(|v| v.parse().ok()).unwrap_or(0.0),
-                z: s.attribute("z").and_then(|v| v.parse().ok()).unwrap_or(0.0),
+                x: match s.attribute("x") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
+                y: match s.attribute("y") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
+                z: match s.attribute("z") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
             });
         }
     }
@@ -198,25 +216,26 @@ pub fn read_network_landxml(path: &str) -> io::Result<Network> {
                 id: p.attribute("id").unwrap_or("").to_string(),
                 from: p.attribute("from").unwrap_or("").to_string(),
                 to: p.attribute("to").unwrap_or("").to_string(),
-                diameter: p
-                    .attribute("diameter")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0.0),
-                c: p.attribute("c")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(100.0),
-                start_invert: p
-                    .attribute("startInv")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0.0),
-                end_invert: p
-                    .attribute("endInv")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0.0),
-                design_flow: p
-                    .attribute("designFlow")
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or(0.0),
+                diameter: match p.attribute("diameter") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
+                c: match p.attribute("c") {
+                    Some(v) => parse_num(v)?,
+                    None => 100.0,
+                },
+                start_invert: match p.attribute("startInv") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
+                end_invert: match p.attribute("endInv") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
+                design_flow: match p.attribute("designFlow") {
+                    Some(v) => parse_num(v)?,
+                    None => 0.0,
+                },
             });
         }
     }
@@ -561,5 +580,35 @@ mod tests {
         let det = analyze_network_detailed(&net);
         assert_eq!(det.len(), 1);
         assert!(det[0].velocity > 0.0);
+    }
+
+    #[test]
+    fn csv_parse_error() {
+        let mut s = NamedTempFile::new().unwrap();
+        writeln!(s, "S1,abc,0,0").unwrap();
+        let mut p = NamedTempFile::new().unwrap();
+        writeln!(p, "P1,S1,S1,0.3,100").unwrap();
+        let res = read_network_csv(s.path().to_str().unwrap(), p.path().to_str().unwrap());
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn slope_rules_parse_error() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "foo,0.01").unwrap();
+        let res = read_slope_rules_csv(f.path().to_str().unwrap());
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn landxml_parse_error() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(
+            f,
+            "<?xml version=\"1.0\"?><LandXML><PipeNetworks><Structs><Struct id=\"S1\" x=\"foo\" y=\"0\" z=\"0\"/></Structs></PipeNetworks></LandXML>"
+        )
+        .unwrap();
+        let res = read_network_landxml(f.path().to_str().unwrap());
+        assert!(res.is_err());
     }
 }
