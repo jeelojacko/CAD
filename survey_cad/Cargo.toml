@@ -23,7 +23,7 @@ truck-geometry = "0.5"
 delaunator = "1"
 cdt = "0.1"
 roxmltree = "0.20"
-proj = { version = "0.30", features = ["network"] }
+proj = { version = "0.30", default-features = false }
 proj-sys = "0.26"
 shapefile = { version = "0.7", optional = true }
 las = { version = "0.9", optional = true }
@@ -52,3 +52,4 @@ kml = ["dep:kml"]
 fgdb = ["dep:gdal"]
 e57 = ["dep:e57", "dep:uuid"]
 reporting = ["dep:genpdf", "dep:umya-spreadsheet"]
+network = ["proj/network"]
