@@ -1,13 +1,15 @@
+use once_cell::sync::Lazy;
 use regex::Regex;
 use crate::geometry::Point;
 use crate::layers::{LayerManager};
 use crate::geometry;
 
 /// Returns layer names that do not conform to `^[A-Z0-9_]+$`.
+static LAYER_NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new("^[A-Z0-9_]+$").unwrap());
+
 pub fn check_layer_naming(mgr: &LayerManager) -> Vec<String> {
-    let re = Regex::new("^[A-Z0-9_]+$").unwrap();
     mgr.names()
-        .filter(|name| !re.is_match(name))
+        .filter(|name| !LAYER_NAME_RE.is_match(name))
         .map(|s| s.to_string())
         .collect()
 }
