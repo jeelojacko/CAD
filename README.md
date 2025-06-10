@@ -155,6 +155,9 @@ GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
 and pull request. The workflow fails if clippy reports warnings or any tests
 fail.
 
+Tagged commits start an additional workflow that builds `survey_cad_cli` on
+Windows and attaches the zipped executable to the corresponding GitHub release.
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
