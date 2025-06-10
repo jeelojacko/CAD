@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
+use bevy::log::warn;
 use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
@@ -1148,21 +1149,25 @@ fn create_line(
     selected: Res<SelectedPoints>,
 ) {
     if keys.just_pressed(KeyCode::KeyL) && selected.0.len() == 2 {
-        let a = points.get(selected.0[0]).unwrap().translation;
-        let b = points.get(selected.0[1]).unwrap().translation;
-        commands.spawn((
-            Sprite {
-                color: Color::WHITE,
-                custom_size: Some(Vec2::new(a.distance(b), 2.0)),
-                ..default()
-            },
-            Transform::from_translation((a + b) / 2.0)
-                .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
-            CadLine {
-                start: selected.0[0],
-                end: selected.0[1],
-            },
-        ));
+        if let (Ok(a), Ok(b)) = (points.get(selected.0[0]), points.get(selected.0[1])) {
+            let a = a.translation;
+            let b = b.translation;
+            commands.spawn((
+                Sprite {
+                    color: Color::WHITE,
+                    custom_size: Some(Vec2::new(a.distance(b), 2.0)),
+                    ..default()
+                },
+                Transform::from_translation((a + b) / 2.0)
+                    .with_rotation(Quat::from_rotation_z((b - a).y.atan2((b - a).x))),
+                CadLine {
+                    start: selected.0[0],
+                    end: selected.0[1],
+                },
+            ));
+        } else {
+            warn!("cannot create line; missing selected points");
+        }
     }
 }
 
@@ -1171,11 +1176,15 @@ fn update_lines(
     points: Query<&Transform, With<CadPoint>>,
 ) {
     for (line, mut t, mut s) in &mut lines {
-        let a = points.get(line.start).unwrap().translation;
-        let b = points.get(line.end).unwrap().translation;
-        s.custom_size = Some(Vec2::new(a.distance(b), 2.0));
-        t.translation = (a + b) / 2.0;
-        t.rotation = Quat::from_rotation_z((b - a).y.atan2((b - a).x));
+        if let (Ok(a), Ok(b)) = (points.get(line.start), points.get(line.end)) {
+            let a = a.translation;
+            let b = b.translation;
+            s.custom_size = Some(Vec2::new(a.distance(b), 2.0));
+            t.translation = (a + b) / 2.0;
+            t.rotation = Quat::from_rotation_z((b - a).y.atan2((b - a).x));
+        } else {
+            warn!("skipping line update; point entity not found");
+        }
     }
 }
 
@@ -2090,6 +2099,48 @@ fn update_lod_meshes(
         };
         if mesh.0 != *target {
             mesh.0 = target.clone();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_line_missing_points() {
+        let mut app = App::new();
+        app.add_systems(Update, create_line);
+
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyL);
+        app.insert_resource(input);
+        app.insert_resource(SelectedPoints(vec![Entity::from_raw(1), Entity::from_raw(2)]));
+
+        app.update();
+
+        let mut world = app.world_mut();
+        assert_eq!(world.query::<&CadLine>().iter(&world).count(), 0);
+    }
+
+    // Ensure that lines referencing missing points do not cause a panic
+    #[test]
+    fn update_line_missing_points() {
+        let mut world = World::new();
+        world.spawn((
+            CadLine { start: Entity::from_raw(1), end: Entity::from_raw(2) },
+            Transform::default(),
+            Sprite::default(),
+        ));
+
+        let mut lines = world.query::<&CadLine>();
+        for line in lines.iter(&world) {
+            if let (Some(_a), Some(_b)) = (
+                world.get::<Transform>(line.start),
+                world.get::<Transform>(line.end),
+            ) {
+                // No panic when points are missing
+            }
         }
     }
 }
