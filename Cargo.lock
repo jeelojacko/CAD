@@ -5509,6 +5509,7 @@ dependencies = [
  "las",
  "log",
  "nalgebra",
+ "once_cell",
  "predicates 2.1.5",
  "proj",
  "proj-sys",
