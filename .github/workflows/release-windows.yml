@@ -27,7 +27,7 @@ jobs:
           mkdir dist
           cp target/release/survey_cad_cli.exe dist/
           cd dist
-          zip survey_cad_cli-windows.zip survey_cad_cli.exe
+          7z a survey_cad_cli-windows.zip survey_cad_cli.exe
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
