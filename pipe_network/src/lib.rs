@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::{self, Write};
 
@@ -132,7 +133,11 @@ pub fn read_slope_rules_csv(path: &str) -> io::Result<Vec<SlopeRule>> {
         });
     }
     // sort ascending by min_diameter for easier lookup
-    rules.sort_by(|a, b| a.min_diameter.partial_cmp(&b.min_diameter).unwrap());
+    rules.sort_by(|a, b| {
+        a.min_diameter
+            .partial_cmp(&b.min_diameter)
+            .unwrap_or(Ordering::Equal)
+    });
     Ok(rules)
 }
 
@@ -146,14 +151,7 @@ pub fn write_network_csv(net: &Network, structs: &str, pipes: &str) -> io::Resul
         writeln!(
             p_file,
             "{},{},{},{},{},{},{},{}",
-            p.id,
-            p.from,
-            p.to,
-            p.diameter,
-            p.c,
-            p.start_invert,
-            p.end_invert,
-            p.design_flow
+            p.id, p.from, p.to, p.diameter, p.c, p.start_invert, p.end_invert, p.design_flow
         )?;
     }
     Ok(())
@@ -265,7 +263,11 @@ pub fn apply_slope_rules(net: &mut Network, rules: &[SlopeRule]) {
             let slope = rules
                 .iter()
                 .filter(|r| pipe.diameter >= r.min_diameter)
-                .max_by(|a, b| a.min_diameter.partial_cmp(&b.min_diameter).unwrap())
+                .max_by(|a, b| {
+                    a.min_diameter
+                        .partial_cmp(&b.min_diameter)
+                        .unwrap_or(Ordering::Equal)
+                })
                 .map(|r| r.slope)
                 .unwrap_or(0.0);
             pipe.end_invert = pipe.start_invert - slope * length;
@@ -337,7 +339,9 @@ pub fn analyze_network(net: &Network) -> Vec<PipeAnalysis> {
     let idx = net.structure_index();
     let mut results = Vec::new();
     for pipe in &net.pipes {
-        if let (Some(&a_idx), Some(&b_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
+        if let (Some(&a_idx), Some(&b_idx)) =
+            (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str()))
+        {
             let a = &net.structures[a_idx];
             let b = &net.structures[b_idx];
             let length = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
@@ -365,7 +369,9 @@ pub fn analyze_network_detailed(net: &Network) -> Vec<DetailedPipeAnalysis> {
     let idx = net.structure_index();
     let mut results = Vec::new();
     for pipe in &net.pipes {
-        if let (Some(&a_idx), Some(&b_idx)) = (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str())) {
+        if let (Some(&a_idx), Some(&b_idx)) =
+            (idx.get(pipe.from.as_str()), idx.get(pipe.to.as_str()))
+        {
             let a = &net.structures[a_idx];
             let b = &net.structures[b_idx];
             let length = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
@@ -442,7 +448,10 @@ pub fn write_analysis_landxml(path: &str, results: &[PipeAnalysis]) -> io::Resul
 }
 
 /// Write detailed pipe analysis results to LandXML.
-pub fn write_detailed_analysis_landxml(path: &str, results: &[DetailedPipeAnalysis]) -> io::Result<()> {
+pub fn write_detailed_analysis_landxml(
+    path: &str,
+    results: &[DetailedPipeAnalysis],
+) -> io::Result<()> {
     let mut xml = String::new();
     xml.push_str("<?xml version=\"1.0\"?>\n<LandXML>\n  <PipeResults>\n");
     for r in results {
@@ -537,8 +546,18 @@ mod tests {
     fn analyze_network_basic() {
         let net = Network {
             structures: vec![
-                Structure { id: "A".into(), x: 0.0, y: 0.0, z: 1.0 },
-                Structure { id: "B".into(), x: 10.0, y: 0.0, z: 1.0 },
+                Structure {
+                    id: "A".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
+                Structure {
+                    id: "B".into(),
+                    x: 10.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
             ],
             pipes: vec![Pipe {
                 id: "P".into(),
@@ -560,8 +579,18 @@ mod tests {
     fn apply_rules_and_detailed_analysis() {
         let mut net = Network {
             structures: vec![
-                Structure { id: "A".into(), x: 0.0, y: 0.0, z: 2.0 },
-                Structure { id: "B".into(), x: 20.0, y: 0.0, z: 2.0 },
+                Structure {
+                    id: "A".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    z: 2.0,
+                },
+                Structure {
+                    id: "B".into(),
+                    x: 20.0,
+                    y: 0.0,
+                    z: 2.0,
+                },
             ],
             pipes: vec![Pipe {
                 id: "P".into(),
@@ -574,7 +603,10 @@ mod tests {
                 design_flow: 0.4,
             }],
         };
-        let rules = vec![SlopeRule { min_diameter: 0.0, slope: 0.01 }];
+        let rules = vec![SlopeRule {
+            min_diameter: 0.0,
+            slope: 0.01,
+        }];
         apply_slope_rules(&mut net, &rules);
         assert!(net.pipes[0].end_invert < net.pipes[0].start_invert);
         let det = analyze_network_detailed(&net);
@@ -610,5 +642,56 @@ mod tests {
         .unwrap();
         let res = read_network_landxml(f.path().to_str().unwrap());
         assert!(res.is_err());
+    }
+
+    #[test]
+    fn slope_rules_nan_sort() {
+        let mut f = NamedTempFile::new().unwrap();
+        writeln!(f, "0,0.01").unwrap();
+        writeln!(f, "NaN,0.02").unwrap();
+        let res = read_slope_rules_csv(f.path().to_str().unwrap()).unwrap();
+        assert_eq!(res.len(), 2);
+    }
+
+    #[test]
+    fn apply_rules_with_nan() {
+        let mut net = Network {
+            structures: vec![
+                Structure {
+                    id: "A".into(),
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
+                Structure {
+                    id: "B".into(),
+                    x: 10.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
+            ],
+            pipes: vec![Pipe {
+                id: "P".into(),
+                from: "A".into(),
+                to: "B".into(),
+                diameter: 0.3,
+                c: 100.0,
+                start_invert: 1.0,
+                end_invert: 1.0,
+                design_flow: 0.0,
+            }],
+        };
+        let rules = vec![
+            SlopeRule {
+                min_diameter: f64::NAN,
+                slope: 0.02,
+            },
+            SlopeRule {
+                min_diameter: 0.0,
+                slope: 0.01,
+            },
+        ];
+        apply_slope_rules(&mut net, &rules);
+        assert!(net.pipes[0].end_invert < net.pipes[0].start_invert);
     }
 }
