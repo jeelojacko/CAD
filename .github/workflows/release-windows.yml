@@ -29,6 +29,7 @@ jobs:
           cd dist
           7z a survey_cad_cli-windows.zip survey_cad_cli.exe
       - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
           files: dist/survey_cad_cli-windows.zip
