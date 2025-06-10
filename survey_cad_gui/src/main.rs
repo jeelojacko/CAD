@@ -1254,24 +1254,25 @@ fn maybe_update_surface(
         for e in &existing {
             commands.entity(e).despawn_recursive();
         }
-        let tin = build_tin(&data);
-        let high_mesh = build_surface_mesh(&tin);
-        let low_mesh = build_lowres_surface_mesh(&tin);
-        let handle = meshes.add(high_mesh);
-        let low_handle = meshes.add(low_mesh);
-        let mat = materials.add(StandardMaterial {
-            base_color: Color::srgb(0.0, 1.0, 0.0),
-            ..default()
-        });
-        commands
-            .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
-            .insert(SurfaceMesh)
-            .insert(LevelOfDetail {
-                high: handle.clone(),
-                low: low_handle.clone(),
-                threshold: 2.0,
+        if let Some(tin) = build_tin(&data) {
+            let high_mesh = build_surface_mesh(&tin);
+            let low_mesh = build_lowres_surface_mesh(&tin);
+            let handle = meshes.add(high_mesh);
+            let low_handle = meshes.add(low_mesh);
+            let mat = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.0, 1.0, 0.0),
+                ..default()
             });
-        tin_res.0.push(tin);
+            commands
+                .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
+                .insert(SurfaceMesh)
+                .insert(LevelOfDetail {
+                    high: handle.clone(),
+                    low: low_handle.clone(),
+                    threshold: 2.0,
+                });
+            tin_res.0.push(tin);
+        }
         dirty_flag.0 = false;
     }
 }
@@ -1387,10 +1388,8 @@ fn handle_add_hole(
                 println!("Removed hole with {} vertices", hole.len());
             } else {
                 data.holes.push(hole);
-                println!(
-                    "Added hole with {} vertices",
-                    data.holes.last().unwrap().len()
-                );
+                let len = data.holes.last().map(|h| h.len()).unwrap_or(0);
+                println!("Added hole with {} vertices", len);
             }
             dirty.0 = true;
         }
@@ -1450,14 +1449,19 @@ fn handle_corridor_buttons(
     }
 }
 
-fn build_tin(data: &SurfaceData) -> survey_cad::dtm::Tin {
-    survey_cad::dtm::Tin::from_points_constrained_with_holes(
+fn build_tin(data: &SurfaceData) -> Option<survey_cad::dtm::Tin> {
+    match survey_cad::dtm::Tin::from_points_constrained_with_holes(
         data.vertices.clone(),
         Some(&data.breaklines),
         None,
         &data.holes,
-    )
-    .unwrap()
+    ) {
+        Ok(tin) => Some(tin),
+        Err(err) => {
+            warn!("Failed to build TIN: {err}");
+            None
+        }
+    }
 }
 
 fn handle_build_surface(
@@ -1476,24 +1480,25 @@ fn handle_build_surface(
         for e in &existing {
             commands.entity(e).despawn_recursive();
         }
-        let tin = build_tin(&data);
-        let high_mesh = build_surface_mesh(&tin);
-        let low_mesh = build_lowres_surface_mesh(&tin);
-        let handle = meshes.add(high_mesh);
-        let low_handle = meshes.add(low_mesh);
-        let mat = materials.add(StandardMaterial {
-            base_color: Color::srgb(0.0, 1.0, 0.0),
-            ..default()
-        });
-        commands
-            .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
-            .insert(SurfaceMesh)
-            .insert(LevelOfDetail {
-                high: handle.clone(),
-                low: low_handle.clone(),
-                threshold: 2.0,
+        if let Some(tin) = build_tin(&data) {
+            let high_mesh = build_surface_mesh(&tin);
+            let low_mesh = build_lowres_surface_mesh(&tin);
+            let handle = meshes.add(high_mesh);
+            let low_handle = meshes.add(low_mesh);
+            let mat = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.0, 1.0, 0.0),
+                ..default()
             });
-        tin_res.0.push(tin);
+            commands
+                .spawn((Mesh3d(handle.clone()), MeshMaterial3d(mat)))
+                .insert(SurfaceMesh)
+                .insert(LevelOfDetail {
+                    high: handle.clone(),
+                    low: low_handle.clone(),
+                    threshold: 2.0,
+                });
+            tin_res.0.push(tin);
+        }
     }
 }
 
@@ -1618,7 +1623,7 @@ fn handle_show_sections(
                     (a.1.station - keep_station)
                         .abs()
                         .partial_cmp(&(b.1.station - keep_station).abs())
-                        .unwrap()
+                        .unwrap_or(std::cmp::Ordering::Equal)
                 }) {
                     view.current = idx;
                     view.station = view.sections[idx].station;
@@ -1960,7 +1965,13 @@ fn handle_open_button(
     use survey_cad::io::{landxml, read_points_csv};
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(path) = rfd::FileDialog::new().pick_file() {
-            let path_str = path.to_str().unwrap();
+            let path_str = match path.to_str() {
+                Some(s) => s,
+                None => {
+                    warn!("Selected path could not be read as UTF-8");
+                    return;
+                }
+            };
             for e in &points {
                 commands.entity(e).despawn_recursive();
             }
@@ -2047,7 +2058,13 @@ fn handle_save_button(
     use survey_cad::io::{landxml, write_points_csv};
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(path) = rfd::FileDialog::new().save_file() {
-            let path_str = path.to_str().unwrap();
+            let path_str = match path.to_str() {
+                Some(s) => s,
+                None => {
+                    warn!("Selected path could not be read as UTF-8");
+                    return;
+                }
+            };
             let lower = path_str.to_ascii_lowercase();
             if lower.ends_with(".csv") {
                 let mut pts = Vec::new();
