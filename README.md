@@ -155,10 +155,11 @@ GitHub Actions automatically runs `cargo clippy` and `cargo test` for every push
 and pull request. The workflow fails if clippy reports warnings or any tests
 fail.
 
-Tagged commits start an additional workflow that builds `survey_cad_cli` on
-Windows and attaches the zipped executable to the corresponding GitHub release.
-Manual runs of this workflow automatically create a timestamped tag so
-releases can be generated without manually pushing a new tag.
+Tagged commits start an additional workflow that builds both `survey_cad_cli`
+and `survey_cad_gui` on Windows. The zipped executables are attached to the
+corresponding GitHub release. Manual runs of this workflow automatically create
+a timestamped tag so releases can be generated without manually pushing a new
+tag.
 
 ## License
 

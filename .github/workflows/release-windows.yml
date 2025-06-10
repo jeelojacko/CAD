@@ -24,13 +24,17 @@ jobs:
         run: choco install -y sqlite
       - name: Build CLI
         run: cargo build -p survey_cad_cli --release
-      - name: Package Binary
+      - name: Build GUI
+        run: cargo build -p survey_cad_gui --release
+      - name: Package Binaries
         shell: bash
         run: |
           mkdir dist
           cp target/release/survey_cad_cli.exe dist/
+          cp target/release/survey_cad_gui.exe dist/
           cd dist
           7z a survey_cad_cli-windows.zip survey_cad_cli.exe
+          7z a survey_cad_gui-windows.zip survey_cad_gui.exe
       - name: Prepare Release Tag
         id: tag
         shell: bash
@@ -49,6 +53,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          files: dist/survey_cad_cli-windows.zip
+          files: |
+            dist/survey_cad_cli-windows.zip
+            dist/survey_cad_gui-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
