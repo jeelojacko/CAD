@@ -2,6 +2,81 @@
 
 use proj::Proj;
 
+/// Reusable transformation object between two coordinate reference systems.
+///
+/// The underlying PROJ context is not thread safe, therefore
+/// `CrsTransformer` should not be shared between threads. Construct a new
+/// transformer per thread if needed.
+#[derive(Debug)]
+pub struct CrsTransformer {
+    ctx: *mut proj_sys::PJ_CONTEXT,
+    pj: *mut proj_sys::PJ,
+    // raw pointers are Send + Sync by default, but the PROJ context isn't
+    // thread-safe. Use `Rc` to opt-out of automatic Send/Sync impls.
+    _nosend: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+
+impl Drop for CrsTransformer {
+    fn drop(&mut self) {
+        unsafe {
+            proj_sys::proj_destroy(self.pj);
+            proj_sys::proj_context_destroy(self.ctx);
+        }
+    }
+}
+
+impl CrsTransformer {
+    /// Builds a new transformation between `source` and `target` CRS.
+    pub fn new(source: &Crs, target: &Crs) -> Option<Self> {
+        use proj_sys::*;
+        use std::ffi::CString;
+
+        unsafe {
+            let ctx = proj_context_create();
+            if ctx.is_null() {
+                return None;
+            }
+            // allow grid downloads for datum shifts and geoid transformations
+            proj_context_set_enable_network(ctx, 1);
+
+            let from_c = CString::new(source.definition.as_str()).ok()?;
+            let to_c = CString::new(target.definition.as_str()).ok()?;
+            let area = proj_area_create();
+            let mut pj = proj_create_crs_to_crs(ctx, from_c.as_ptr(), to_c.as_ptr(), area);
+            proj_area_destroy(area);
+            if pj.is_null() {
+                proj_context_destroy(ctx);
+                return None;
+            }
+            pj = proj_normalize_for_visualization(ctx, pj);
+            if pj.is_null() {
+                proj_context_destroy(ctx);
+                return None;
+            }
+            Some(Self {
+                ctx,
+                pj,
+                _nosend: std::marker::PhantomData,
+            })
+        }
+    }
+
+    /// Transforms a 3D point using the prepared transformation.
+    pub fn transform(&self, x: f64, y: f64, z: f64) -> Option<(f64, f64, f64)> {
+        use proj_sys::*;
+        unsafe {
+            let coord = PJ_COORD {
+                xyzt: PJ_XYZT { x, y, z, t: 0.0 },
+            };
+            let res = proj_trans(self.pj, PJ_DIRECTION_PJ_FWD, coord);
+            if proj_errno(self.pj) != 0 {
+                return None;
+            }
+            Some((res.xyzt.x, res.xyzt.y, res.xyzt.z))
+        }
+    }
+}
+
 /// Representation of a coordinate reference system.
 ///
 /// A CRS is stored internally as a definition string which can be an EPSG
@@ -85,41 +160,7 @@ impl Crs {
         y: f64,
         z: f64,
     ) -> Option<(f64, f64, f64)> {
-        use std::ffi::CString;
-        use proj_sys::*;
-
-        unsafe {
-            let ctx = proj_context_create();
-            if ctx.is_null() {
-                return None;
-            }
-            // allow grid downloads for datum shifts and geoid transformations
-            proj_context_set_enable_network(ctx, 1);
-
-            let from_c = CString::new(self.definition.as_str()).ok()?;
-            let to_c = CString::new(target.definition.as_str()).ok()?;
-            let area = proj_area_create();
-            let mut pj = proj_create_crs_to_crs(ctx, from_c.as_ptr(), to_c.as_ptr(), area);
-            if pj.is_null() {
-                proj_area_destroy(area);
-                proj_context_destroy(ctx);
-                return None;
-            }
-            pj = proj_normalize_for_visualization(ctx, pj);
-            let coord = PJ_COORD {
-                xyzt: PJ_XYZT {
-                    x,
-                    y,
-                    z,
-                    t: 0.0,
-                },
-            };
-            let res = proj_trans(pj, PJ_DIRECTION_PJ_FWD, coord);
-            proj_destroy(pj);
-            proj_area_destroy(area);
-            proj_context_destroy(ctx);
-            Some((res.xyzt.x, res.xyzt.y, res.xyzt.z))
-        }
+        CrsTransformer::new(self, target)?.transform(x, y, z)
     }
 }
 

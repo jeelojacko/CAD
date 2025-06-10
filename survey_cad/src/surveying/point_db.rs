@@ -1,7 +1,7 @@
 use super::field_code::FieldCode;
 use super::Traverse;
 use super::{adjust_network, AdjustResult, Observation};
-use crate::crs::Crs;
+use crate::crs::{Crs, CrsTransformer};
 use crate::geometry::{Point, Point3, Polyline};
 use crate::parcel::Parcel;
 use chrono::{DateTime, Utc};
@@ -116,15 +116,31 @@ impl PointDatabase {
         if src == dst {
             return;
         }
-        for p in &mut self.points {
-            if let Some((x, y, z)) = src.transform_point3d(&dst, p.point.x, p.point.y, p.point.z) {
-                p.point.x = x;
-                p.point.y = y;
-                p.point.z = z;
-            } else if let Some((x, y)) = src.transform_point(&dst, p.point.x, p.point.y) {
-                // Fallback to 2D if 3D transform fails
-                p.point.x = x;
-                p.point.y = y;
+        if let Some(trans) = crate::crs::CrsTransformer::new(&src, &dst) {
+            for p in &mut self.points {
+                if let Some((x, y, z)) = trans.transform(p.point.x, p.point.y, p.point.z) {
+                    p.point.x = x;
+                    p.point.y = y;
+                    p.point.z = z;
+                } else if let Some((x, y)) = src.transform_point(&dst, p.point.x, p.point.y) {
+                    // Fallback to 2D if 3D transform fails
+                    p.point.x = x;
+                    p.point.y = y;
+                }
+            }
+        } else {
+            for p in &mut self.points {
+                if let Some((x, y, z)) =
+                    src.transform_point3d(&dst, p.point.x, p.point.y, p.point.z)
+                {
+                    p.point.x = x;
+                    p.point.y = y;
+                    p.point.z = z;
+                } else if let Some((x, y)) = src.transform_point(&dst, p.point.x, p.point.y) {
+                    // Fallback to 2D if 3D transform fails
+                    p.point.x = x;
+                    p.point.y = y;
+                }
             }
         }
     }
