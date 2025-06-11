@@ -4,6 +4,7 @@ members = [
     "survey_cad_cli",
     "bevy_pmetra",
     "survey_cad_gui",
+    "slint_bevy_example",
     "cad_import", "pipe_network",
     "survey_cad_python",
 ]
