@@ -1,0 +1,60 @@
+name: Release Windows Slint GUI
+
+on:
+  push:
+    tags:
+      - 'slint-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - uses: Swatinem/rust-cache@v2
+      - name: Install SQLite3
+        run: choco install -y sqlite
+      - name: Build CLI
+        run: cargo build -p survey_cad_cli --release
+      - name: Build Slint GUI
+        run: cargo build -p survey_cad_slint_gui --release
+      - name: Package Binaries
+        shell: bash
+        run: |
+          mkdir dist
+          cp target/release/survey_cad_cli.exe dist/
+          cp target/release/survey_cad_slint_gui.exe dist/
+          cd dist
+          7z a survey_cad_cli-windows.zip survey_cad_cli.exe
+          7z a survey_cad_slint_gui-windows.zip survey_cad_slint_gui.exe
+      - name: Prepare Release Tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="slint-v$(date +'%Y%m%d%H%M%S')"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: |
+            dist/survey_cad_cli-windows.zip
+            dist/survey_cad_slint_gui-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
