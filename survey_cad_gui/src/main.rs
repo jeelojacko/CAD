@@ -1095,7 +1095,7 @@ fn handle_mouse_clicks(
         dragging.0 = None;
         if drag_box.active {
             drag_box.active = false;
-            if let Some(_) = cursor_world_pos(&windows, &camera_q) {
+            if cursor_world_pos(&windows, &camera_q).is_some() {
                 let min_x = drag_box.start.x.min(drag_box.end.x);
                 let max_x = drag_box.start.x.max(drag_box.end.x);
                 let min_y = drag_box.start.y.min(drag_box.end.y);
@@ -1357,7 +1357,7 @@ fn highlight_selected_points(
 ) {
     for (e, mut sprite) in &mut points {
         if selected.0.contains(&e) {
-            sprite.color = Color::rgb(0.2, 0.6, 1.0);
+            sprite.color = Color::srgb(0.2, 0.6, 1.0);
         } else {
             sprite.color = Color::srgb(1.0, 0.0, 0.0);
         }
@@ -1920,7 +1920,7 @@ fn handle_select_button(
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         mode.0 = !mode.0;
-        println!("Select mode {}", if mode.0 {"on"} else {"off"});
+        println!("Select mode {}", if mode.0 { "on" } else { "off" });
     }
 }
 
@@ -2255,8 +2255,12 @@ fn handle_new_button(
     mut dirty: ResMut<SurfaceDirty>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        for e in &points { commands.entity(e).despawn_recursive(); }
-        for e in &surfaces { commands.entity(e).despawn_recursive(); }
+        for e in &points {
+            commands.entity(e).despawn_recursive();
+        }
+        for e in &surfaces {
+            commands.entity(e).despawn_recursive();
+        }
         alignment.points.clear();
         surface_data.vertices.clear();
         surface_data.breaklines.clear();
@@ -2338,11 +2342,11 @@ fn handle_open_button(
                         match elem {
                             Tangent { start, end } => {
                                 let a = spawn_point(&mut commands, start);
-                        let b = spawn_point(&mut commands, end);
-                        alignment.points.push(a);
-                        alignment.points.push(b);
-                    }
-                    Curve { arc } => {
+                                let b = spawn_point(&mut commands, end);
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                            Curve { arc } => {
                                 let s = Point::new(
                                     arc.center.x + arc.radius * arc.start_angle.cos(),
                                     arc.center.y + arc.radius * arc.start_angle.sin(),
@@ -2352,19 +2356,19 @@ fn handle_open_button(
                                     arc.center.y + arc.radius * arc.end_angle.sin(),
                                 );
                                 let a = spawn_point(&mut commands, s);
-                        let b = spawn_point(&mut commands, e);
-                        alignment.points.push(a);
-                        alignment.points.push(b);
+                                let b = spawn_point(&mut commands, e);
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                            Spiral { spiral } => {
+                                let a = spawn_point(&mut commands, spiral.start_point());
+                                let b = spawn_point(&mut commands, spiral.end_point());
+                                alignment.points.push(a);
+                                alignment.points.push(b);
+                            }
+                        }
+                        alignment.set_changed();
                     }
-                    Spiral { spiral } => {
-                        let a = spawn_point(&mut commands, spiral.start_point());
-                        let b = spawn_point(&mut commands, spiral.end_point());
-                        alignment.points.push(a);
-                        alignment.points.push(b);
-                    }
-                }
-                alignment.set_changed();
-            }
                 }
             } else if lower.ends_with(".shp") {
                 #[cfg(feature = "shapefile")]
