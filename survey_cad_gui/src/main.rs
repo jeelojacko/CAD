@@ -169,6 +169,14 @@ struct OpenButton;
 struct SaveButton;
 
 #[derive(Component)]
+struct FileMenuButton;
+
+#[derive(Resource, Default)]
+struct FileMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Component)]
 struct CorridorButton(CorridorControl);
 
 #[derive(Clone, Copy)]
@@ -329,6 +337,7 @@ fn main() {
         .insert_resource(SectionsVisible::default())
         .insert_resource(PlanVisible::default())
         .insert_resource(ContextMenuState::default())
+        .insert_resource(FileMenuState::default())
         .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
             Update,
@@ -358,6 +367,7 @@ fn main() {
                 handle_corridor_buttons,
                 handle_build_surface,
                 handle_grade_button,
+                handle_file_menu_button,
                 handle_open_button,
                 handle_save_button,
                 handle_show_plan,
@@ -441,35 +451,90 @@ fn spawn_toolbar(
             BackgroundColor(theme.toolbar_bg),
         ))
         .with_children(|parent| {
-            for label in ["File", "Edit", "View"] {
-                parent
-                    .spawn((
-                        Button,
-                        Node {
-                            margin: UiRect::all(Val::Px(5.0)),
-                            padding: UiRect::new(
-                                Val::Px(10.0),
-                                Val::Px(10.0),
-                                Val::Px(5.0),
-                                Val::Px(5.0),
-                            ),
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
                             ..default()
                         },
-                        BackgroundColor(theme.button_bg),
-                    ))
-                    .with_children(|button| {
-                        button.spawn((
-                            TextLayout::default(),
-                            TextFont {
-                                font: asset_server.load("FiraMono-subset.ttf"),
-                                font_size: 14.0,
-                                ..default()
-                            },
-                            TextColor(theme.text),
-                            Text::new(label),
-                        ));
-                    });
-            }
+                        TextColor(theme.text),
+                        Text::new("File"),
+                    ));
+                })
+                .insert(FileMenuButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Edit"),
+                    ));
+                });
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("View"),
+                    ));
+                });
 
             parent
                 .spawn((
@@ -504,37 +569,7 @@ fn spawn_toolbar(
                     ));
                 });
 
-            parent
-                .spawn(Button)
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("FiraMono-subset.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor(theme.text),
-                        Text::new("Open"),
-                    ));
-                })
-                .insert(OpenButton);
-
-            parent
-                .spawn(Button)
-                .with_children(|b| {
-                    b.spawn((
-                        TextLayout::default(),
-                        TextFont {
-                            font: asset_server.load("FiraMono-subset.ttf"),
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor(theme.text),
-                        Text::new("Save"),
-                    ));
-                })
-                .insert(SaveButton);
+            // Open/Save buttons are spawned dynamically from the File menu
         });
 }
 
@@ -1062,6 +1097,7 @@ fn drag_point(
                             v.x = pos.x as f64;
                             v.y = pos.y as f64;
                             dirty.0 = true;
+                            data.set_changed();
                         }
                     }
                 }
@@ -1115,6 +1151,7 @@ fn handle_context_menu_buttons(
                                 if let Some(v) = data.vertices.get_mut(idx) {
                                     v.z = t.translation.z as f64;
                                     dirty.0 = true;
+                                    data.set_changed();
                                 }
                             }
                         }
@@ -1128,6 +1165,7 @@ fn handle_context_menu_buttons(
                                 if let Some(v) = data.vertices.get_mut(idx) {
                                     v.z = t.translation.z as f64;
                                     dirty.0 = true;
+                                    data.set_changed();
                                 }
                             }
                         }
@@ -1163,6 +1201,7 @@ fn handle_point_elevation(
                     if let Some(v) = data.vertices.get_mut(idx) {
                         v.z = t.translation.z as f64;
                         dirty.0 = true;
+                        data.set_changed();
                     }
                 }
             }
@@ -1340,6 +1379,7 @@ fn handle_add_surface(
                 ));
                 data.point_map.insert(*e, idx);
                 dirty.0 = true;
+                data.set_changed();
             }
         }
     }
@@ -1389,6 +1429,7 @@ fn handle_add_breakline(
                     println!("Added breakline between {} and {}", i1, i2);
                 }
                 dirty.0 = true;
+                data.set_changed();
             }
         }
     }
@@ -1419,6 +1460,7 @@ fn handle_add_hole(
                 println!("Added hole with {} vertices", len);
             }
             dirty.0 = true;
+            data.set_changed();
         }
     }
 }
@@ -1477,6 +1519,10 @@ fn handle_corridor_buttons(
 }
 
 fn build_tin(data: &SurfaceData) -> Option<survey_cad::dtm::Tin> {
+    if data.vertices.len() < 3 {
+        warn!("Failed to build TIN: too few points");
+        return None;
+    }
     match survey_cad::dtm::Tin::from_points_constrained_with_holes(
         data.vertices.clone(),
         Some(&data.breaklines),
@@ -1729,6 +1775,66 @@ fn handle_grade_button(
                     println!("Daylight at ({:.2}, {:.2}, {:.2})", p.x, p.y, p.z);
                 }
             }
+        }
+    }
+}
+
+fn handle_file_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<FileMenuButton>)>,
+    mut state: ResMut<FileMenuState>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(5.0),
+                        top: Val::Px(30.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .with_children(|parent| {
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Open"),
+                            ));
+                        })
+                        .insert(OpenButton);
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Save"),
+                            ));
+                        })
+                        .insert(SaveButton);
+                })
+                .id();
+            state.entity = Some(menu);
         }
     }
 }
@@ -1991,7 +2097,12 @@ fn handle_open_button(
 ) {
     use survey_cad::io::{landxml, read_points_csv};
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        if let Some(path) = rfd::FileDialog::new().pick_file() {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("CSV", &["csv"])
+            .add_filter("LandXML", &["xml"])
+            .add_filter("Shapefile", &["shp"])
+            .pick_file()
+        {
             let path_str = match path.to_str() {
                 Some(s) => s,
                 None => {
@@ -2010,6 +2121,8 @@ fn handle_open_button(
             surface_data.breaklines.clear();
             surface_data.holes.clear();
             surface_data.point_map.clear();
+            alignment.set_changed();
+            surface_data.set_changed();
             surface_tin.0.clear();
             surface_dirty.0 = false;
             let lower = path_str.to_ascii_lowercase();
@@ -2031,17 +2144,18 @@ fn handle_open_button(
                         .spawn((Mesh3d(handle), MeshMaterial3d(mat)))
                         .insert(SurfaceMesh);
                     surface_tin.0.push(tin);
+                    surface_data.set_changed();
                 } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
                     for elem in hal.elements {
                         use survey_cad::alignment::HorizontalElement::*;
                         match elem {
                             Tangent { start, end } => {
                                 let a = spawn_point(&mut commands, start);
-                                let b = spawn_point(&mut commands, end);
-                                alignment.points.push(a);
-                                alignment.points.push(b);
-                            }
-                            Curve { arc } => {
+                        let b = spawn_point(&mut commands, end);
+                        alignment.points.push(a);
+                        alignment.points.push(b);
+                    }
+                    Curve { arc } => {
                                 let s = Point::new(
                                     arc.center.x + arc.radius * arc.start_angle.cos(),
                                     arc.center.y + arc.radius * arc.start_angle.sin(),
@@ -2051,18 +2165,19 @@ fn handle_open_button(
                                     arc.center.y + arc.radius * arc.end_angle.sin(),
                                 );
                                 let a = spawn_point(&mut commands, s);
-                                let b = spawn_point(&mut commands, e);
-                                alignment.points.push(a);
-                                alignment.points.push(b);
-                            }
-                            Spiral { spiral } => {
-                                let a = spawn_point(&mut commands, spiral.start_point());
-                                let b = spawn_point(&mut commands, spiral.end_point());
-                                alignment.points.push(a);
-                                alignment.points.push(b);
-                            }
-                        }
+                        let b = spawn_point(&mut commands, e);
+                        alignment.points.push(a);
+                        alignment.points.push(b);
                     }
+                    Spiral { spiral } => {
+                        let a = spawn_point(&mut commands, spiral.start_point());
+                        let b = spawn_point(&mut commands, spiral.end_point());
+                        alignment.points.push(a);
+                        alignment.points.push(b);
+                    }
+                }
+                alignment.set_changed();
+            }
                 }
             } else if lower.ends_with(".shp") {
                 #[cfg(feature = "shapefile")]
@@ -2084,7 +2199,12 @@ fn handle_save_button(
 ) {
     use survey_cad::io::{landxml, write_points_csv};
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        if let Some(path) = rfd::FileDialog::new().save_file() {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("CSV", &["csv"])
+            .add_filter("LandXML", &["xml"])
+            .add_filter("Shapefile", &["shp"])
+            .save_file()
+        {
             let path_str = match path.to_str() {
                 Some(s) => s,
                 None => {
