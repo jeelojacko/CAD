@@ -45,6 +45,13 @@ struct Dragging(Option<Entity>);
 #[derive(Resource, Default)]
 struct SelectMode(bool);
 
+#[derive(Resource, Default)]
+struct DragSelect {
+    active: bool,
+    start: Vec2,
+    end: Vec2,
+}
+
 #[derive(Component)]
 struct CadPoint;
 
@@ -355,6 +362,7 @@ fn main() {
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
         .insert_resource(SelectMode::default())
+        .insert_resource(DragSelect::default())
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
         .insert_resource(SurfaceTins::default())
@@ -386,6 +394,7 @@ fn main() {
                 maybe_update_surface,
                 camera_pan_zoom,
                 handle_view_toggle,
+                highlight_selected_points,
                 update_lod_meshes,
             ),
         )
@@ -1025,8 +1034,8 @@ fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
 }
 
 fn cursor_world_pos(
-    windows: Query<&Window>,
-    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
+    windows: &Query<&Window>,
+    camera_q: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,
 ) -> Option<Vec2> {
     let (camera, cam_transform) = camera_q.single();
     windows
@@ -1044,13 +1053,14 @@ fn handle_mouse_clicks(
     mut selected: ResMut<SelectedPoints>,
     mut dragging: ResMut<Dragging>,
     mode: Res<SelectMode>,
+    mut drag_box: ResMut<DragSelect>,
     ui_buttons: Query<&Interaction, With<Button>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if ui_buttons.iter().any(|i| *i != Interaction::None) {
             return;
         }
-        if let Some(pos) = cursor_world_pos(windows, camera_q) {
+        if let Some(pos) = cursor_world_pos(&windows, &camera_q) {
             let mut hit = None;
             for (e, t) in &points {
                 if t.translation.truncate().distance(pos) < 5.0 {
@@ -1067,12 +1077,38 @@ fn handle_mouse_clicks(
                 }
             } else if !mode.0 {
                 let _ = spawn_point(&mut commands, Point::new(pos.x as f64, pos.y as f64));
+            } else {
+                drag_box.active = true;
+                drag_box.start = pos;
+                drag_box.end = pos;
             }
+        }
+    }
+
+    if buttons.pressed(MouseButton::Left) && drag_box.active {
+        if let Some(pos) = cursor_world_pos(&windows, &camera_q) {
+            drag_box.end = pos;
         }
     }
 
     if buttons.just_released(MouseButton::Left) {
         dragging.0 = None;
+        if drag_box.active {
+            drag_box.active = false;
+            if let Some(_) = cursor_world_pos(&windows, &camera_q) {
+                let min_x = drag_box.start.x.min(drag_box.end.x);
+                let max_x = drag_box.start.x.max(drag_box.end.x);
+                let min_y = drag_box.start.y.min(drag_box.end.y);
+                let max_y = drag_box.start.y.max(drag_box.end.y);
+                selected.0.clear();
+                for (e, t) in &points {
+                    let p = t.translation.truncate();
+                    if p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y {
+                        selected.0.push(e);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1148,7 +1184,7 @@ fn drag_point(
 ) {
     if let Some(e) = dragging.0 {
         if buttons.pressed(MouseButton::Left) {
-            if let Some(pos) = cursor_world_pos(windows, camera_q) {
+            if let Some(pos) = cursor_world_pos(&windows, &camera_q) {
                 if let Ok(mut t) = points.get_mut(e) {
                     t.translation.x = pos.x;
                     t.translation.y = pos.y;
@@ -1311,6 +1347,19 @@ fn update_lines(
             t.rotation = Quat::from_rotation_z((b - a).y.atan2((b - a).x));
         } else {
             warn!("skipping line update; point entity not found");
+        }
+    }
+}
+
+fn highlight_selected_points(
+    mut points: Query<(Entity, &mut Sprite), With<CadPoint>>,
+    selected: Res<SelectedPoints>,
+) {
+    for (e, mut sprite) in &mut points {
+        if selected.0.contains(&e) {
+            sprite.color = Color::rgb(0.2, 0.6, 1.0);
+        } else {
+            sprite.color = Color::srgb(1.0, 0.0, 0.0);
         }
     }
 }
