@@ -381,9 +381,19 @@ fn setup(
     theme: Res<ThemeColors>,
 ) {
     println!("GUI working CRS: {}", working.0.definition());
-    commands.spawn(Camera2d);
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: 1,
+            ..default()
+        },
+    ));
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            order: 0,
+            ..default()
+        },
         Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
         EditorCam::default(),
     ));
@@ -927,7 +937,7 @@ fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
 
 fn cursor_world_pos(
     windows: Query<&Window>,
-    camera_q: Query<(&Camera, &GlobalTransform)>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
 ) -> Option<Vec2> {
     let (camera, cam_transform) = camera_q.single();
     windows
@@ -940,7 +950,7 @@ fn handle_mouse_clicks(
     mut commands: Commands,
     buttons: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
-    camera_q: Query<(&Camera, &GlobalTransform)>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     points: Query<(Entity, &Transform), With<CadPoint>>,
     mut selected: ResMut<SelectedPoints>,
     mut dragging: ResMut<Dragging>,
@@ -1034,7 +1044,7 @@ fn open_context_menu(
 
 fn drag_point(
     windows: Query<&Window>,
-    camera_q: Query<(&Camera, &GlobalTransform)>,
+    camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut points: Query<&mut Transform, With<CadPoint>>,
     dragging: Res<Dragging>,
