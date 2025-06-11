@@ -316,6 +316,7 @@ fn main() {
                 ..default()
             }),
             DefaultEditorCamPlugins,
+            bevy_gizmos::GizmoPlugin::default(),
         ))
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
