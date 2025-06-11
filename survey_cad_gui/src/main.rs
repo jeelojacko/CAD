@@ -5,6 +5,7 @@ use bevy::log::warn;
 use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
+use std::fs::File;
 use survey_cad::geometry::{Point, Point3, Polyline};
 use survey_cad::{crs::Crs, geometry::distance};
 
@@ -283,6 +284,22 @@ impl Default for CorridorParams {
 }
 
 fn main() {
+    if let Ok(path) = std::env::var("SURVEY_CAD_LOG") {
+        match File::create(&path) {
+            Ok(file) => {
+                env_logger::Builder::from_default_env()
+                    .target(env_logger::Target::Pipe(Box::new(file)))
+                    .init();
+            }
+            Err(e) => {
+                eprintln!("Failed to create log file {}: {}", path, e);
+                env_logger::Builder::from_default_env().init();
+            }
+        }
+    } else {
+        env_logger::Builder::from_default_env().init();
+    }
+
     let args = Args::parse();
     println!("Using EPSG {}", args.epsg);
     App::new()
