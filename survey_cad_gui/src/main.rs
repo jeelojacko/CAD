@@ -466,7 +466,7 @@ fn spawn_toolbar(
                                 ..default()
                             },
                             TextColor(theme.text),
-                            TextSpan::new(label),
+                            Text::new(label),
                         ));
                     });
             }
@@ -500,7 +500,7 @@ fn spawn_toolbar(
                             ..default()
                         },
                         TextColor(theme.text),
-                        TextSpan::new(label),
+                        Text::new(label),
                     ));
                 });
 
@@ -515,7 +515,7 @@ fn spawn_toolbar(
                             ..default()
                         },
                         TextColor(theme.text),
-                        TextSpan::new("Open"),
+                        Text::new("Open"),
                     ));
                 })
                 .insert(OpenButton);
@@ -531,7 +531,7 @@ fn spawn_toolbar(
                             ..default()
                         },
                         TextColor(theme.text),
-                        TextSpan::new("Save"),
+                        Text::new("Save"),
                     ));
                 })
                 .insert(SaveButton);
@@ -573,7 +573,7 @@ fn spawn_edit_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    TextSpan::new("Alignment Editor"),
+                    Text::new("Alignment Editor"),
                 ));
                 parent
                     .spawn(Button)
@@ -586,7 +586,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Add Selected"),
+                            Text::new("Add Selected"),
                         ));
                     })
                     .insert(AddAlignmentButton);
@@ -600,7 +600,7 @@ fn spawn_edit_panel(
                     ..default()
                 },
                 TextColor::WHITE,
-                TextSpan::new("Surface Editor"),
+                Text::new("Surface Editor"),
             ));
             if matches!(profile, WorkspaceProfile::Surveyor) {
                 parent
@@ -614,7 +614,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Add Points"),
+                            Text::new("Add Points"),
                         ));
                     })
                     .insert(AddSurfaceButton);
@@ -632,7 +632,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Add Breakline"),
+                            Text::new("Add Breakline"),
                         ));
                     })
                     .insert(AddBreaklineButton);
@@ -650,7 +650,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Add Hole"),
+                            Text::new("Add Hole"),
                         ));
                     })
                     .insert(AddHoleButton);
@@ -668,7 +668,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Add Parcel"),
+                            Text::new("Add Parcel"),
                         ));
                     })
                     .insert(AddParcelButton);
@@ -683,7 +683,7 @@ fn spawn_edit_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    TextSpan::new("Parcel Area: 0"),
+                    Text::new("Parcel Area: 0"),
                 ))
                 .id();
 
@@ -696,7 +696,7 @@ fn spawn_edit_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    TextSpan::new("Grade Result:"),
+                    Text::new("Grade Result:"),
                 ))
                 .id();
 
@@ -712,7 +712,7 @@ fn spawn_edit_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    TextSpan::new("Corridor Params"),
+                    Text::new("Corridor Params"),
                 ));
                 for (label, ctl) in [
                     ("Width -", CorridorControl::WidthDec),
@@ -733,7 +733,7 @@ fn spawn_edit_panel(
                                     ..default()
                                 },
                                 TextColor::WHITE,
-                                TextSpan::new(label),
+                                Text::new(label),
                             ));
                         })
                         .insert(CorridorButton(ctl));
@@ -750,7 +750,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Build Surface"),
+                            Text::new("Build Surface"),
                         ));
                     })
                     .insert(BuildSurfaceButton);
@@ -766,7 +766,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Grade Slope"),
+                            Text::new("Grade Slope"),
                         ));
                     })
                     .insert(GradeButton);
@@ -787,7 +787,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Show Profile"),
+                            Text::new("Show Profile"),
                         ));
                     })
                     .insert(ShowProfileButton);
@@ -803,7 +803,7 @@ fn spawn_edit_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new("Show Sections"),
+                            Text::new("Show Sections"),
                         ));
                     })
                     .insert(ShowSectionsButton);
@@ -820,7 +820,7 @@ fn spawn_edit_panel(
                             ..default()
                         },
                         TextColor::WHITE,
-                        TextSpan::new("Show Plan"),
+                        Text::new("Show Plan"),
                     ));
                 })
                 .insert(ShowPlanButton);
@@ -861,7 +861,7 @@ fn spawn_sections_panel(
                             ..default()
                         },
                         TextColor::WHITE,
-                        TextSpan::new("Prev"),
+                        Text::new("Prev"),
                     ));
                 })
                 .insert(PrevSectionButton);
@@ -874,7 +874,7 @@ fn spawn_sections_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    TextSpan::new("Station: 0.0"),
+                    Text::new("Station: 0.0"),
                 ))
                 .id();
             parent
@@ -888,7 +888,7 @@ fn spawn_sections_panel(
                             ..default()
                         },
                         TextColor::WHITE,
-                        TextSpan::new("Next"),
+                        Text::new("Next"),
                     ));
                 })
                 .insert(NextSectionButton);
@@ -912,7 +912,7 @@ fn spawn_sections_panel(
                                 ..default()
                             },
                             TextColor::WHITE,
-                            TextSpan::new(label),
+                            Text::new(label),
                         ));
                     })
                     .insert(SectionButton(ctl));
@@ -1025,7 +1025,7 @@ fn open_context_menu(
                                         ..default()
                                     },
                                     TextColor::WHITE,
-                                    TextSpan::new(label),
+                                    Text::new(label),
                                 ));
                             })
                             .insert(ContextButton(action));
