@@ -2,6 +2,7 @@
 use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::log::warn;
 use bevy::prelude::*;
+use bevy::ui::FocusPolicy;
 use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
@@ -40,6 +41,9 @@ struct SelectedPoints(Vec<Entity>);
 
 #[derive(Resource, Default)]
 struct Dragging(Option<Entity>);
+
+#[derive(Resource, Default)]
+struct SelectMode(bool);
 
 #[derive(Component)]
 struct CadPoint;
@@ -160,6 +164,9 @@ struct AddHoleButton;
 struct AddParcelButton;
 
 #[derive(Component)]
+struct SelectButton;
+
+#[derive(Component)]
 struct GradeButton;
 
 #[derive(Component)]
@@ -167,6 +174,9 @@ struct OpenButton;
 
 #[derive(Component)]
 struct SaveButton;
+
+#[derive(Component)]
+struct NewButton;
 
 #[derive(Component)]
 struct FileMenuButton;
@@ -328,6 +338,7 @@ fn main() {
         ))
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
+        .insert_resource(SelectMode::default())
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
         .insert_resource(SurfaceTins::default())
@@ -367,7 +378,9 @@ fn main() {
                 handle_corridor_buttons,
                 handle_build_surface,
                 handle_grade_button,
+                handle_select_button,
                 handle_file_menu_button,
+                handle_new_button,
                 handle_open_button,
                 handle_save_button,
                 handle_show_plan,
@@ -450,6 +463,7 @@ fn spawn_toolbar(
             },
             BackgroundColor(theme.toolbar_bg),
         ))
+        .insert(FocusPolicy::Block)
         .with_children(|parent| {
             parent
                 .spawn((
@@ -595,6 +609,7 @@ fn spawn_edit_panel(
             },
             BackgroundColor(theme.panel_bg),
         ))
+        .insert(FocusPolicy::Block)
         .with_children(|parent| {
             if matches!(
                 profile,
@@ -626,6 +641,22 @@ fn spawn_edit_panel(
                     })
                     .insert(AddAlignmentButton);
             }
+
+            parent
+                .spawn(Button)
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor::WHITE,
+                        Text::new("Select Mode"),
+                    ));
+                })
+                .insert(SelectButton);
 
             parent.spawn((
                 TextLayout::default(),
@@ -718,7 +749,7 @@ fn spawn_edit_panel(
                         ..default()
                     },
                     TextColor::WHITE,
-                    Text::new("Parcel Area: 0"),
+                    Text::new("Parcel Area (Selected): 0"),
                 ))
                 .id();
 
@@ -884,6 +915,7 @@ fn spawn_sections_panel(
             },
             BackgroundColor(theme.panel_bg),
         ))
+        .insert(FocusPolicy::Block)
         .with_children(|parent| {
             parent
                 .spawn(Button)
@@ -989,8 +1021,13 @@ fn handle_mouse_clicks(
     points: Query<(Entity, &Transform), With<CadPoint>>,
     mut selected: ResMut<SelectedPoints>,
     mut dragging: ResMut<Dragging>,
+    mode: Res<SelectMode>,
+    ui_buttons: Query<&Interaction, With<Button>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
+        if ui_buttons.iter().any(|i| *i != Interaction::None) {
+            return;
+        }
         if let Some(pos) = cursor_world_pos(windows, camera_q) {
             let mut hit = None;
             for (e, t) in &points {
@@ -1006,7 +1043,7 @@ fn handle_mouse_clicks(
                     selected.0.push(e);
                     dragging.0 = Some(e);
                 }
-            } else {
+            } else if !mode.0 {
                 let _ = spawn_point(&mut commands, Point::new(pos.x as f64, pos.y as f64));
             }
         }
@@ -1043,6 +1080,7 @@ fn open_context_menu(
                     },
                     BackgroundColor(theme.context_bg),
                 ))
+                .insert(FocusPolicy::Block)
                 .with_children(|parent| {
                     for (label, action) in [
                         ("Delete", ContextAction::DeletePoints),
@@ -1485,7 +1523,7 @@ fn handle_add_parcel(
             parcels.parcels.push(parcel);
             if let Some(id) = parcels.text {
                 if let Ok(mut span) = texts.get_mut(id) {
-                    span.0 = format!("Parcel Area: {:.2}", area);
+                    span.0 = format!("Parcel Area (Selected): {:.2}", area);
                 }
             }
             println!("Parcel area: {:.2}", area);
@@ -1779,6 +1817,16 @@ fn handle_grade_button(
     }
 }
 
+fn handle_select_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<SelectButton>)>,
+    mut mode: ResMut<SelectMode>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        mode.0 = !mode.0;
+        println!("Select mode {}", if mode.0 {"on"} else {"off"});
+    }
+}
+
 fn handle_file_menu_button(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<FileMenuButton>)>,
     mut state: ResMut<FileMenuState>,
@@ -1801,7 +1849,23 @@ fn handle_file_menu_button(
                     },
                     BackgroundColor(theme.context_bg),
                 ))
+                .insert(FocusPolicy::Block)
                 .with_children(|parent| {
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("New"),
+                            ));
+                        })
+                        .insert(NewButton);
                     parent
                         .spawn(Button)
                         .with_children(|b| {
@@ -2083,6 +2147,32 @@ fn update_section_lines(
     }
 }
 
+fn handle_new_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<NewButton>)>,
+    mut commands: Commands,
+    points: Query<Entity, With<CadPoint>>,
+    surfaces: Query<Entity, With<SurfaceMesh>>,
+    mut alignment: ResMut<AlignmentData>,
+    mut surface_data: ResMut<SurfaceData>,
+    mut surface_tin: ResMut<SurfaceTins>,
+    mut dirty: ResMut<SurfaceDirty>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        for e in &points { commands.entity(e).despawn_recursive(); }
+        for e in &surfaces { commands.entity(e).despawn_recursive(); }
+        alignment.points.clear();
+        surface_data.vertices.clear();
+        surface_data.breaklines.clear();
+        surface_data.holes.clear();
+        surface_data.point_map.clear();
+        surface_data.set_changed();
+        alignment.set_changed();
+        surface_tin.0.clear();
+        dirty.0 = false;
+        println!("New project created");
+    }
+}
+
 fn handle_open_button(
     interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<OpenButton>)>,
     mut commands: Commands,
@@ -2186,6 +2276,10 @@ fn handle_open_button(
                         let _ = spawn_point(&mut commands, p);
                     }
                 }
+                #[cfg(not(feature = "shapefile"))]
+                {
+                    warn!("Shapefile support not enabled");
+                }
             }
         }
     }
@@ -2240,6 +2334,10 @@ fn handle_save_button(
                         pts.push(Point::new(t.translation.x as f64, t.translation.y as f64));
                     }
                     let _ = survey_cad::io::shp::write_points_shp(path_str, &pts, None);
+                }
+                #[cfg(not(feature = "shapefile"))]
+                {
+                    warn!("Shapefile support not enabled");
                 }
             }
         }
