@@ -450,7 +450,7 @@ fn spawn_toolbar(
                         button.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 14.0,
                                 ..default()
                             },
@@ -484,7 +484,7 @@ fn spawn_toolbar(
                     button.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 14.0,
                             ..default()
                         },
@@ -499,7 +499,7 @@ fn spawn_toolbar(
                     b.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 12.0,
                             ..default()
                         },
@@ -515,7 +515,7 @@ fn spawn_toolbar(
                     b.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 12.0,
                             ..default()
                         },
@@ -557,7 +557,7 @@ fn spawn_edit_panel(
                 parent.spawn((
                     TextLayout::default(),
                     TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("FiraMono-subset.ttf"),
                         font_size: 14.0,
                         ..default()
                     },
@@ -570,7 +570,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -584,7 +584,7 @@ fn spawn_edit_panel(
             parent.spawn((
                 TextLayout::default(),
                 TextFont {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font: asset_server.load("FiraMono-subset.ttf"),
                     font_size: 14.0,
                     ..default()
                 },
@@ -598,7 +598,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -616,7 +616,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -634,7 +634,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -652,7 +652,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -667,7 +667,7 @@ fn spawn_edit_panel(
                 .spawn((
                     TextLayout::default(),
                     TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("FiraMono-subset.ttf"),
                         font_size: 12.0,
                         ..default()
                     },
@@ -680,7 +680,7 @@ fn spawn_edit_panel(
                 .spawn((
                     TextLayout::default(),
                     TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("FiraMono-subset.ttf"),
                         font_size: 12.0,
                         ..default()
                     },
@@ -696,7 +696,7 @@ fn spawn_edit_panel(
                 parent.spawn((
                     TextLayout::default(),
                     TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("FiraMono-subset.ttf"),
                         font_size: 14.0,
                         ..default()
                     },
@@ -717,7 +717,7 @@ fn spawn_edit_panel(
                             b.spawn((
                                 TextLayout::default(),
                                 TextFont {
-                                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                    font: asset_server.load("FiraMono-subset.ttf"),
                                     font_size: 12.0,
                                     ..default()
                                 },
@@ -734,7 +734,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -750,7 +750,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -771,7 +771,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -787,7 +787,7 @@ fn spawn_edit_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -804,7 +804,7 @@ fn spawn_edit_panel(
                     b.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 12.0,
                             ..default()
                         },
@@ -845,7 +845,7 @@ fn spawn_sections_panel(
                     b.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 12.0,
                             ..default()
                         },
@@ -858,7 +858,7 @@ fn spawn_sections_panel(
                 .spawn((
                     TextLayout::default(),
                     TextFont {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font: asset_server.load("FiraMono-subset.ttf"),
                         font_size: 12.0,
                         ..default()
                     },
@@ -872,7 +872,7 @@ fn spawn_sections_panel(
                     b.spawn((
                         TextLayout::default(),
                         TextFont {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font: asset_server.load("FiraMono-subset.ttf"),
                             font_size: 12.0,
                             ..default()
                         },
@@ -896,7 +896,7 @@ fn spawn_sections_panel(
                         b.spawn((
                             TextLayout::default(),
                             TextFont {
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font: asset_server.load("FiraMono-subset.ttf"),
                                 font_size: 12.0,
                                 ..default()
                             },
@@ -1009,7 +1009,7 @@ fn open_context_menu(
                                 b.spawn((
                                     TextLayout::default(),
                                     TextFont {
-                                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                        font: asset_server.load("FiraMono-subset.ttf"),
                                         font_size: 12.0,
                                         ..default()
                                     },
@@ -1189,7 +1189,7 @@ fn create_line(
 }
 
 fn update_lines(
-    mut lines: Query<(&CadLine, &mut Transform, &mut Sprite)>,
+    mut lines: Query<(&CadLine, &mut Transform, &mut Sprite), Without<CadPoint>>,
     points: Query<&Transform, With<CadPoint>>,
 ) {
     for (line, mut t, mut s) in &mut lines {
@@ -1838,7 +1838,7 @@ fn update_plan_labels(
     let total = pl.length();
     let mut station = 0.0;
     let interval = params.interval.max(0.1);
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    let font = asset_server.load("FiraMono-subset.ttf");
     while station <= total + 0.01 {
         if let Some(p) = polyline_point_at(&pts, station) {
             commands.spawn((
