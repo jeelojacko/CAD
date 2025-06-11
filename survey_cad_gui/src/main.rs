@@ -1258,16 +1258,15 @@ fn update_surface_edges(
 }
 
 fn maybe_update_surface(
-    dirty: Res<SurfaceDirty>,
-    data: Res<SurfaceData>,
     mut dirty_flag: ResMut<SurfaceDirty>,
+    data: Res<SurfaceData>,
     mut tin_res: ResMut<SurfaceTins>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     existing: Query<Entity, With<SurfaceMesh>>,
 ) {
-    if dirty.0 {
+    if dirty_flag.0 {
         for e in &existing {
             commands.entity(e).despawn_recursive();
         }
