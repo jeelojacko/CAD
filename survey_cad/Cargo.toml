@@ -17,6 +17,7 @@ bevy = { version = "0.15", default-features = false, features = ["bevy_winit", "
 bevy_editor_cam = { version = "0.5", optional = true }
 bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"], optional = true }
 bevy_pmetra = { path = "../bevy_pmetra", optional = true }
+bevy_gizmos = { version = "0.15", optional = true }
 truck-modeling = "0.6"
 truck-topology = "0.6"
 truck-geometry = "0.5"
@@ -44,7 +45,7 @@ predicates = "2"
 
 [features]
 default = []
-render = ["dep:bevy", "dep:bevy_editor_cam", "dep:bevy_picking"]
+render = ["dep:bevy", "dep:bevy_editor_cam", "dep:bevy_picking", "dep:bevy_gizmos"]
 pmetra = ["render", "bevy/bevy_pbr", "dep:bevy_pmetra"]
 shapefile = ["dep:shapefile"]
 las = ["dep:las"]
