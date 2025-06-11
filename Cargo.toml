@@ -7,6 +7,7 @@ members = [
     "slint_bevy_example",
     "cad_import", "pipe_network",
     "survey_cad_python",
+    "survey_cad_slint_gui",
 ]
 resolver = "2"
 
