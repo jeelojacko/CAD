@@ -5547,6 +5547,8 @@ dependencies = [
  "bevy",
  "bevy_editor_cam",
  "clap",
+ "env_logger",
+ "log",
  "rfd",
  "survey_cad",
 ]

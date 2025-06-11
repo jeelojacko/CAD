@@ -146,6 +146,13 @@ C:\> survey_cad_gui.exe
 
 PowerShell users can set the variable with `$env:RUST_LOG="info"` before running the binary.
 
+You can also direct log output to a file by setting `SURVEY_CAD_LOG` before
+launching the GUI:
+
+```bash
+$ export SURVEY_CAD_LOG=gui.log
+$ cargo run -p survey_cad_gui
+```
 
 ## Python Bindings
 

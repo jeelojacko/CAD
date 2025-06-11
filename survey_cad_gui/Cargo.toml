@@ -9,6 +9,8 @@ survey_cad = { path = "../survey_cad" }
 rfd = "0.15"
 clap = { version = "4", features = ["derive"] }
 bevy_editor_cam = "0.5"
+log = "0.4"
+env_logger = "0.10"
 
 
 [features]
