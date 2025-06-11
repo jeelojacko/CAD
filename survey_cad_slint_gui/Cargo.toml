@@ -1,0 +1,8 @@
+[package]
+name = "survey_cad_slint_gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = { git = "https://github.com/slint-ui/slint", rev = "939d605e0688b7ea4cb6e3a5b3f40d918a60a5db" }
+survey_cad = { path = "../survey_cad" }
