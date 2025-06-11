@@ -25,7 +25,7 @@ pub fn render_point(p: Point) {
             }),
             MeshPickingPlugin,
             DefaultEditorCamPlugins,
-            bevy_gizmos::GizmoPlugin::default(),
+            bevy_gizmos::GizmoPlugin,
         ))
         .add_systems(Startup, move |mut commands: Commands| {
             commands.spawn((Camera3d::default(), EditorCam::default()));
@@ -51,7 +51,7 @@ pub fn render_points(points: &[Point]) {
             }),
             MeshPickingPlugin,
             DefaultEditorCamPlugins,
-            bevy_gizmos::GizmoPlugin::default(),
+            bevy_gizmos::GizmoPlugin,
         ))
         .add_systems(Startup, move |mut commands: Commands| {
             commands.spawn((Camera3d::default(), EditorCam::default()));

@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity, clippy::too_many_arguments)]
 use bevy::input::mouse::{MouseMotion, MouseWheel};
-use bevy::prelude::*;
 use bevy::log::warn;
+use bevy::prelude::*;
 use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
@@ -316,7 +316,7 @@ fn main() {
                 ..default()
             }),
             DefaultEditorCamPlugins,
-            bevy_gizmos::GizmoPlugin::default(),
+            bevy_gizmos::GizmoPlugin,
         ))
         .insert_resource(SelectedPoints::default())
         .insert_resource(Dragging::default())
@@ -2149,7 +2149,10 @@ mod tests {
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyL);
         app.insert_resource(input);
-        app.insert_resource(SelectedPoints(vec![Entity::from_raw(1), Entity::from_raw(2)]));
+        app.insert_resource(SelectedPoints(vec![
+            Entity::from_raw(1),
+            Entity::from_raw(2),
+        ]));
 
         app.update();
 
@@ -2162,7 +2165,10 @@ mod tests {
     fn update_line_missing_points() {
         let mut world = World::new();
         world.spawn((
-            CadLine { start: Entity::from_raw(1), end: Entity::from_raw(2) },
+            CadLine {
+                start: Entity::from_raw(1),
+                end: Entity::from_raw(2),
+            },
             Transform::default(),
             Sprite::default(),
         ));
