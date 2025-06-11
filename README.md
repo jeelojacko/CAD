@@ -129,6 +129,24 @@ automatically scales the interface based on monitor DPI.
 $ cargo run -p survey_cad_gui -- --theme light
 ```
 
+## Troubleshooting GUI on Windows
+
+If the GUI window closes immediately or you do not see any error messages, run `survey_cad_gui.exe` from **Command Prompt** or **PowerShell** instead of double-clicking the file. Open a terminal in the folder containing the executable and run:
+
+```cmd
+C:\> survey_cad_gui.exe
+```
+
+The console window stays open after the program exits so you can read any errors. A common reason for an instant exit is an incompatible GPU or outdated graphics drivers. Review the console output for details or enable verbose logging:
+
+```cmd
+C:\> set RUST_LOG=info
+C:\> survey_cad_gui.exe
+```
+
+PowerShell users can set the variable with `$env:RUST_LOG="info"` before running the binary.
+
+
 ## Python Bindings
 
 The workspace also exposes a small [Python module](survey_cad_python) built with
