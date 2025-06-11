@@ -1,45 +1,109 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use slint::SharedString;
+use survey_cad::geometry::Point;
+
 slint::slint! {
-import { Button, VerticalBox, HorizontalBox, LineEdit } from "std-widgets.slint";
-export component DistanceApp inherits Window {
-    width: 300px;
-    height: 200px;
-    in-out property <string> x1;
-    in-out property <string> y1;
-    in-out property <string> x2;
-    in-out property <string> y2;
-    in-out property <string> result;
-    callback compute();
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    preferred-width: 800px;
+    preferred-height: 600px;
+
+    in-out property <string> status;
+
+    callback new_project();
+    callback open_project();
+    callback save_project();
+
+    HorizontalBox {
+        spacing: 6px;
+        Button { text: "New"; clicked => { root.new_project(); } }
+        Button { text: "Open"; clicked => { root.open_project(); } }
+        Button { text: "Save"; clicked => { root.save_project(); } }
+    }
 
     VerticalBox {
-        HorizontalBox {
-            Text { text: "Point A:"; }
-            LineEdit { text <=> root.x1; placeholder-text: "x"; }
-            LineEdit { text <=> root.y1; placeholder-text: "y"; }
+        Rectangle {
+            height: 100%;
+            width: 100%;
+            background: #202020;
+            Text {
+                text: "2D/3D Workspace Placeholder";
+                color: white;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+            }
         }
-        HorizontalBox {
-            Text { text: "Point B:"; }
-            LineEdit { text <=> root.x2; placeholder-text: "x"; }
-            LineEdit { text <=> root.y2; placeholder-text: "y"; }
-        }
-        Button { text: "Compute Distance"; clicked => { root.compute(); } }
-        Text { text: root.result; }
+        Text { text: root.status; }
     }
 }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    let app = DistanceApp::new()?;
+    let app = MainWindow::new()?;
+    let points: Rc<RefCell<Vec<Point>>> = Rc::new(RefCell::new(Vec::new()));
+
     let weak = app.as_weak();
-    app.on_compute(move || {
-        let app = weak.unwrap();
-        let x1: f64 = app.get_x1().parse().unwrap_or(0.0);
-        let y1: f64 = app.get_y1().parse().unwrap_or(0.0);
-        let x2: f64 = app.get_x2().parse().unwrap_or(0.0);
-        let y2: f64 = app.get_y2().parse().unwrap_or(0.0);
-        let p1 = survey_cad::geometry::Point::new(x1, y1);
-        let p2 = survey_cad::geometry::Point::new(x2, y2);
-        let dist = survey_cad::geometry::distance(p1, p2);
-        app.set_result(format!("Distance: {:.2}", dist).into());
-    });
+    {
+        let points = points.clone();
+        let weak = weak.clone();
+        app.on_new_project(move || {
+            points.borrow_mut().clear();
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("New project created"));
+            }
+        });
+    }
+
+    let weak = app.as_weak();
+    {
+        let points = points.clone();
+        app.on_open_project(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .pick_file()
+            {
+                if let Some(path_str) = path.to_str() {
+                    match survey_cad::io::read_points_csv(path_str, None, None) {
+                        Ok(pts) => {
+                            *points.borrow_mut() = pts;
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Loaded {} points", points.borrow().len())));
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    let weak = app.as_weak();
+    {
+        let points = points.clone();
+        app.on_save_project(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .save_file()
+            {
+                if let Some(path_str) = path.to_str() {
+                    if let Err(e) = survey_cad::io::write_points_csv(path_str, &points.borrow(), None, None) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to save: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Saved"));
+                    }
+                }
+            }
+        });
+    }
+
     app.run()
 }
