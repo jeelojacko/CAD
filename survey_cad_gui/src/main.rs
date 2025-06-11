@@ -215,6 +215,22 @@ struct SectionsVisible(bool);
 #[derive(Resource, Default)]
 struct PlanVisible(bool);
 
+#[derive(Resource, Default, Clone, Copy)]
+enum WorkspaceMode {
+    #[default]
+    TwoD,
+    ThreeD,
+}
+
+#[derive(Component)]
+struct ViewToggleButton;
+
+#[derive(Component)]
+struct WorkspaceCamera2d;
+
+#[derive(Component)]
+struct WorkspaceCamera3d;
+
 #[derive(Resource, Default)]
 struct ContextMenuState {
     entity: Option<Entity>,
@@ -347,6 +363,7 @@ fn main() {
         .insert_resource(ProfileVisible::default())
         .insert_resource(SectionsVisible::default())
         .insert_resource(PlanVisible::default())
+        .insert_resource(WorkspaceMode::default())
         .insert_resource(ContextMenuState::default())
         .insert_resource(FileMenuState::default())
         .add_systems(Startup, (setup, init_ui_scale))
@@ -368,6 +385,7 @@ fn main() {
                 update_surface_edges,
                 maybe_update_surface,
                 camera_pan_zoom,
+                handle_view_toggle,
                 update_lod_meshes,
             ),
         )
@@ -410,15 +428,18 @@ fn setup(
             order: 1,
             ..default()
         },
+        WorkspaceCamera2d,
     ));
     commands.spawn((
         Camera3d::default(),
         Camera {
             order: 0,
+            is_active: false,
             ..default()
         },
         Transform::from_xyz(0.0, -50.0, 50.0).looking_at(Vec3::ZERO, Vec3::Z),
         EditorCam::default(),
+        WorkspaceCamera3d,
     ));
     commands.spawn((
         DirectionalLight {
@@ -548,7 +569,8 @@ fn spawn_toolbar(
                         TextColor(theme.text),
                         Text::new("View"),
                     ));
-                });
+                })
+                .insert(ViewToggleButton);
 
             parent
                 .spawn((
@@ -1788,6 +1810,32 @@ fn handle_section_buttons(
                 SectionControl::ToggleGround => view.show_ground = !view.show_ground,
                 SectionControl::ToggleDesign => view.show_design = !view.show_design,
             }
+        }
+    }
+}
+
+fn handle_view_toggle(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ViewToggleButton>)>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut mode: ResMut<WorkspaceMode>,
+    mut cam2d: Query<&mut Camera, (With<Camera2d>, With<WorkspaceCamera2d>)>,
+    mut cam3d: Query<&mut Camera, (With<Camera3d>, With<WorkspaceCamera3d>)>,
+) {
+    let mut toggle = keys.just_pressed(KeyCode::KeyV);
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        toggle = true;
+    }
+    if toggle {
+        *mode = match *mode {
+            WorkspaceMode::TwoD => WorkspaceMode::ThreeD,
+            WorkspaceMode::ThreeD => WorkspaceMode::TwoD,
+        };
+        let active_2d = matches!(*mode, WorkspaceMode::TwoD);
+        for mut cam in &mut cam2d {
+            cam.is_active = active_2d;
+        }
+        for mut cam in &mut cam3d {
+            cam.is_active = !active_2d;
         }
     }
 }
