@@ -39,6 +39,28 @@ export component MainWindow inherits Window {
     callback add_arc();
     callback clear_workspace();
 
+    MenuBar {
+        Menu {
+            title: "File";
+            MenuItem { title: "New"; activated => { root.new_project(); } }
+            MenuItem { title: "Open"; activated => { root.open_project(); } }
+            MenuItem { title: "Save"; activated => { root.save_project(); } }
+        }
+        Menu {
+            title: "Edit";
+            MenuItem { title: "Add Point"; activated => { root.add_point(); } }
+            MenuItem { title: "Add Line"; activated => { root.add_line(); } }
+            MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }
+            MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
+            MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
+            MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
+        }
+        Menu {
+            title: "View";
+            MenuItem { title: "Placeholder"; enabled: false; }
+        }
+    }
+
     HorizontalBox {
         spacing: 6px;
         Button { text: "New"; clicked => { root.new_project(); } }
