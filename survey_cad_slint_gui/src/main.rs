@@ -1,17 +1,22 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use slint::SharedString;
+use slint::{SharedString, VecModel};
+use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
 
 slint::slint! {
-import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
 
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
 
     in-out property <string> status;
+    in property <[string]> crs_list;
+    in-out property <int> crs_index;
+
+    callback crs_changed(int);
 
     callback new_project();
     callback open_project();
@@ -34,6 +39,16 @@ export component MainWindow inherits Window {
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
         Button { text: "Clear"; clicked => { root.clear_workspace(); } }
+    }
+
+    HorizontalBox {
+        spacing: 6px;
+        Text { text: "CRS:"; }
+        ComboBox {
+            model: root.crs_list;
+            current-index <=> root.crs_index;
+            selected => { root.crs_changed(root.crs_index); }
+        }
     }
 
     VerticalBox {
@@ -60,6 +75,16 @@ fn main() -> Result<(), slint::PlatformError> {
     let polygons: Rc<RefCell<Vec<Vec<Point>>>> = Rc::new(RefCell::new(Vec::new()));
     let polylines: Rc<RefCell<Vec<Polyline>>> = Rc::new(RefCell::new(Vec::new()));
     let arcs: Rc<RefCell<Vec<Arc>>> = Rc::new(RefCell::new(Vec::new()));
+    let crs_entries = list_known_crs();
+    let crs_model = Rc::new(VecModel::from(
+        crs_entries
+            .iter()
+            .map(|e| SharedString::from(format!("{} - {}", e.code, e.name)))
+            .collect::<Vec<_>>(),
+    ));
+    app.set_crs_list(crs_model.clone().into());
+    app.set_crs_index(0);
+    let working_crs = Rc::new(RefCell::new(Crs::wgs84()));
 
     let weak = app.as_weak();
     {
@@ -237,6 +262,27 @@ fn main() -> Result<(), slint::PlatformError> {
             arcs.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Workspace cleared"));
+            }
+        });
+    }
+
+    {
+        let entries = crs_entries.clone();
+        let working_crs = working_crs.clone();
+        let weak = app.as_weak();
+        app.on_crs_changed(move |idx| {
+            if let Some(entry) = entries.get(idx as usize) {
+                if let Some(code) = entry.code.split(':').nth(1) {
+                    if let Ok(epsg) = code.parse::<u32>() {
+                        *working_crs.borrow_mut() = Crs::from_epsg(epsg);
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!(
+                                "Selected CRS {}",
+                                entry.code
+                            )));
+                        }
+                    }
+                }
             }
         });
     }
