@@ -139,8 +139,7 @@ fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(255, 0, 0, 255));
     paint.anti_alias = true;
-    let mut stroke = Stroke::default();
-    stroke.width = 2.0;
+    let stroke = Stroke { width: 2.0, ..Stroke::default() };
 
     for (s, e) in lines {
         let mut pb = PathBuilder::new();
