@@ -467,6 +467,11 @@ fn main() {
                 handle_section_buttons,
                 update_profile_lines,
                 update_plan_labels,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
                 update_section_lines,
                 handle_crs_option_buttons,
             ),
