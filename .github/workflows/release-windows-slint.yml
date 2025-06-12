@@ -22,8 +22,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install SQLite3
         run: choco install -y sqlite
-      - name: Build CLI
-        run: cargo build -p survey_cad_cli --release
       - name: Build Slint GUI
         run: cargo build -p survey_cad_slint_gui --release
       - name: Package Binaries
