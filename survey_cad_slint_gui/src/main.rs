@@ -299,6 +299,18 @@ export component MainWindow inherits Window {
     callback station_distance();
     callback traverse_area();
     callback level_elevation_tool();
+    callback import_geojson();
+    callback import_kml();
+    callback import_dxf();
+    callback import_shp();
+    callback import_las();
+    callback import_e57();
+    callback export_geojson();
+    callback export_kml();
+    callback export_dxf();
+    callback export_shp();
+    callback export_las();
+    callback export_e57();
 
     MenuBar {
         Menu {
@@ -306,6 +318,24 @@ export component MainWindow inherits Window {
             MenuItem { title: "New"; activated => { root.new_project(); } }
             MenuItem { title: "Open"; activated => { root.open_project(); } }
             MenuItem { title: "Save"; activated => { root.save_project(); } }
+            Menu {
+                title: "Import";
+                MenuItem { title: "GeoJSON"; activated => { root.import_geojson(); } }
+                MenuItem { title: "KML"; activated => { root.import_kml(); } }
+                MenuItem { title: "DXF"; activated => { root.import_dxf(); } }
+                MenuItem { title: "SHP"; activated => { root.import_shp(); } }
+                MenuItem { title: "LAS"; activated => { root.import_las(); } }
+                MenuItem { title: "E57"; activated => { root.import_e57(); } }
+            }
+            Menu {
+                title: "Export";
+                MenuItem { title: "GeoJSON"; activated => { root.export_geojson(); } }
+                MenuItem { title: "KML"; activated => { root.export_kml(); } }
+                MenuItem { title: "DXF"; activated => { root.export_dxf(); } }
+                MenuItem { title: "SHP"; activated => { root.export_shp(); } }
+                MenuItem { title: "LAS"; activated => { root.export_las(); } }
+                MenuItem { title: "E57"; activated => { root.export_e57(); } }
+            }
         }
         Menu {
             title: "Edit";
@@ -687,6 +717,402 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Saved"));
+                    }
+                }
+            }
+        });
+    }
+
+    // Import handlers
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_geojson(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("GeoJSON", &["geojson", "json"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::read_points_geojson(p, None, None) {
+                        Ok(pts) => {
+                            *points.borrow_mut() = pts;
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_kml(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("KML", &["kml", "kmz"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "kml")]
+                    match survey_cad::io::kml::read_points_kml(p) {
+                        Ok(pts) => {
+                            *points.borrow_mut() = pts;
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "kml"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("KML support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_dxf(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("DXF", &["dxf"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::read_dxf(p) {
+                        Ok(ents) => {
+                            *points.borrow_mut() = ents
+                                .into_iter()
+                                .filter_map(|e| match e {
+                                    survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
+                                    _ => None,
+                                })
+                                .collect();
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    match survey_cad::io::shp::read_points_shp(p) {
+                        Ok((pts, _)) => {
+                            *points.borrow_mut() = pts;
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_las(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LAS", &["las", "laz"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "las")]
+                    match survey_cad::io::las::read_points_las(p) {
+                        Ok(pts3) => {
+                            *points.borrow_mut() = pts3
+                                .into_iter()
+                                .map(|p3| Point::new(p3.x, p3.y))
+                                .collect();
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "las"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("LAS support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_import_e57(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("E57", &["e57"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "e57")]
+                    match survey_cad::io::e57::read_points_e57(p) {
+                        Ok(pts3) => {
+                            *points.borrow_mut() = pts3
+                                .into_iter()
+                                .map(|p3| Point::new(p3.x, p3.y))
+                                .collect();
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} points",
+                                    points.borrow().len()
+                                )));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "e57"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("E57 support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    // Export handlers
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_geojson(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("GeoJSON", &["geojson", "json"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    if let Err(e) = survey_cad::io::write_points_geojson(p, &points.borrow(), None, None) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_kml(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("KML", &["kml"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "kml")]
+                    if let Err(e) = survey_cad::io::kml::write_points_kml(p, &points.borrow()) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                    #[cfg(not(feature = "kml"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("KML support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_dxf(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("DXF", &["dxf"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    if let Err(e) = survey_cad::io::write_points_dxf(p, &points.borrow(), None, None) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_las(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LAS", &["las", "laz"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "las")]
+                    {
+                        let pts3: Vec<Point3> = points.borrow().iter().map(|pt| Point3::new(pt.x, pt.y, 0.0)).collect();
+                        if let Err(e) = survey_cad::io::las::write_points_las(p, &pts3) {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            }
+                        } else if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from("Exported"));
+                        }
+                    }
+                    #[cfg(not(feature = "las"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("LAS support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_export_e57(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("E57", &["e57"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "e57")]
+                    {
+                        let pts3: Vec<Point3> = points.borrow().iter().map(|pt| Point3::new(pt.x, pt.y, 0.0)).collect();
+                        if let Err(e) = survey_cad::io::e57::write_points_e57(p, &pts3) {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            }
+                        } else if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from("Exported"));
+                        }
+                    }
+                    #[cfg(not(feature = "e57"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("E57 support not enabled"));
                     }
                 }
             }
