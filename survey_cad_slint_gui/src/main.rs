@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use slint::{SharedString, VecModel};
+use slint::{SharedPixelBuffer, SharedString, VecModel, Rgba8Pixel, Image};
+use tiny_skia::{Pixmap, Paint, Stroke, PathBuilder, Transform, Color};
 use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
 use survey_cad::surveying::{
@@ -14,6 +15,17 @@ use survey_cad::surveying::{
 };
 
 slint::slint! {
+component Workspace2D inherits Rectangle {
+    in-out property <image> image;
+    background: #202020;
+    Image {
+        source: root.image;
+        image-fit: fill;
+        width: 100%;
+        height: 100%;
+    }
+}
+
 import { Button, VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
 
 export component MainWindow inherits Window {
@@ -25,6 +37,8 @@ export component MainWindow inherits Window {
     in-out property <int> crs_index;
     in property <[string]> cogo_list;
     in-out property <int> cogo_index;
+    in-out property <int> workspace_mode;
+    in-out property <image> workspace_image;
 
     callback crs_changed(int);
     callback cogo_selected(int);
@@ -38,6 +52,7 @@ export component MainWindow inherits Window {
     callback add_polyline();
     callback add_arc();
     callback clear_workspace();
+    callback view_changed(int);
 
     MenuBar {
         Menu {
@@ -57,7 +72,8 @@ export component MainWindow inherits Window {
         }
         Menu {
             title: "View";
-            MenuItem { title: "Placeholder"; enabled: false; }
+            MenuItem { title: "2D Workspace"; activated => { root.view_changed(0); } }
+            MenuItem { title: "3D Workspace"; activated => { root.view_changed(1); } }
         }
     }
 
@@ -95,12 +111,15 @@ export component MainWindow inherits Window {
     }
 
     VerticalBox {
-        Rectangle {
+        if root.workspace_mode == 0 : Workspace2D {
+            image <=> root.workspace_image;
+        }
+        if root.workspace_mode == 1 : Rectangle {
             height: 100%;
             width: 100%;
             background: #202020;
             Text {
-                text: "2D/3D Workspace Placeholder";
+                text: "3D Workspace Placeholder";
                 color: white;
                 vertical-alignment: center;
                 horizontal-alignment: center;
@@ -109,6 +128,42 @@ export component MainWindow inherits Window {
         Text { text: root.status; }
     }
 }
+}
+
+fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
+    const WIDTH: u32 = 600;
+    const HEIGHT: u32 = 400;
+    let mut pixmap = Pixmap::new(WIDTH, HEIGHT).unwrap();
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+    paint.anti_alias = true;
+    let mut stroke = Stroke::default();
+    stroke.width = 2.0;
+
+    for (s, e) in lines {
+        let mut pb = PathBuilder::new();
+        pb.move_to((s.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - s.y as f32);
+        pb.line_to((e.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - e.y as f32);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    paint.set_color(Color::from_rgba8(0, 255, 0, 255));
+    for p in points {
+        if let Some(circle) = PathBuilder::from_circle(
+            (p.x as f32) + WIDTH as f32 / 2.0,
+            HEIGHT as f32 / 2.0 - p.y as f32,
+            3.0,
+        ) {
+            pixmap.fill_path(&circle, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+        }
+    }
+
+    let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(pixmap.data(), WIDTH, HEIGHT);
+    Image::from_rgba8_premultiplied(buffer)
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -138,6 +193,21 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_cogo_index(0);
     let working_crs = Rc::new(RefCell::new(Crs::wgs84()));
 
+    app.set_workspace_mode(0);
+    app.set_workspace_image(render_workspace(&points.borrow(), &lines.borrow()));
+
+    let update_image = {
+        let points = points.clone();
+        let lines = lines.clone();
+        let weak = app.as_weak();
+        std::rc::Rc::new(move || {
+            if let Some(app) = weak.upgrade() {
+                let img = render_workspace(&points.borrow(), &lines.borrow());
+                app.set_workspace_image(img);
+            }
+        })
+    };
+
     let weak = app.as_weak();
     {
         let points = points.clone();
@@ -146,6 +216,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let update_image = update_image.clone();
         app.on_new_project(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -155,12 +226,14 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
             }
+            (update_image.clone())();
         });
     }
 
     let weak = app.as_weak();
     {
         let points = points.clone();
+        let update_image = update_image.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -176,6 +249,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
+                            (update_image.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -217,6 +291,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
     {
         let points = points.clone();
+        let update_image = update_image.clone();
         app.on_add_point(move || {
             points.borrow_mut().push(Point::new(0.0, 0.0));
             if let Some(app) = weak.upgrade() {
@@ -225,12 +300,14 @@ fn main() -> Result<(), slint::PlatformError> {
                     points.borrow().len()
                 )));
             }
+            (update_image.clone())();
         });
     }
 
     let weak = app.as_weak();
     {
         let lines = lines.clone();
+        let update_image = update_image.clone();
         app.on_add_line(move || {
             lines
                 .borrow_mut()
@@ -241,6 +318,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     lines.borrow().len()
                 )));
             }
+            (update_image.clone())();
         });
     }
 
@@ -306,6 +384,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let update_image = update_image.clone();
         app.on_clear_workspace(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -315,6 +394,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Workspace cleared"));
             }
+            (update_image.clone())();
         });
     }
 
@@ -409,6 +489,19 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     _ => {}
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let update_image = update_image.clone();
+        app.on_view_changed(move |mode| {
+            if let Some(app) = weak.upgrade() {
+                app.set_workspace_mode(mode);
+                if mode == 0 {
+                    (update_image.clone())();
                 }
             }
         });
