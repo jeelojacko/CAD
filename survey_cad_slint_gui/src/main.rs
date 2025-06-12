@@ -28,7 +28,7 @@ component Workspace2D inherits Rectangle {
     }
 }
 
-import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView } from "std-widgets.slint";
 
 export component AddPointDialog inherits Window {
     callback from_file();
@@ -121,6 +121,144 @@ export component LevelElevationDialog inherits Window {
         HorizontalBox {
             Text { text: "Foresight:"; }
             LineEdit { text <=> root.foresight; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component AddLineDialog inherits Window {
+    callback from_file();
+    callback manual();
+    title: "Add Line";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "From File"; clicked => { root.from_file(); } }
+        Button { text: "Manual"; clicked => { root.manual(); } }
+    }
+}
+
+export component LineKeyInDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    callback accept();
+    callback cancel();
+    title: "Enter Line";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "X1:"; }
+            LineEdit { text <=> root.x1; }
+            Text { text: "Y1:"; }
+            LineEdit { text <=> root.y1; }
+        }
+        HorizontalBox {
+            Text { text: "X2:"; }
+            LineEdit { text <=> root.x2; }
+            Text { text: "Y2:"; }
+            LineEdit { text <=> root.y2; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component AddPolygonDialog inherits Window {
+    callback from_file();
+    callback manual();
+    title: "Add Polygon";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "From File"; clicked => { root.from_file(); } }
+        Button { text: "Manual"; clicked => { root.manual(); } }
+    }
+}
+
+export component AddPolylineDialog inherits Window {
+    callback from_file();
+    callback manual();
+    title: "Add Polyline";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "From File"; clicked => { root.from_file(); } }
+        Button { text: "Manual"; clicked => { root.manual(); } }
+    }
+}
+
+export component PointsDialog inherits Window {
+    in-out property <string> x_value;
+    in-out property <string> y_value;
+    in-out property <[string]> points_model;
+    callback add_point();
+    callback accept();
+    callback cancel();
+    title: "Enter Points";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "X:"; }
+            LineEdit { text <=> root.x_value; }
+            Text { text: "Y:"; }
+            LineEdit { text <=> root.y_value; }
+            Button { text: "Add"; clicked => { root.add_point(); } }
+        }
+        ListView {
+            for p in root.points_model : Text { text: p; }
+            height: 100px;
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component AddArcDialog inherits Window {
+    callback from_file();
+    callback manual();
+    title: "Add Arc";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "From File"; clicked => { root.from_file(); } }
+        Button { text: "Manual"; clicked => { root.manual(); } }
+    }
+}
+
+export component ArcKeyInDialog inherits Window {
+    in-out property <string> cx;
+    in-out property <string> cy;
+    in-out property <string> radius;
+    in-out property <string> start_angle;
+    in-out property <string> end_angle;
+    callback accept();
+    callback cancel();
+    title: "Enter Arc";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "Cx:"; }
+            LineEdit { text <=> root.cx; }
+            Text { text: "Cy:"; }
+            LineEdit { text <=> root.cy; }
+        }
+        HorizontalBox {
+            Text { text: "Radius:"; }
+            LineEdit { text <=> root.radius; }
+        }
+        HorizontalBox {
+            Text { text: "Start:"; }
+            LineEdit { text <=> root.start_angle; }
+            Text { text: "End:"; }
+            LineEdit { text <=> root.end_angle; }
         }
         HorizontalBox {
             spacing: 6px;
@@ -248,7 +386,13 @@ export component MainWindow inherits Window {
 }
 }
 
-fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
+fn render_workspace(
+    points: &[Point],
+    lines: &[(Point, Point)],
+    polygons: &[Vec<Point>],
+    polylines: &[Polyline],
+    arcs: &[Arc],
+) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
     let mut pixmap = Pixmap::new(WIDTH, HEIGHT).unwrap();
@@ -277,6 +421,69 @@ fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
         }
     }
 
+    for poly in polygons {
+        if poly.len() < 2 {
+            continue;
+        }
+        let mut pb = PathBuilder::new();
+        let first = poly.first().unwrap();
+        pb.move_to(
+            (first.x as f32) + WIDTH as f32 / 2.0,
+            HEIGHT as f32 / 2.0 - first.y as f32,
+        );
+        for p in &poly[1..] {
+            pb.line_to(
+                (p.x as f32) + WIDTH as f32 / 2.0,
+                HEIGHT as f32 / 2.0 - p.y as f32,
+            );
+        }
+        pb.close();
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    for pl in polylines {
+        if pl.vertices.len() < 2 {
+            continue;
+        }
+        let mut pb = PathBuilder::new();
+        let first = &pl.vertices[0];
+        pb.move_to(
+            (first.x as f32) + WIDTH as f32 / 2.0,
+            HEIGHT as f32 / 2.0 - first.y as f32,
+        );
+        for p in &pl.vertices[1..] {
+            pb.line_to(
+                (p.x as f32) + WIDTH as f32 / 2.0,
+                HEIGHT as f32 / 2.0 - p.y as f32,
+            );
+        }
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    for arc in arcs {
+        let steps = 32;
+        let mut pb = PathBuilder::new();
+        for i in 0..=steps {
+            let t = arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
+            let x = arc.center.x + arc.radius * t.cos();
+            let y = arc.center.y + arc.radius * t.sin();
+            let px = (x as f32) + WIDTH as f32 / 2.0;
+            let py = HEIGHT as f32 / 2.0 - y as f32;
+            if i == 0 {
+                pb.move_to(px, py);
+            } else {
+                pb.line_to(px, py);
+            }
+        }
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));
     for p in points {
         if let Some(circle) = PathBuilder::from_circle(
@@ -296,6 +503,56 @@ fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
 
     let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(pixmap.data(), WIDTH, HEIGHT);
     Image::from_rgba8_premultiplied(buffer)
+}
+
+fn read_line_csv(path: &str) -> std::io::Result<(Point, Point)> {
+    let pts = survey_cad::io::read_points_csv(path, None, None)?;
+    if pts.len() != 2 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "expected exactly two points",
+        ));
+    }
+    Ok((pts[0], pts[1]))
+}
+
+fn read_points_list(path: &str) -> std::io::Result<Vec<Point>> {
+    survey_cad::io::read_points_csv(path, None, None)
+}
+
+fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
+    let lines = survey_cad::io::read_lines(path)?;
+    if lines.is_empty() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "empty file"));
+    }
+    let parts: Vec<&str> = lines[0].split(',').collect();
+    if parts.len() != 5 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "expected cx,cy,radius,start,end",
+        ));
+    }
+    let cx: f64 = parts[0]
+        .trim()
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let cy: f64 = parts[1]
+        .trim()
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let r: f64 = parts[2]
+        .trim()
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let sa: f64 = parts[3]
+        .trim()
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let ea: f64 = parts[4]
+        .trim()
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    Ok(Arc::new(Point::new(cx, cy), r, sa, ea))
 }
 
 fn main() -> Result<(), slint::PlatformError> {
@@ -326,16 +583,31 @@ fn main() -> Result<(), slint::PlatformError> {
     let working_crs = Rc::new(RefCell::new(Crs::wgs84()));
 
     app.set_workspace_mode(0);
-    app.set_workspace_image(render_workspace(&points.borrow(), &lines.borrow()));
+    app.set_workspace_image(render_workspace(
+        &points.borrow(),
+        &lines.borrow(),
+        &polygons.borrow(),
+        &polylines.borrow(),
+        &arcs.borrow(),
+    ));
     app.set_workspace_click_mode(false);
 
     let update_image = {
         let points = points.clone();
         let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
         let weak = app.as_weak();
         std::rc::Rc::new(move || {
             if let Some(app) = weak.upgrade() {
-                let img = render_workspace(&points.borrow(), &lines.borrow());
+                let img = render_workspace(
+                    &points.borrow(),
+                    &lines.borrow(),
+                    &polygons.borrow(),
+                    &polylines.borrow(),
+                    &arcs.borrow(),
+                );
                 app.set_workspace_image(img);
             }
         })
@@ -537,72 +809,422 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let lines = lines.clone();
         let update_image = update_image.clone();
+        let weak_main = weak.clone();
         app.on_add_line(move || {
-            lines
-                .borrow_mut()
-                .push((Point::new(0.0, 0.0), Point::new(1.0, 1.0)));
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from(format!(
-                    "Total lines: {}",
-                    lines.borrow().len()
-                )));
+            let dlg = AddLineDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            {
+                let lines = lines.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_from_file(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV", &["csv"])
+                        .pick_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            match read_line_csv(p) {
+                                Ok(l) => {
+                                    lines.borrow_mut().push(l);
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total lines: {}",
+                                            lines.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                                Err(e) => {
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Failed to open: {}",
+                                            e
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                });
             }
-            (update_image.clone())();
+            {
+                let lines = lines.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    let kd = LineKeyInDialog::new().unwrap();
+                    let kd_weak = kd.as_weak();
+                    let kd_weak2 = kd.as_weak();
+                    {
+                        let lines = lines.clone();
+                        let update_image = update_image.clone();
+                        let weak_main = weak_main.clone();
+                        kd.on_accept(move || {
+                            if let Some(dlg) = kd_weak2.upgrade() {
+                                if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                                    dlg.get_x1().parse::<f64>(),
+                                    dlg.get_y1().parse::<f64>(),
+                                    dlg.get_x2().parse::<f64>(),
+                                    dlg.get_y2().parse::<f64>(),
+                                ) {
+                                    lines.borrow_mut().push((Point::new(x1, y1), Point::new(x2, y2)));
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total lines: {}",
+                                            lines.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                            }
+                            if let Some(k) = kd_weak.upgrade() {
+                                let _ = k.hide();
+                            }
+                        });
+                    }
+                    {
+                        let kd_weak = kd.as_weak();
+                        kd.on_cancel(move || {
+                            if let Some(k) = kd_weak.upgrade() {
+                                let _ = k.hide();
+                            }
+                        });
+                    }
+                    kd.run().unwrap();
+                });
+            }
+            dlg.run().unwrap();
         });
     }
 
     let weak = app.as_weak();
     {
         let polygons = polygons.clone();
+        let update_image = update_image.clone();
+        let weak_main = weak.clone();
         app.on_add_polygon(move || {
-            polygons.borrow_mut().push(vec![
-                Point::new(0.0, 0.0),
-                Point::new(1.0, 0.0),
-                Point::new(0.0, 1.0),
-            ]);
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from(format!(
-                    "Total polygons: {}",
-                    polygons.borrow().len()
-                )));
+            let dlg = AddPolygonDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            {
+                let polygons = polygons.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_from_file(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV", &["csv"])
+                        .pick_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            match read_points_list(p) {
+                                Ok(pts) => {
+                                    if pts.len() >= 3 {
+                                        polygons.borrow_mut().push(pts);
+                                        if let Some(app) = weak_main.upgrade() {
+                                            app.set_status(SharedString::from(format!(
+                                                "Total polygons: {}",
+                                                polygons.borrow().len()
+                                            )));
+                                        }
+                                        (update_image.clone())();
+                                    } else if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from("Need at least 3 points"));
+                                    }
+                                }
+                                Err(e) => {
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                });
             }
+            {
+                let polygons = polygons.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    let pd = PointsDialog::new().unwrap();
+                    let _pd_weak = pd.as_weak();
+                    let model = Rc::new(VecModel::<SharedString>::from(Vec::<SharedString>::new()));
+                    pd.set_points_model(model.clone().into());
+                    let pts = Rc::new(RefCell::new(Vec::<Point>::new()));
+                    {
+                        let model = model.clone();
+                        let pd_weak2 = pd.as_weak();
+                        let pts = pts.clone();
+                        pd.on_add_point(move || {
+                            if let Some(d) = pd_weak2.upgrade() {
+                                if let (Ok(x), Ok(y)) = (
+                                    d.get_x_value().parse::<f64>(),
+                                    d.get_y_value().parse::<f64>(),
+                                ) {
+                                    pts.borrow_mut().push(Point::new(x, y));
+                                    model.push(SharedString::from(format!("{:.3},{:.3}", x, y)));
+                                }
+                            }
+                        });
+                    }
+                    {
+                        let polygons = polygons.clone();
+                        let update_image = update_image.clone();
+                        let weak_main = weak_main.clone();
+                        let pd_weak2 = pd.as_weak();
+                        let pts = pts.clone();
+                        pd.on_accept(move || {
+                            if pts.borrow().len() >= 3 {
+                                polygons.borrow_mut().push(pts.borrow().clone());
+                                if let Some(app) = weak_main.upgrade() {
+                                    app.set_status(SharedString::from(format!(
+                                        "Total polygons: {}",
+                                        polygons.borrow().len()
+                                    )));
+                                }
+                                (update_image.clone())();
+                            }
+                            if let Some(p) = pd_weak2.upgrade() {
+                                let _ = p.hide();
+                            }
+                        });
+                    }
+                    {
+                        let pd_weak2 = pd.as_weak();
+                        pd.on_cancel(move || {
+                            if let Some(p) = pd_weak2.upgrade() {
+                                let _ = p.hide();
+                            }
+                        });
+                    }
+                    pd.run().unwrap();
+                });
+            }
+            dlg.run().unwrap();
         });
     }
 
     let weak = app.as_weak();
     {
         let polylines = polylines.clone();
+        let update_image = update_image.clone();
+        let weak_main = weak.clone();
         app.on_add_polyline(move || {
-            polylines.borrow_mut().push(Polyline::new(vec![
-                Point::new(0.0, 0.0),
-                Point::new(1.0, 0.0),
-                Point::new(1.0, 1.0),
-            ]));
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from(format!(
-                    "Total polylines: {}",
-                    polylines.borrow().len()
-                )));
+            let dlg = AddPolylineDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            {
+                let polylines = polylines.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_from_file(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV", &["csv"])
+                        .pick_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            match read_points_list(p) {
+                                Ok(pts) => {
+                                    if pts.len() >= 2 {
+                                        polylines.borrow_mut().push(Polyline::new(pts));
+                                        if let Some(app) = weak_main.upgrade() {
+                                            app.set_status(SharedString::from(format!(
+                                                "Total polylines: {}",
+                                                polylines.borrow().len()
+                                            )));
+                                        }
+                                        (update_image.clone())();
+                                    } else if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from("Need at least 2 points"));
+                                    }
+                                }
+                                Err(e) => {
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                });
             }
+            {
+                let polylines = polylines.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    let pd = PointsDialog::new().unwrap();
+                    let model = Rc::new(VecModel::<SharedString>::from(Vec::<SharedString>::new()));
+                    pd.set_points_model(model.clone().into());
+                    let _pd_weak = pd.as_weak();
+                    let pts = Rc::new(RefCell::new(Vec::<Point>::new()));
+                    {
+                        let model = model.clone();
+                        let pd_weak2 = pd.as_weak();
+                        let pts = pts.clone();
+                        pd.on_add_point(move || {
+                            if let Some(d) = pd_weak2.upgrade() {
+                                if let (Ok(x), Ok(y)) = (d.get_x_value().parse::<f64>(), d.get_y_value().parse::<f64>()) {
+                                    pts.borrow_mut().push(Point::new(x, y));
+                                    model.push(SharedString::from(format!("{:.3},{:.3}", x, y)));
+                                }
+                            }
+                        });
+                    }
+                    {
+                        let polylines = polylines.clone();
+                        let update_image = update_image.clone();
+                        let weak_main = weak_main.clone();
+                        let pd_weak2 = pd.as_weak();
+                        let pts = pts.clone();
+                        pd.on_accept(move || {
+                            if pts.borrow().len() >= 2 {
+                                polylines.borrow_mut().push(Polyline::new(pts.borrow().clone()));
+                                if let Some(app) = weak_main.upgrade() {
+                                    app.set_status(SharedString::from(format!(
+                                        "Total polylines: {}",
+                                        polylines.borrow().len()
+                                    )));
+                                }
+                                (update_image.clone())();
+                            }
+                            if let Some(p) = pd_weak2.upgrade() {
+                                let _ = p.hide();
+                            }
+                        });
+                    }
+                    {
+                        let pd_weak2 = pd.as_weak();
+                        pd.on_cancel(move || {
+                            if let Some(p) = pd_weak2.upgrade() {
+                                let _ = p.hide();
+                            }
+                        });
+                    }
+                    pd.run().unwrap();
+                });
+            }
+            dlg.run().unwrap();
         });
     }
 
     let weak = app.as_weak();
     {
         let arcs = arcs.clone();
+        let update_image = update_image.clone();
+        let weak_main = weak.clone();
         app.on_add_arc(move || {
-            arcs.borrow_mut().push(Arc::new(
-                Point::new(0.0, 0.0),
-                1.0,
-                0.0,
-                std::f64::consts::FRAC_PI_2,
-            ));
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from(format!(
-                    "Total arcs: {}",
-                    arcs.borrow().len()
-                )));
+            let dlg = AddArcDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            {
+                let arcs = arcs.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_from_file(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV", &["csv"])
+                        .pick_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            match read_arc_csv(p) {
+                                Ok(a) => {
+                                    arcs.borrow_mut().push(a);
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total arcs: {}",
+                                            arcs.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                                Err(e) => {
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                });
             }
+            {
+                let arcs = arcs.clone();
+                let update_image = update_image.clone();
+                let weak_main = weak_main.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    let ad = ArcKeyInDialog::new().unwrap();
+                    let ad_weak = ad.as_weak();
+                    let ad_weak2 = ad.as_weak();
+                    {
+                        let arcs = arcs.clone();
+                        let update_image = update_image.clone();
+                        let weak_main = weak_main.clone();
+                        ad.on_accept(move || {
+                            if let Some(dlg) = ad_weak2.upgrade() {
+                                if let (Ok(cx), Ok(cy), Ok(r), Ok(sa), Ok(ea)) = (
+                                    dlg.get_cx().parse::<f64>(),
+                                    dlg.get_cy().parse::<f64>(),
+                                    dlg.get_radius().parse::<f64>(),
+                                    dlg.get_start_angle().parse::<f64>(),
+                                    dlg.get_end_angle().parse::<f64>(),
+                                ) {
+                                    arcs.borrow_mut().push(Arc::new(Point::new(cx, cy), r, sa, ea));
+                                    if let Some(app) = weak_main.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total arcs: {}",
+                                            arcs.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                            }
+                            if let Some(a) = ad_weak.upgrade() {
+                                let _ = a.hide();
+                            }
+                        });
+                    }
+                    {
+                        let ad_weak = ad.as_weak();
+                        ad.on_cancel(move || {
+                            if let Some(a) = ad_weak.upgrade() {
+                                let _ = a.hide();
+                            }
+                        });
+                    }
+                    ad.run().unwrap();
+                });
+            }
+            dlg.run().unwrap();
         });
     }
 
