@@ -1,18 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use slint::{SharedPixelBuffer, SharedString, VecModel, Rgba8Pixel, Image};
-use tiny_skia::{Pixmap, Paint, Stroke, PathBuilder, Transform, Color};
+use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
 use survey_cad::surveying::{
-    bearing,
-    forward,
-    line_intersection,
-    level_elevation,
-    vertical_angle,
-    Station,
+    bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
 };
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::slint! {
 component Workspace2D inherits Rectangle {
@@ -72,6 +67,69 @@ export component KeyInDialog inherits Window {
     }
 }
 
+export component StationDistanceDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    callback accept();
+    callback cancel();
+    title: "Station Distance";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "X1:"; }
+            LineEdit { text <=> root.x1; }
+        }
+        HorizontalBox {
+            Text { text: "Y1:"; }
+            LineEdit { text <=> root.y1; }
+        }
+        HorizontalBox {
+            Text { text: "X2:"; }
+            LineEdit { text <=> root.x2; }
+        }
+        HorizontalBox {
+            Text { text: "Y2:"; }
+            LineEdit { text <=> root.y2; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component LevelElevationDialog inherits Window {
+    in-out property <string> start_elev;
+    in-out property <string> backsight;
+    in-out property <string> foresight;
+    callback accept();
+    callback cancel();
+    title: "Level Elevation";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "Start Elev:"; }
+            LineEdit { text <=> root.start_elev; }
+        }
+        HorizontalBox {
+            Text { text: "Backsight:"; }
+            LineEdit { text <=> root.backsight; }
+        }
+        HorizontalBox {
+            Text { text: "Foresight:"; }
+            LineEdit { text <=> root.foresight; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
@@ -100,6 +158,9 @@ export component MainWindow inherits Window {
     callback add_arc();
     callback clear_workspace();
     callback view_changed(int);
+    callback station_distance();
+    callback traverse_area();
+    callback level_elevation_tool();
 
     MenuBar {
         Menu {
@@ -116,6 +177,12 @@ export component MainWindow inherits Window {
             MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
             MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
             MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
+        }
+        Menu {
+            title: "Tools";
+            MenuItem { title: "Station Distance"; activated => { root.station_distance(); } }
+            MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
+            MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
         }
         Menu {
             title: "View";
@@ -190,12 +257,21 @@ fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(255, 0, 0, 255));
     paint.anti_alias = true;
-    let stroke = Stroke { width: 2.0, ..Stroke::default() };
+    let stroke = Stroke {
+        width: 2.0,
+        ..Stroke::default()
+    };
 
     for (s, e) in lines {
         let mut pb = PathBuilder::new();
-        pb.move_to((s.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - s.y as f32);
-        pb.line_to((e.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - e.y as f32);
+        pb.move_to(
+            (s.x as f32) + WIDTH as f32 / 2.0,
+            HEIGHT as f32 / 2.0 - s.y as f32,
+        );
+        pb.line_to(
+            (e.x as f32) + WIDTH as f32 / 2.0,
+            HEIGHT as f32 / 2.0 - e.y as f32,
+        );
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
@@ -208,7 +284,13 @@ fn render_workspace(points: &[Point], lines: &[(Point, Point)]) -> Image {
             HEIGHT as f32 / 2.0 - p.y as f32,
             3.0,
         ) {
-            pixmap.fill_path(&circle, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+            pixmap.fill_path(
+                &circle,
+                &paint,
+                tiny_skia::FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
     }
 
@@ -576,10 +658,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let pts = points.borrow();
                         if pts.len() >= 2 {
                             let bng = bearing(pts[0], pts[1]);
-                            app.set_status(SharedString::from(format!(
-                                "Bearing: {:.3} rad",
-                                bng
-                            )));
+                            app.set_status(SharedString::from(format!("Bearing: {:.3} rad", bng)));
                         } else {
                             app.set_status(SharedString::from("Need 2 points for bearing"));
                         }
@@ -616,10 +695,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     3 => {
                         let elev = level_elevation(100.0, 1.2, 0.8);
-                        app.set_status(SharedString::from(format!(
-                            "New elevation: {:.3}",
-                            elev
-                        )));
+                        app.set_status(SharedString::from(format!("New elevation: {:.3}", elev)));
                     }
                     4 => {
                         let pts = points.borrow();
@@ -638,6 +714,100 @@ fn main() -> Result<(), slint::PlatformError> {
                     _ => {}
                 }
             }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_station_distance(move || {
+            let dlg = StationDistanceDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let x1 = d.get_x1().parse::<f64>().ok()?;
+                        let y1 = d.get_y1().parse::<f64>().ok()?;
+                        let x2 = d.get_x2().parse::<f64>().ok()?;
+                        let y2 = d.get_y2().parse::<f64>().ok()?;
+                        Some(station_distance(
+                            &Station::new("A", Point::new(x1, y1)),
+                            &Station::new("B", Point::new(x2, y2)),
+                        ))
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if let Some(dist) = res {
+                            app.set_status(SharedString::from(format!("Distance: {:.3}", dist)));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.run().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_traverse_area(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .pick_file()
+            {
+                if let (Some(p), Some(app)) = (path.to_str(), weak.upgrade()) {
+                    match survey_cad::io::read_points_csv(p, None, None) {
+                        Ok(pts) => {
+                            let trav = survey_cad::surveying::Traverse::new(pts);
+                            app.set_status(SharedString::from(format!("Area: {:.3}", trav.area())));
+                        }
+                        Err(e) => {
+                            app.set_status(SharedString::from(format!("Failed: {}", e)));
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_level_elevation_tool(move || {
+            let dlg = LevelElevationDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let start = d.get_start_elev().parse::<f64>().ok()?;
+                        let bs = d.get_backsight().parse::<f64>().ok()?;
+                        let fs = d.get_foresight().parse::<f64>().ok()?;
+                        Some(level_elevation(start, bs, fs))
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if let Some(elev) = res {
+                            app.set_status(SharedString::from(format!("Elevation: {:.3}", elev)));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.run().unwrap();
         });
     }
 
