@@ -272,7 +272,15 @@ enum WorkspaceMode {
 }
 
 #[derive(Component)]
-struct ViewToggleButton;
+struct ViewMenuButton;
+
+#[derive(Component)]
+struct ViewOptionButton(WorkspaceMode);
+
+#[derive(Resource, Default)]
+struct ViewMenuState {
+    entity: Option<Entity>,
+}
 
 #[derive(Component)]
 struct WorkspaceCamera2d;
@@ -414,6 +422,7 @@ fn main() {
         .insert_resource(SectionsVisible::default())
         .insert_resource(PlanVisible::default())
         .insert_resource(WorkspaceMode::default())
+        .insert_resource(ViewMenuState::default())
         .insert_resource(ContextMenuState::default())
         .insert_resource(CogoMenuState::default())
         .insert_resource(SurfaceMenuState::default())
@@ -439,7 +448,7 @@ fn main() {
                 update_surface_edges,
                 maybe_update_surface,
                 camera_pan_zoom,
-                handle_view_toggle,
+                handle_view_toggle_keys,
                 highlight_selected_points,
                 update_lod_meshes,
             ),
@@ -456,6 +465,7 @@ fn main() {
                 handle_cogo_menu_button,
                 handle_surface_menu_button,
                 handle_crs_menu_button,
+                handle_view_menu_button,
                 handle_new_button,
                 handle_open_button,
                 handle_save_button,
@@ -474,6 +484,7 @@ fn main() {
             (
                 update_section_lines,
                 handle_crs_option_buttons,
+                handle_view_option_buttons,
             ),
         )
         .run();
@@ -636,7 +647,7 @@ fn spawn_toolbar(
                         Text::new("View"),
                     ));
                 })
-                .insert(ViewToggleButton);
+                .insert(ViewMenuButton);
 
             parent
                 .spawn((
@@ -2136,18 +2147,13 @@ fn handle_section_buttons(
     }
 }
 
-fn handle_view_toggle(
-    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ViewToggleButton>)>,
+fn handle_view_toggle_keys(
     keys: Res<ButtonInput<KeyCode>>,
     mut mode: ResMut<WorkspaceMode>,
     mut cam2d: Query<&mut Camera, (With<Camera2d>, With<WorkspaceCamera2d>)>,
     mut cam3d: Query<&mut Camera, (With<Camera3d>, With<WorkspaceCamera3d>)>,
 ) {
-    let mut toggle = keys.just_pressed(KeyCode::KeyV);
-    if let Ok(&Interaction::Pressed) = interaction.get_single() {
-        toggle = true;
-    }
-    if toggle {
+    if keys.just_pressed(KeyCode::KeyV) {
         *mode = match *mode {
             WorkspaceMode::TwoD => WorkspaceMode::ThreeD,
             WorkspaceMode::ThreeD => WorkspaceMode::TwoD,
@@ -2480,6 +2486,82 @@ fn handle_crs_option_buttons(
                     working.0 = Crs::from_epsg(epsg);
                     println!("Selected CRS {}", opt.0);
                 }
+            }
+            if let Some(ent) = state.entity.take() {
+                commands.entity(ent).despawn_recursive();
+            }
+        }
+    }
+}
+
+fn handle_view_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<ViewMenuButton>)>,
+    mut state: ResMut<ViewMenuState>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(155.0),
+                        top: Val::Px(60.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .insert(FocusPolicy::Block)
+                .with_children(|parent| {
+                    for (label, mode) in [
+                        ("2D Workspace", WorkspaceMode::TwoD),
+                        ("3D Workspace", WorkspaceMode::ThreeD),
+                    ] {
+                        parent
+                            .spawn(Button)
+                            .with_children(|b| {
+                                b.spawn((
+                                    TextLayout::default(),
+                                    TextFont {
+                                        font: asset_server.load("FiraMono-subset.ttf"),
+                                        font_size: 12.0,
+                                        ..default()
+                                    },
+                                    TextColor::WHITE,
+                                    Text::new(label),
+                                ));
+                            })
+                            .insert(ViewOptionButton(mode));
+                    }
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_view_option_buttons(
+    interactions: Query<(&Interaction, &ViewOptionButton), Changed<Interaction>>,
+    mut mode: ResMut<WorkspaceMode>,
+    mut cam2d: Query<&mut Camera, (With<Camera2d>, With<WorkspaceCamera2d>)>,
+    mut cam3d: Query<&mut Camera, (With<Camera3d>, With<WorkspaceCamera3d>)>,
+    mut state: ResMut<ViewMenuState>,
+    mut commands: Commands,
+) {
+    for (interaction, button) in &interactions {
+        if *interaction == Interaction::Pressed {
+            *mode = button.0;
+            let active_2d = matches!(*mode, WorkspaceMode::TwoD);
+            for mut cam in &mut cam2d {
+                cam.is_active = active_2d;
+            }
+            for mut cam in &mut cam3d {
+                cam.is_active = !active_2d;
             }
             if let Some(ent) = state.entity.take() {
                 commands.entity(ent).despawn_recursive();
