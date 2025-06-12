@@ -20,6 +20,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install GDAL
         run: sudo apt-get update && sudo apt-get install -y libgdal-dev
+      - name: Free disk space
+        run: |
+          sudo apt-get clean
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android $AGENT_TOOLSDIRECTORY
+          df -h
       - name: Run cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: Run cargo test
