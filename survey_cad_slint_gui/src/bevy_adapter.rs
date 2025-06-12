@@ -194,7 +194,8 @@ pub async fn run_bevy_app_with_slint(
                         )),
                     ),
                     ..default()
-                }), //.disable::<bevy::winit::WinitPlugin>(),
+                })
+                .disable::<bevy::winit::WinitPlugin>(),
         );
         app.add_plugins(SlintRenderToTexturePlugin(bevy_front_buffer_sender));
         app.add_plugins(ExtractResourcePlugin::<BackBuffer>::default());
