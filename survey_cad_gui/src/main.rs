@@ -476,6 +476,11 @@ fn main() {
                 handle_section_nav,
                 handle_section_buttons,
                 update_profile_lines,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
                 update_plan_labels,
             ),
         )
