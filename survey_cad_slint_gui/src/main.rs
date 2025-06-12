@@ -4,6 +4,14 @@ use std::rc::Rc;
 use slint::{SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
+use survey_cad::surveying::{
+    bearing,
+    forward,
+    line_intersection,
+    level_elevation,
+    vertical_angle,
+    Station,
+};
 
 slint::slint! {
 import { Button, VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
@@ -15,8 +23,11 @@ export component MainWindow inherits Window {
     in-out property <string> status;
     in property <[string]> crs_list;
     in-out property <int> crs_index;
+    in property <[string]> cogo_list;
+    in-out property <int> cogo_index;
 
     callback crs_changed(int);
+    callback cogo_selected(int);
 
     callback new_project();
     callback open_project();
@@ -48,6 +59,16 @@ export component MainWindow inherits Window {
             model: root.crs_list;
             current-index <=> root.crs_index;
             selected => { root.crs_changed(root.crs_index); }
+        }
+    }
+
+    HorizontalBox {
+        spacing: 6px;
+        Text { text: "Cogo:"; }
+        ComboBox {
+            model: root.cogo_list;
+            current-index <=> root.cogo_index;
+            selected => { root.cogo_selected(root.cogo_index); }
         }
     }
 
@@ -84,6 +105,15 @@ fn main() -> Result<(), slint::PlatformError> {
     ));
     app.set_crs_list(crs_model.clone().into());
     app.set_crs_index(0);
+    let cogo_model = Rc::new(VecModel::from(vec![
+        SharedString::from("Bearing"),
+        SharedString::from("Forward"),
+        SharedString::from("Intersection"),
+        SharedString::from("Level Elev"),
+        SharedString::from("Vert Angle"),
+    ]));
+    app.set_cogo_list(cogo_model.clone().into());
+    app.set_cogo_index(0);
     let working_crs = Rc::new(RefCell::new(Crs::wgs84()));
 
     let weak = app.as_weak();
@@ -282,6 +312,81 @@ fn main() -> Result<(), slint::PlatformError> {
                             )));
                         }
                     }
+                }
+            }
+        });
+    }
+
+    {
+        let points = points.clone();
+        let weak = app.as_weak();
+        app.on_cogo_selected(move |idx| {
+            if let Some(app) = weak.upgrade() {
+                match idx {
+                    0 => {
+                        let pts = points.borrow();
+                        if pts.len() >= 2 {
+                            let bng = bearing(pts[0], pts[1]);
+                            app.set_status(SharedString::from(format!(
+                                "Bearing: {:.3} rad",
+                                bng
+                            )));
+                        } else {
+                            app.set_status(SharedString::from("Need 2 points for bearing"));
+                        }
+                    }
+                    1 => {
+                        if let Some(start) = points.borrow().first().copied() {
+                            let p = forward(start, 0.0, 10.0);
+                            points.borrow_mut().push(p);
+                            app.set_status(SharedString::from(format!(
+                                "Forward point: {:.3},{:.3}",
+                                p.x, p.y
+                            )));
+                        } else {
+                            app.set_status(SharedString::from("Need start point"));
+                        }
+                    }
+                    2 => {
+                        let pts = points.borrow();
+                        if pts.len() >= 4 {
+                            match line_intersection(pts[0], pts[1], pts[2], pts[3]) {
+                                Some(p) => {
+                                    app.set_status(SharedString::from(format!(
+                                        "Intersection: {:.3},{:.3}",
+                                        p.x, p.y
+                                    )));
+                                }
+                                None => {
+                                    app.set_status(SharedString::from("Lines are parallel"));
+                                }
+                            }
+                        } else {
+                            app.set_status(SharedString::from("Need 4 points for intersection"));
+                        }
+                    }
+                    3 => {
+                        let elev = level_elevation(100.0, 1.2, 0.8);
+                        app.set_status(SharedString::from(format!(
+                            "New elevation: {:.3}",
+                            elev
+                        )));
+                    }
+                    4 => {
+                        let pts = points.borrow();
+                        if pts.len() >= 2 {
+                            let a_stn = Station::new("A", pts[0]);
+                            let b_stn = Station::new("B", pts[1]);
+                            let ang = vertical_angle(&a_stn, 10.0, &b_stn, 14.0);
+                            app.set_status(SharedString::from(format!(
+                                "Vert angle: {:.3} rad",
+                                ang
+                            )));
+                        } else {
+                            app.set_status(SharedString::from("Need 2 points for vert angle"));
+                        }
+                    }
+                    _ => {}
                 }
             }
         });
