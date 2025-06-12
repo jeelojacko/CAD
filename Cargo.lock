@@ -8885,6 +8885,7 @@ dependencies = [
  "rfd",
  "slint",
  "survey_cad",
+ "tiny-skia",
 ]
 
 [[package]]
