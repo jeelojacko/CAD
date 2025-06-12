@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use slint::SharedString;
-use survey_cad::geometry::Point;
+use survey_cad::geometry::{Arc, Point, Polyline};
 
 slint::slint! {
 import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
@@ -19,6 +19,9 @@ export component MainWindow inherits Window {
     callback add_point();
     callback add_line();
     callback add_polygon();
+    callback add_polyline();
+    callback add_arc();
+    callback clear_workspace();
 
     HorizontalBox {
         spacing: 6px;
@@ -28,6 +31,9 @@ export component MainWindow inherits Window {
         Button { text: "Add Point"; clicked => { root.add_point(); } }
         Button { text: "Add Line"; clicked => { root.add_line(); } }
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
+        Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
+        Button { text: "Add Arc"; clicked => { root.add_arc(); } }
+        Button { text: "Clear"; clicked => { root.clear_workspace(); } }
     }
 
     VerticalBox {
@@ -52,13 +58,23 @@ fn main() -> Result<(), slint::PlatformError> {
     let points: Rc<RefCell<Vec<Point>>> = Rc::new(RefCell::new(Vec::new()));
     let lines: Rc<RefCell<Vec<(Point, Point)>>> = Rc::new(RefCell::new(Vec::new()));
     let polygons: Rc<RefCell<Vec<Vec<Point>>>> = Rc::new(RefCell::new(Vec::new()));
+    let polylines: Rc<RefCell<Vec<Polyline>>> = Rc::new(RefCell::new(Vec::new()));
+    let arcs: Rc<RefCell<Vec<Arc>>> = Rc::new(RefCell::new(Vec::new()));
 
     let weak = app.as_weak();
     {
         let points = points.clone();
         let weak = weak.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
         app.on_new_project(move || {
             points.borrow_mut().clear();
+            lines.borrow_mut().clear();
+            polygons.borrow_mut().clear();
+            polylines.borrow_mut().clear();
+            arcs.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
             }
@@ -165,6 +181,62 @@ fn main() -> Result<(), slint::PlatformError> {
                     "Total polygons: {}",
                     polygons.borrow().len()
                 )));
+            }
+        });
+    }
+
+    let weak = app.as_weak();
+    {
+        let polylines = polylines.clone();
+        app.on_add_polyline(move || {
+            polylines.borrow_mut().push(Polyline::new(vec![
+                Point::new(0.0, 0.0),
+                Point::new(1.0, 0.0),
+                Point::new(1.0, 1.0),
+            ]));
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from(format!(
+                    "Total polylines: {}",
+                    polylines.borrow().len()
+                )));
+            }
+        });
+    }
+
+    let weak = app.as_weak();
+    {
+        let arcs = arcs.clone();
+        app.on_add_arc(move || {
+            arcs.borrow_mut().push(Arc::new(
+                Point::new(0.0, 0.0),
+                1.0,
+                0.0,
+                std::f64::consts::FRAC_PI_2,
+            ));
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from(format!(
+                    "Total arcs: {}",
+                    arcs.borrow().len()
+                )));
+            }
+        });
+    }
+
+    let weak = app.as_weak();
+    {
+        let points = points.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        app.on_clear_workspace(move || {
+            points.borrow_mut().clear();
+            lines.borrow_mut().clear();
+            polygons.borrow_mut().clear();
+            polylines.borrow_mut().clear();
+            arcs.borrow_mut().clear();
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Workspace cleared"));
             }
         });
     }
