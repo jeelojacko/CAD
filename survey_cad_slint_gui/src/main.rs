@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
-use survey_cad::geometry::{Arc, Point, Polyline};
+use survey_cad::geometry::{Arc, Point, Point3, Polyline};
 use survey_cad::surveying::{
     bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
 };
