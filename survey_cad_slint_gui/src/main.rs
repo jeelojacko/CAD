@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -6,7 +8,9 @@ mod workspace3d;
 
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
-use survey_cad::geometry::{Arc, Point, Point3, Polyline};
+use survey_cad::geometry::{Arc, Point, Polyline};
+#[cfg(any(feature = "las", feature = "e57"))]
+use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
     bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
 };
@@ -35,8 +39,8 @@ component Workspace2D inherits Rectangle {
 
 component Workspace3D inherits Rectangle {
     in-out property <image> texture <=> img.source;
-    out property <length> requested_texture_width: img.width;
-    out property <length> requested_texture_height: img.height;
+    out property <length> requested-texture-width: img.width;
+    out property <length> requested-texture-height: img.height;
     background: #202020;
     img := Image {
         width: 100%;
@@ -297,8 +301,6 @@ export component MainWindow inherits Window {
     in-out property <int> workspace_mode;
     in-out property <image> workspace_image;
     in-out property <image> workspace_texture;
-    in-out property <length> requested_texture_width;
-    in-out property <length> requested_texture_height;
     in-out property <bool> workspace_click_mode;
 
     callback workspace_clicked(length, length);
@@ -422,8 +424,6 @@ export component MainWindow inherits Window {
         }
         if root.workspace_mode == 1 : Workspace3D {
             texture <=> root.workspace_texture;
-            root.requested_texture_width <=> self.requested_texture_width;
-            root.requested_texture_height <=> self.requested_texture_height;
         }
         Text { text: root.status; }
     }
@@ -642,7 +642,7 @@ fn main() -> Result<(), slint::PlatformError> {
             |_| {},
             |mut bapp| {
                 workspace3d::bevy_app(&mut bapp);
-                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::rgb(0.1, 0.1, 0.1)))
+                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(0.1, 0.1, 0.1)))
                     .run();
             },
         ))?;
@@ -663,23 +663,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 })
                 .unwrap();
             }
-            let width = app.get_requested_texture_width().round() as u32;
-            let height = app.get_requested_texture_height().round() as u32;
-            if width > 0 && height > 0 {
-                let sender = bevy_control_sender.clone();
-                slint::spawn_local(async move {
-                    sender
-                        .send(bevy_adapter::ControlMessage::ResizeBuffers { width, height })
-                        .await
-                        .unwrap();
-                })
-                .unwrap();
-            }
+            // Fixed texture size for the 3D workspace
             if let Ok(image) = new_texture.try_into() {
                 app.set_workspace_texture(image);
             }
         }
-    })?;
+    }).unwrap();
 
     let update_image = {
         let points = points.clone();

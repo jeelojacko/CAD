@@ -8,7 +8,7 @@ slint = { git = "https://github.com/slint-ui/slint", rev = "939d605e0688b7ea4cb6
 survey_cad = { path = "../survey_cad" }
 rfd = "0.15"
 tiny-skia = "0.11"
-bevy = { version = "0.15", default-features = false, features = [
+bevy = { version = "0.16", default-features = false, features = [
     "bevy_core_pipeline",
     "bevy_pbr",
     "bevy_window",
@@ -19,7 +19,6 @@ bevy = { version = "0.15", default-features = false, features = [
     "tonemapping_luts",
     "multi_threaded"
 ] }
-bevy_editor_cam = "0.5"
 spin_on = "0.1"
 smol = "2.0"
 
