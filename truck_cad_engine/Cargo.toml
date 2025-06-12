@@ -1,0 +1,14 @@
+[package]
+name = "truck_cad_engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+truck-modeling = "0.6"
+truck-topology = "0.6"
+truck-geometry = "0.5"
+truck-platform = "0.6"
+truck-meshalgo = { version = "0.4", features = ["tessellation"] }
+truck-rendimpl = "0.6"
+slint = { git = "https://github.com/slint-ui/slint", rev = "939d605e0688b7ea4cb6e3a5b3f40d918a60a5db", features = ["unstable-wgpu-24"] }
+pollster = "0.3"
