@@ -194,6 +194,26 @@ struct FileMenuState {
 }
 
 #[derive(Component)]
+struct CogoMenuButton;
+
+#[derive(Resource, Default)]
+struct CogoMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Component)]
+struct CogoButton(CogoAction);
+
+#[derive(Clone, Copy)]
+enum CogoAction {
+    Bearing,
+    Forward,
+    Intersection,
+    LevelElevation,
+    VerticalAngle,
+}
+
+#[derive(Component)]
 struct CorridorButton(CorridorControl);
 
 #[derive(Clone, Copy)]
@@ -373,6 +393,7 @@ fn main() {
         .insert_resource(PlanVisible::default())
         .insert_resource(WorkspaceMode::default())
         .insert_resource(ContextMenuState::default())
+        .insert_resource(CogoMenuState::default())
         .insert_resource(FileMenuState::default())
         .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
@@ -407,9 +428,11 @@ fn main() {
                 handle_grade_button,
                 handle_select_button,
                 handle_file_menu_button,
+                handle_cogo_menu_button,
                 handle_new_button,
                 handle_open_button,
                 handle_save_button,
+                handle_cogo_buttons,
                 handle_show_plan,
                 handle_show_profile,
                 handle_show_sections,
@@ -580,6 +603,35 @@ fn spawn_toolbar(
                     ));
                 })
                 .insert(ViewToggleButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Cogo"),
+                    ));
+                })
+                .insert(CogoMenuButton);
 
             parent
                 .spawn((
@@ -1996,6 +2048,131 @@ fn handle_file_menu_button(
                 })
                 .id();
             state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_cogo_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<CogoMenuButton>)>,
+    mut state: ResMut<CogoMenuState>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(160.0),
+                        top: Val::Px(30.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .insert(FocusPolicy::Block)
+                .with_children(|parent| {
+                    for (label, action) in [
+                        ("Bearing", CogoAction::Bearing),
+                        ("Forward", CogoAction::Forward),
+                        ("Intersection", CogoAction::Intersection),
+                        ("Level Elev", CogoAction::LevelElevation),
+                        ("Vert Angle", CogoAction::VerticalAngle),
+                    ] {
+                        parent
+                            .spawn(Button)
+                            .with_children(|b| {
+                                b.spawn((
+                                    TextLayout::default(),
+                                    TextFont {
+                                        font: asset_server.load("FiraMono-subset.ttf"),
+                                        font_size: 12.0,
+                                        ..default()
+                                    },
+                                    TextColor::WHITE,
+                                    Text::new(label),
+                                ));
+                            })
+                            .insert(CogoButton(action));
+                    }
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_cogo_buttons(
+    interactions: Query<(&Interaction, &CogoButton), Changed<Interaction>>,
+    selected: Res<SelectedPoints>,
+    points: Query<&Transform, With<CadPoint>>,
+    mut state: ResMut<CogoMenuState>,
+    mut commands: Commands,
+) {
+    for (interaction, button) in &interactions {
+        if *interaction == Interaction::Pressed {
+            match button.0 {
+                CogoAction::Bearing => {
+                    if selected.0.len() >= 2 {
+                        if let (Ok(a), Ok(b)) = (
+                            points.get(selected.0[0]),
+                            points.get(selected.0[1]),
+                        ) {
+                            let a = Point::new(a.translation.x as f64, a.translation.y as f64);
+                            let b = Point::new(b.translation.x as f64, b.translation.y as f64);
+                            let bng = survey_cad::surveying::bearing(a, b);
+                            println!("Bearing: {:.3} rad", bng);
+                        }
+                    } else {
+                        println!("Select two points for bearing");
+                    }
+                }
+                CogoAction::Forward => {
+                    if let Some(&e) = selected.0.first() {
+                        if let Ok(t) = points.get(e) {
+                            let start = Point::new(t.translation.x as f64, t.translation.y as f64);
+                            let p = survey_cad::surveying::forward(start, 0.0, 10.0);
+                            println!("Forward point: {:.3},{:.3}", p.x, p.y);
+                        }
+                    } else {
+                        println!("Select a start point for forward");
+                    }
+                }
+                CogoAction::Intersection => {
+                    if selected.0.len() >= 4 {
+                        if let (Ok(t1), Ok(t2), Ok(t3), Ok(t4)) = (
+                            points.get(selected.0[0]),
+                            points.get(selected.0[1]),
+                            points.get(selected.0[2]),
+                            points.get(selected.0[3]),
+                        ) {
+                            let a = Point::new(t1.translation.x as f64, t1.translation.y as f64);
+                            let b = Point::new(t2.translation.x as f64, t2.translation.y as f64);
+                            let c = Point::new(t3.translation.x as f64, t3.translation.y as f64);
+                            let d = Point::new(t4.translation.x as f64, t4.translation.y as f64);
+                            match survey_cad::surveying::line_intersection(a, b, c, d) {
+                                Some(p) => println!("Intersection: {:.3},{:.3}", p.x, p.y),
+                                None => println!("Lines are parallel"),
+                            }
+                        }
+                    } else {
+                        println!("Select four points for intersection");
+                    }
+                }
+                CogoAction::LevelElevation => {
+                    println!("Level Elevation tool not implemented");
+                }
+                CogoAction::VerticalAngle => {
+                    println!("Vertical Angle tool not implemented");
+                }
+            }
+            if let Some(ent) = state.entity.take() {
+                commands.entity(ent).despawn_recursive();
+            }
         }
     }
 }
