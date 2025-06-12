@@ -1212,7 +1212,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         });
                     }
-                    key_dlg.run().unwrap();
+                    key_dlg.show().unwrap();
                 });
             }
             {
@@ -1227,7 +1227,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 });
             }
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1324,10 +1324,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         });
                     }
-                    kd.run().unwrap();
+                    kd.show().unwrap();
                 });
             }
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1438,10 +1438,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         });
                     }
-                    pd.run().unwrap();
+                    pd.show().unwrap();
                 });
             }
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1549,10 +1549,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         });
                     }
-                    pd.run().unwrap();
+                    pd.show().unwrap();
                 });
             }
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1647,10 +1647,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         });
                     }
-                    ad.run().unwrap();
+                    ad.show().unwrap();
                 });
             }
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1799,7 +1799,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let _ = d.hide();
                 }
             });
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
@@ -1855,7 +1855,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let _ = d.hide();
                 }
             });
-            dlg.run().unwrap();
+            dlg.show().unwrap();
         });
     }
 
