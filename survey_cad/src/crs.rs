@@ -1,6 +1,7 @@
 //! Coordinate reference system utilities built on top of the `proj` crate.
 
 use proj::Proj;
+use rusqlite::Connection;
 
 /// Reusable transformation object between two coordinate reference systems.
 ///
@@ -162,6 +163,44 @@ impl Crs {
     ) -> Option<(f64, f64, f64)> {
         CrsTransformer::new(self, target)?.transform(x, y, z)
     }
+}
+
+/// Simple CRS information record loaded from the PROJ database.
+#[derive(Debug, Clone)]
+pub struct CrsEntry {
+    /// Combined authority and code string (e.g. "EPSG:4326").
+    pub code: String,
+    /// Human readable name of the coordinate system.
+    pub name: String,
+}
+
+/// Loads available coordinate reference systems from the system PROJ database.
+pub fn list_known_crs() -> Vec<CrsEntry> {
+    let path = "/usr/share/proj/proj.db";
+    let conn = match Connection::open(path) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let mut stmt = match conn
+        .prepare("SELECT auth_name || ':' || code, name FROM crs_view WHERE deprecated = 0")
+    {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let rows = match stmt.query_map([], |row| {
+        Ok(CrsEntry {
+            code: row.get(0)?,
+            name: row.get(1)?,
+        })
+    }) {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    let mut out = Vec::new();
+    for r in rows.flatten() {
+        out.push(r);
+    }
+    out
 }
 
 #[cfg(test)]

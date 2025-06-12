@@ -222,6 +222,20 @@ enum CogoAction {
 }
 
 #[derive(Component)]
+struct CrsMenuButton;
+
+#[derive(Resource, Default)]
+struct CrsMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Resource)]
+struct CrsDatabase(Vec<survey_cad::crs::CrsEntry>);
+
+#[derive(Component, Clone)]
+struct CrsOption(String);
+
+#[derive(Component)]
 struct CorridorButton(CorridorControl);
 
 #[derive(Clone, Copy)]
@@ -404,6 +418,8 @@ fn main() {
         .insert_resource(CogoMenuState::default())
         .insert_resource(SurfaceMenuState::default())
         .insert_resource(FileMenuState::default())
+        .insert_resource(CrsMenuState::default())
+        .insert_resource(CrsDatabase(survey_cad::crs::list_known_crs()))
         .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
             Update,
@@ -439,6 +455,7 @@ fn main() {
                 handle_file_menu_button,
                 handle_cogo_menu_button,
                 handle_surface_menu_button,
+                handle_crs_menu_button,
                 handle_new_button,
                 handle_open_button,
                 handle_save_button,
@@ -451,6 +468,7 @@ fn main() {
                 update_profile_lines,
                 update_plan_labels,
                 update_section_lines,
+                handle_crs_option_buttons,
             ),
         )
         .run();
@@ -672,6 +690,35 @@ fn spawn_toolbar(
                     ));
                 })
                 .insert(SurfaceMenuButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("CRS"),
+                    ));
+                })
+                .insert(CrsMenuButton);
 
             parent
                 .spawn((
@@ -2362,6 +2409,76 @@ fn handle_surface_menu_button(
                 })
                 .id();
             state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_crs_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<CrsMenuButton>)>,
+    mut state: ResMut<CrsMenuState>,
+    db: Res<CrsDatabase>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(310.0),
+                        top: Val::Px(60.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .insert(FocusPolicy::Block)
+                .with_children(|parent| {
+                    for entry in &db.0 {
+                        parent
+                            .spawn(Button)
+                            .with_children(|b| {
+                                b.spawn((
+                                    TextLayout::default(),
+                                    TextFont {
+                                        font: asset_server.load("FiraMono-subset.ttf"),
+                                        font_size: 12.0,
+                                        ..default()
+                                    },
+                                    TextColor::WHITE,
+                                    Text::new(format!("{} - {}", entry.code, entry.name)),
+                                ));
+                            })
+                            .insert(CrsOption(entry.code.clone()));
+                    }
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_crs_option_buttons(
+    interactions: Query<(&Interaction, &CrsOption), Changed<Interaction>>,
+    mut working: ResMut<WorkingCrs>,
+    mut state: ResMut<CrsMenuState>,
+    mut commands: Commands,
+) {
+    for (interaction, opt) in &interactions {
+        if *interaction == Interaction::Pressed {
+            if let Some(code) = opt.0.split(':').nth(1) {
+                if let Ok(epsg) = code.parse::<u32>() {
+                    working.0 = Crs::from_epsg(epsg);
+                    println!("Selected CRS {}", opt.0);
+                }
+            }
+            if let Some(ent) = state.entity.take() {
+                commands.entity(ent).despawn_recursive();
+            }
         }
     }
 }
