@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod bevy_adapter;
+mod workspace3d;
+
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Point3, Polyline};
@@ -8,6 +11,8 @@ use survey_cad::surveying::{
     bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
 };
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use bevy::prelude as bevy_prelude;
+use spin_on::spin_on;
 
 slint::slint! {
 component Workspace2D inherits Rectangle {
@@ -25,6 +30,18 @@ component Workspace2D inherits Rectangle {
         width: 100%;
         height: 100%;
         clicked => { root.clicked(self.mouse-x, self.mouse-y); }
+    }
+}
+
+component Workspace3D inherits Rectangle {
+    in-out property <image> texture <=> img.source;
+    out property <length> requested_texture_width: img.width;
+    out property <length> requested_texture_height: img.height;
+    background: #202020;
+    img := Image {
+        width: 100%;
+        height: 100%;
+        image-fit: fill;
     }
 }
 
@@ -279,6 +296,9 @@ export component MainWindow inherits Window {
     in-out property <int> cogo_index;
     in-out property <int> workspace_mode;
     in-out property <image> workspace_image;
+    in-out property <image> workspace_texture;
+    in-out property <length> requested_texture_width;
+    in-out property <length> requested_texture_height;
     in-out property <bool> workspace_click_mode;
 
     callback workspace_clicked(length, length);
@@ -400,16 +420,10 @@ export component MainWindow inherits Window {
             click_mode <=> root.workspace_click_mode;
             clicked(x, y) => { root.workspace_clicked(x, y); }
         }
-        if root.workspace_mode == 1 : Rectangle {
-            height: 100%;
-            width: 100%;
-            background: #202020;
-            Text {
-                text: "3D Workspace Placeholder";
-                color: white;
-                vertical-alignment: center;
-                horizontal-alignment: center;
-            }
+        if root.workspace_mode == 1 : Workspace3D {
+            texture <=> root.workspace_texture;
+            root.requested_texture_width <=> self.requested_texture_width;
+            root.requested_texture_height <=> self.requested_texture_height;
         }
         Text { text: root.status; }
     }
@@ -621,6 +635,51 @@ fn main() -> Result<(), slint::PlatformError> {
         &arcs.borrow(),
     ));
     app.set_workspace_click_mode(false);
+    app.set_workspace_texture(Image::default());
+
+    let (bevy_texture_receiver, bevy_control_sender) =
+        spin_on(bevy_adapter::run_bevy_app_with_slint(
+            |_| {},
+            |mut bapp| {
+                workspace3d::bevy_app(&mut bapp);
+                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::rgb(0.1, 0.1, 0.1)))
+                    .run();
+            },
+        ))?;
+
+    let app_for_notifier = app.as_weak();
+    app.window().set_rendering_notifier(move |state, _| {
+        if let slint::RenderingState::BeforeRendering = state {
+            let Some(app) = app_for_notifier.upgrade() else { return; };
+            app.window().request_redraw();
+            let Ok(new_texture) = bevy_texture_receiver.try_recv() else { return; };
+            if let Some(old_texture) = app.get_workspace_texture().to_wgpu_24_texture() {
+                let sender = bevy_control_sender.clone();
+                slint::spawn_local(async move {
+                    sender
+                        .send(bevy_adapter::ControlMessage::ReleaseFrontBufferTexture { texture: old_texture })
+                        .await
+                        .unwrap();
+                })
+                .unwrap();
+            }
+            let width = app.get_requested_texture_width().round() as u32;
+            let height = app.get_requested_texture_height().round() as u32;
+            if width > 0 && height > 0 {
+                let sender = bevy_control_sender.clone();
+                slint::spawn_local(async move {
+                    sender
+                        .send(bevy_adapter::ControlMessage::ResizeBuffers { width, height })
+                        .await
+                        .unwrap();
+                })
+                .unwrap();
+            }
+            if let Ok(image) = new_texture.try_into() {
+                app.set_workspace_texture(image);
+            }
+        }
+    })?;
 
     let update_image = {
         let points = points.clone();
