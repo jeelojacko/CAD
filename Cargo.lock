@@ -1129,6 +1129,7 @@ version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b747210d7db09dfacc237707d4fd31c8b43d7744cd5e5829e2c4ca86b9e47baf"
 dependencies = [
+ "arrayvec",
  "bevy_ecs_macros 0.15.3",
  "bevy_ptr 0.15.3",
  "bevy_reflect 0.15.1",
@@ -1317,6 +1318,37 @@ dependencies = [
 
 [[package]]
 name = "bevy_gltf"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c38b79c0e43c6387699d6a332d12f98ed895bcf69dd70c462d5e49ad76d44d1f"
+dependencies = [
+ "base64 0.22.1",
+ "bevy_app 0.15.1",
+ "bevy_asset 0.15.1",
+ "bevy_color 0.15.2",
+ "bevy_core",
+ "bevy_core_pipeline 0.15.1",
+ "bevy_ecs 0.15.1",
+ "bevy_hierarchy",
+ "bevy_image 0.15.1",
+ "bevy_math 0.15.1",
+ "bevy_pbr 0.15.1",
+ "bevy_reflect 0.15.1",
+ "bevy_render 0.15.1",
+ "bevy_scene 0.15.1",
+ "bevy_tasks 0.15.3",
+ "bevy_transform 0.15.1",
+ "bevy_utils 0.15.3",
+ "derive_more 1.0.0",
+ "gltf",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "smallvec",
+]
+
+[[package]]
+name = "bevy_gltf"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10a080237c0b8842ccc15a06d3379302c68580eeea4497b1c7387e470eda1f07"
@@ -1479,6 +1511,7 @@ dependencies = [
  "bevy_diagnostic 0.15.1",
  "bevy_ecs 0.15.1",
  "bevy_gizmos 0.15.1",
+ "bevy_gltf 0.15.1",
  "bevy_hierarchy",
  "bevy_image 0.15.1",
  "bevy_input 0.15.1",
@@ -1516,7 +1549,7 @@ dependencies = [
  "bevy_diagnostic 0.16.1",
  "bevy_ecs 0.16.1",
  "bevy_gizmos 0.16.1",
- "bevy_gltf",
+ "bevy_gltf 0.16.1",
  "bevy_image 0.16.1",
  "bevy_input 0.16.1",
  "bevy_input_focus",
@@ -2121,7 +2154,9 @@ version = "0.15.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "028630ddc355563bd567df1076db3515858aa26715ddf7467d2086f9b40e5ab1"
 dependencies = [
+ "async-channel",
  "async-executor",
+ "concurrent-queue",
  "futures-channel",
  "futures-lite",
  "pin-project",
@@ -8882,8 +8917,12 @@ dependencies = [
 name = "survey_cad_slint_gui"
 version = "0.1.0"
 dependencies = [
+ "bevy 0.15.1",
+ "bevy_editor_cam",
  "rfd",
  "slint",
+ "smol",
+ "spin_on",
  "survey_cad",
  "tiny-skia",
 ]
