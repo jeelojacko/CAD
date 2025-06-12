@@ -17,6 +17,8 @@ use survey_cad::surveying::{
 slint::slint! {
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
+    in-out property <bool> click_mode;
+    callback clicked(length, length);
     background: #202020;
     Image {
         source: root.image;
@@ -24,9 +26,51 @@ component Workspace2D inherits Rectangle {
         width: 100%;
         height: 100%;
     }
+    if root.click_mode : TouchArea {
+        width: 100%;
+        height: 100%;
+        clicked => { root.clicked(self.mouse-x, self.mouse-y); }
+    }
 }
 
-import { Button, VerticalBox, HorizontalBox, ComboBox } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit } from "std-widgets.slint";
+
+export component AddPointDialog inherits Window {
+    callback from_file();
+    callback manual_keyin();
+    callback manual_click();
+    title: "Add Point";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "From File"; clicked => { root.from_file(); } }
+        Button { text: "Manual (Key In)"; clicked => { root.manual_keyin(); } }
+        Button { text: "Manual (Click on Screen)"; clicked => { root.manual_click(); } }
+    }
+}
+
+export component KeyInDialog inherits Window {
+    in-out property <string> x_value;
+    in-out property <string> y_value;
+    callback accept();
+    callback cancel();
+    title: "Enter Point";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "X:"; }
+            LineEdit { text <=> root.x_value; }
+        }
+        HorizontalBox {
+            Text { text: "Y:"; }
+            LineEdit { text <=> root.y_value; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
 
 export component MainWindow inherits Window {
     preferred-width: 800px;
@@ -39,6 +83,9 @@ export component MainWindow inherits Window {
     in-out property <int> cogo_index;
     in-out property <int> workspace_mode;
     in-out property <image> workspace_image;
+    in-out property <bool> workspace_click_mode;
+
+    callback workspace_clicked(length, length);
 
     callback crs_changed(int);
     callback cogo_selected(int);
@@ -115,6 +162,8 @@ export component MainWindow inherits Window {
     VerticalBox {
         if root.workspace_mode == 0 : Workspace2D {
             image <=> root.workspace_image;
+            click_mode <=> root.workspace_click_mode;
+            clicked(x, y) => { root.workspace_clicked(x, y); }
         }
         if root.workspace_mode == 1 : Rectangle {
             height: 100%;
@@ -196,6 +245,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     app.set_workspace_mode(0);
     app.set_workspace_image(render_workspace(&points.borrow(), &lines.borrow()));
+    app.set_workspace_click_mode(false);
 
     let update_image = {
         let points = points.clone();
@@ -293,15 +343,111 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let points = points.clone();
         let update_image = update_image.clone();
+        let main_weak = weak.clone();
         app.on_add_point(move || {
-            points.borrow_mut().push(Point::new(0.0, 0.0));
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from(format!(
-                    "Total points: {}",
-                    points.borrow().len()
-                )));
+            let dlg = AddPointDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            {
+                let points = points.clone();
+                let update_image = update_image.clone();
+                let main_weak = main_weak.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_from_file(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("CSV", &["csv"])
+                        .pick_file()
+                    {
+                        if let Some(path_str) = path.to_str() {
+                            match survey_cad::io::read_points_csv(path_str, None, None) {
+                                Ok(pts) => {
+                                    *points.borrow_mut() = pts;
+                                    if let Some(app) = main_weak.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Loaded {} points",
+                                            points.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                                Err(e) => {
+                                    if let Some(app) = main_weak.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Failed to open: {}",
+                                            e
+                                        )));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                });
             }
-            (update_image.clone())();
+            {
+                let points = points.clone();
+                let update_image = update_image.clone();
+                let main_weak = main_weak.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual_keyin(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    let key_dlg = KeyInDialog::new().unwrap();
+                    let key_weak = key_dlg.as_weak();
+                    let key_dlg_weak = key_dlg.as_weak();
+                    {
+                        let points = points.clone();
+                        let update_image = update_image.clone();
+                        let main_weak = main_weak.clone();
+                        let key_weak2 = key_weak.clone();
+                        let key_dlg_weak2 = key_dlg_weak.clone();
+                        key_dlg.on_accept(move || {
+                            if let Some(dlg) = key_dlg_weak2.upgrade() {
+                                if let (Ok(x), Ok(y)) = (
+                                    dlg.get_x_value().parse::<f64>(),
+                                    dlg.get_y_value().parse::<f64>(),
+                                ) {
+                                    points.borrow_mut().push(Point::new(x, y));
+                                    if let Some(app) = main_weak.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total points: {}",
+                                            points.borrow().len()
+                                        )));
+                                    }
+                                    (update_image.clone())();
+                                }
+                            }
+                            if let Some(k) = key_weak2.upgrade() {
+                                let _ = k.hide();
+                            }
+                        });
+                    }
+                    {
+                        let key_weak2 = key_weak.clone();
+                        key_dlg.on_cancel(move || {
+                            if let Some(k) = key_weak2.upgrade() {
+                                let _ = k.hide();
+                            }
+                        });
+                    }
+                    key_dlg.run().unwrap();
+                });
+            }
+            {
+                let main_weak = main_weak.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_manual_click(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
+                    if let Some(app) = main_weak.upgrade() {
+                        app.set_workspace_click_mode(true);
+                    }
+                });
+            }
+            dlg.run().unwrap();
         });
     }
 
@@ -502,6 +648,29 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_workspace_mode(mode);
                 if mode == 0 {
+                    (update_image.clone())();
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let update_image = update_image.clone();
+        app.on_workspace_clicked(move |x, y| {
+            if let Some(app) = weak.upgrade() {
+                if app.get_workspace_click_mode() {
+                    const WIDTH: f64 = 600.0;
+                    const HEIGHT: f64 = 400.0;
+                    let px = x as f64 - WIDTH / 2.0;
+                    let py = HEIGHT / 2.0 - y as f64;
+                    points.borrow_mut().push(Point::new(px, py));
+                    app.set_workspace_click_mode(false);
+                    app.set_status(SharedString::from(format!(
+                        "Total points: {}",
+                        points.borrow().len()
+                    )));
                     (update_image.clone())();
                 }
             }
