@@ -26,8 +26,6 @@ use bevy::{
 pub enum ControlMessage {
     /// Send this message when you don't need a previously received texture anymore.
     ReleaseFrontBufferTexture { texture: wgpu::Texture },
-    /// Send this message to adjust the size of the scene textures.
-    ResizeBuffers { width: u32, height: u32 },
 }
 
 /// Initializes Bevy and Slint, spawns a bevy [`App`], and supplies textures of the rendered scenes via channels.
@@ -116,8 +114,8 @@ pub async fn run_bevy_app_with_slint(
     let back_buffer = create_texture("Back Buffer", 640, 480);
     let inflight_buffer = create_texture("Back Buffer", 640, 480);
 
-    let mut buffer_width = 640;
-    let mut buffer_height = 480;
+    let buffer_width = 640;
+    let buffer_height = 480;
 
     let _bevy_thread = std::thread::spawn(move || {
         let runner = move |mut app: bevy::app::App| {
@@ -129,11 +127,6 @@ pub async fn run_bevy_app_with_slint(
             loop {
                 let mut next_back_buffer = match control_message_receiver.recv_blocking() {
                     Ok(ControlMessage::ReleaseFrontBufferTexture { texture }) => texture,
-                    Ok(ControlMessage::ResizeBuffers { width, height }) => {
-                        buffer_width = width;
-                        buffer_height = height;
-                        continue;
-                    }
                     Err(_) => break,
                 };
 
