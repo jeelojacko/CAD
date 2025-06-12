@@ -88,6 +88,18 @@ export component MainWindow inherits Window {
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
         Button { text: "Clear"; clicked => { root.clear_workspace(); } }
+        Text { text: "View:"; }
+        ComboBox {
+            model: ["2D", "3D"];
+            current-index <=> root.workspace_mode;
+            selected => { root.view_changed(root.workspace_mode); }
+        }
+        Text { text: "Cogo:"; }
+        ComboBox {
+            model: root.cogo_list;
+            current-index <=> root.cogo_index;
+            selected => { root.cogo_selected(root.cogo_index); }
+        }
     }
 
     HorizontalBox {
@@ -97,16 +109,6 @@ export component MainWindow inherits Window {
             model: root.crs_list;
             current-index <=> root.crs_index;
             selected => { root.crs_changed(root.crs_index); }
-        }
-    }
-
-    HorizontalBox {
-        spacing: 6px;
-        Text { text: "Cogo:"; }
-        ComboBox {
-            model: root.cogo_list;
-            current-index <=> root.cogo_index;
-            selected => { root.cogo_selected(root.cogo_index); }
         }
     }
 
@@ -437,7 +439,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     1 => {
-                        if let Some(start) = points.borrow().first().copied() {
+                        if let Some(start) = { points.borrow().first().copied() } {
                             let p = forward(start, 0.0, 10.0);
                             points.borrow_mut().push(p);
                             app.set_status(SharedString::from(format!(
