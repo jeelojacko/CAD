@@ -491,6 +491,7 @@ fn setup(
         Transform::default(),
     ));
     spawn_toolbar(&mut commands, &asset_server, profile.0, &theme);
+    spawn_file_toolbar(&mut commands, &asset_server, &theme);
     let (parcel_text, grade_text) =
         spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme);
     let section_label = spawn_sections_panel(&mut commands, &asset_server, &theme);
@@ -705,7 +706,117 @@ fn spawn_toolbar(
                     ));
                 });
 
-            // Open/Save buttons are spawned dynamically from the File menu
+            // Additional file controls are provided by a secondary toolbar
+        });
+}
+
+fn spawn_file_toolbar(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    theme: &ThemeColors,
+) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(30.0),
+                width: Val::Percent(100.0),
+                height: Val::Px(30.0),
+                justify_content: JustifyContent::FlexStart,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(theme.toolbar_bg),
+        ))
+        .insert(FocusPolicy::Block)
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("New"),
+                    ));
+                })
+                .insert(NewButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Open"),
+                    ));
+                })
+                .insert(OpenButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Save"),
+                    ));
+                })
+                .insert(SaveButton);
         });
 }
 
@@ -722,7 +833,7 @@ fn spawn_edit_panel(
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(30.0),
+                top: Val::Px(60.0),
                 width: Val::Px(200.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -2050,7 +2161,7 @@ fn handle_file_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(5.0),
-                        top: Val::Px(30.0),
+                        top: Val::Px(60.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2126,7 +2237,7 @@ fn handle_cogo_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(160.0),
-                        top: Val::Px(30.0),
+                        top: Val::Px(60.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2180,7 +2291,7 @@ fn handle_surface_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(235.0),
-                        top: Val::Px(30.0),
+                        top: Val::Px(60.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
