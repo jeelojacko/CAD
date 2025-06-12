@@ -202,6 +202,14 @@ struct CogoMenuState {
 }
 
 #[derive(Component)]
+struct SurfaceMenuButton;
+
+#[derive(Resource, Default)]
+struct SurfaceMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Component)]
 struct CogoButton(CogoAction);
 
 #[derive(Clone, Copy)]
@@ -394,6 +402,7 @@ fn main() {
         .insert_resource(WorkspaceMode::default())
         .insert_resource(ContextMenuState::default())
         .insert_resource(CogoMenuState::default())
+        .insert_resource(SurfaceMenuState::default())
         .insert_resource(FileMenuState::default())
         .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
@@ -429,6 +438,7 @@ fn main() {
                 handle_select_button,
                 handle_file_menu_button,
                 handle_cogo_menu_button,
+                handle_surface_menu_button,
                 handle_new_button,
                 handle_open_button,
                 handle_save_button,
@@ -632,6 +642,35 @@ fn spawn_toolbar(
                     ));
                 })
                 .insert(CogoMenuButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Surface"),
+                    ));
+                })
+                .insert(SurfaceMenuButton);
 
             parent
                 .spawn((
@@ -1528,6 +1567,8 @@ fn handle_add_surface(
     mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
+    mut menu: ResMut<SurfaceMenuState>,
+    mut commands: Commands,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         for e in &selected.0 {
@@ -1542,6 +1583,9 @@ fn handle_add_surface(
                 dirty.0 = true;
                 data.set_changed();
             }
+        }
+        if let Some(ent) = menu.entity.take() {
+            commands.entity(ent).despawn_recursive();
         }
     }
 }
@@ -1570,6 +1614,8 @@ fn handle_add_breakline(
     mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
+    mut menu: ResMut<SurfaceMenuState>,
+    mut commands: Commands,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if selected.0.len() >= 2 {
@@ -1593,6 +1639,9 @@ fn handle_add_breakline(
                 data.set_changed();
             }
         }
+        if let Some(ent) = menu.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        }
     }
 }
 
@@ -1602,6 +1651,8 @@ fn handle_add_hole(
     mut dirty: ResMut<SurfaceDirty>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
+    mut menu: ResMut<SurfaceMenuState>,
+    mut commands: Commands,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if selected.0.len() >= 3 {
@@ -1622,6 +1673,9 @@ fn handle_add_hole(
             }
             dirty.0 = true;
             data.set_changed();
+        }
+        if let Some(ent) = menu.entity.take() {
+            commands.entity(ent).despawn_recursive();
         }
     }
 }
@@ -1709,6 +1763,7 @@ fn handle_build_surface(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     existing: Query<Entity, With<SurfaceMesh>>,
+    mut menu: ResMut<SurfaceMenuState>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         for e in &existing {
@@ -1732,6 +1787,9 @@ fn handle_build_surface(
                     threshold: 2.0,
                 });
             tin_res.0.push(tin);
+        }
+        if let Some(ent) = menu.entity.take() {
+            commands.entity(ent).despawn_recursive();
         }
     }
 }
@@ -2106,6 +2164,97 @@ fn handle_cogo_menu_button(
     }
 }
 
+fn handle_surface_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<SurfaceMenuButton>)>,
+    mut state: ResMut<SurfaceMenuState>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(235.0),
+                        top: Val::Px(30.0),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .insert(FocusPolicy::Block)
+                .with_children(|parent| {
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Add Points"),
+                            ));
+                        })
+                        .insert(AddSurfaceButton);
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Add Breakline"),
+                            ));
+                        })
+                        .insert(AddBreaklineButton);
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Add Hole"),
+                            ));
+                        })
+                        .insert(AddHoleButton);
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Build Surface"),
+                            ));
+                        })
+                        .insert(BuildSurfaceButton);
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+}
+
 fn handle_cogo_buttons(
     interactions: Query<(&Interaction, &CogoButton), Changed<Interaction>>,
     selected: Res<SelectedPoints>,
@@ -2118,10 +2267,9 @@ fn handle_cogo_buttons(
             match button.0 {
                 CogoAction::Bearing => {
                     if selected.0.len() >= 2 {
-                        if let (Ok(a), Ok(b)) = (
-                            points.get(selected.0[0]),
-                            points.get(selected.0[1]),
-                        ) {
+                        if let (Ok(a), Ok(b)) =
+                            (points.get(selected.0[0]), points.get(selected.0[1]))
+                        {
                             let a = Point::new(a.translation.x as f64, a.translation.y as f64);
                             let b = Point::new(b.translation.x as f64, b.translation.y as f64);
                             let bng = survey_cad::surveying::bearing(a, b);
