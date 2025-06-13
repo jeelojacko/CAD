@@ -207,17 +207,17 @@ pub async fn run_bevy_app_with_slint(
         .send_blocking(ControlMessage::ReleaseFrontBufferTexture {
             texture: back_buffer,
         })
-        .unwrap();
+        .ok();
     control_message_sender
         .send_blocking(ControlMessage::ReleaseFrontBufferTexture {
             texture: inflight_buffer,
         })
-        .unwrap();
+        .ok();
     control_message_sender
         .send_blocking(ControlMessage::ReleaseFrontBufferTexture {
             texture: front_buffer,
         })
-        .unwrap();
+        .ok();
 
     Ok((bevy_front_buffer_receiver, control_message_sender))
 }

@@ -209,7 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     model_selector_sender
         .send_blocking(models.row_data(0).unwrap())
-        .unwrap();
+        .ok();
 
     app_window.on_load_model(move |index| {
         let model = models.row_data(index as usize).unwrap();
