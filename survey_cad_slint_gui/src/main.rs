@@ -8,11 +8,13 @@ mod workspace3d;
 
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
-use survey_cad::geometry::{Arc, Point, Polyline};
+use survey_cad::geometry::{Arc, Line, Point, Polyline};
 use survey_cad::dtm::Tin;
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::alignment::{Alignment, VerticalAlignment};
 use survey_cad::corridor::corridor_volume;
+use survey_cad::io::DxfEntity;
+use survey_cad::snap::snap_point;
 #[cfg(any(feature = "las", feature = "e57"))]
 use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
@@ -336,6 +338,7 @@ export component MainWindow inherits Window {
     in-out property <image> workspace_texture;
     in-out property <bool> workspace_click_mode;
     in-out property <bool> snap_to_grid;
+    in-out property <bool> snap_to_entities;
 
     callback workspace_clicked(length, length);
 
@@ -462,6 +465,7 @@ export component MainWindow inherits Window {
     HorizontalBox {
         spacing: 6px;
         CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
+        CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; }
     }
 
     VerticalBox {
@@ -751,6 +755,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_workspace_click_mode(false);
     app.set_workspace_texture(Image::default());
     app.set_snap_to_grid(true);
+    app.set_snap_to_entities(true);
 
     let (bevy_texture_receiver, bevy_control_sender) =
         spin_on(bevy_adapter::run_bevy_app_with_slint(
@@ -2160,15 +2165,46 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
         let update_image = update_image.clone();
         app.on_workspace_clicked(move |x, y| {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
                     const WIDTH: f64 = 600.0;
                     const HEIGHT: f64 = 400.0;
-                    let px = x as f64 - WIDTH / 2.0;
-                    let py = HEIGHT / 2.0 - y as f64;
-                    points.borrow_mut().push(Point::new(px, py));
+                    let mut p = Point::new(x as f64 - WIDTH / 2.0, HEIGHT / 2.0 - y as f64);
+
+                    if app.get_snap_to_entities() {
+                        let mut ents: Vec<DxfEntity> = Vec::new();
+                        for pt in points.borrow().iter() {
+                            ents.push(DxfEntity::Point { point: *pt, layer: None });
+                        }
+                        for (s, e) in lines.borrow().iter() {
+                            ents.push(DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                        }
+                        for poly in polygons.borrow().iter() {
+                            ents.push(DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                        }
+                        for pl in polylines.borrow().iter() {
+                            ents.push(DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                        }
+                        for arc in arcs.borrow().iter() {
+                            ents.push(DxfEntity::Arc { arc: *arc, layer: None });
+                        }
+                        if let Some(sp) = snap_point(p, &ents, 5.0) {
+                            p = sp;
+                        }
+                    }
+
+                    if app.get_snap_to_grid() {
+                        p.x = p.x.round();
+                        p.y = p.y.round();
+                    }
+
+                    points.borrow_mut().push(p);
                     app.set_workspace_click_mode(false);
                     app.set_status(SharedString::from(format!(
                         "Total points: {}",
