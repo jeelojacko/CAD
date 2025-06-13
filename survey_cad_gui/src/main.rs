@@ -501,6 +501,7 @@ fn setup(
     working: Res<WorkingCrs>,
     profile: Res<CurrentProfile>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     println!("GUI working CRS: {}", working.0.definition());
     commands.spawn((
@@ -530,9 +531,9 @@ fn setup(
         Transform::default(),
     ));
     spawn_toolbar(&mut commands, &asset_server, profile.0, &theme);
-    spawn_file_toolbar(&mut commands, &asset_server, &theme);
+    spawn_file_toolbar(&mut commands, &asset_server, &theme, &ui_scale);
     let (parcel_text, grade_text) =
-        spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme);
+        spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme, &ui_scale);
     let section_label = spawn_sections_panel(&mut commands, &asset_server, &theme);
     commands.insert_resource(ParcelData {
         parcels: Vec::new(),
@@ -782,13 +783,14 @@ fn spawn_file_toolbar(
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
     theme: &ThemeColors,
+    ui_scale: &UiScale,
 ) {
     commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
-                top: Val::Px(30.0),
+                top: Val::Px(30.0 * ui_scale.0),
                 width: Val::Percent(100.0),
                 height: Val::Px(30.0),
                 justify_content: JustifyContent::FlexStart,
@@ -893,6 +895,7 @@ fn spawn_edit_panel(
     asset_server: &Res<AssetServer>,
     profile: WorkspaceProfile,
     theme: &ThemeColors,
+    ui_scale: &UiScale,
 ) -> (Entity, Entity) {
     let mut parcel_text = Entity::from_raw(0);
     let mut grade_text = Entity::from_raw(0);
@@ -901,7 +904,7 @@ fn spawn_edit_panel(
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(60.0),
+                top: Val::Px(60.0 * ui_scale.0),
                 width: Val::Px(200.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -2214,6 +2217,7 @@ fn handle_file_menu_button(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
@@ -2224,7 +2228,7 @@ fn handle_file_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(5.0),
-                        top: Val::Px(60.0),
+                        top: Val::Px(60.0 * ui_scale.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2290,6 +2294,7 @@ fn handle_cogo_menu_button(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
@@ -2299,8 +2304,8 @@ fn handle_cogo_menu_button(
                 .spawn((
                     Node {
                         position_type: PositionType::Absolute,
-                        left: Val::Px(160.0),
-                        top: Val::Px(60.0),
+                        left: Val::Px(160.0 * ui_scale.0),
+                        top: Val::Px(60.0 * ui_scale.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2344,6 +2349,7 @@ fn handle_surface_menu_button(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
@@ -2353,8 +2359,8 @@ fn handle_surface_menu_button(
                 .spawn((
                     Node {
                         position_type: PositionType::Absolute,
-                        left: Val::Px(235.0),
-                        top: Val::Px(60.0),
+                        left: Val::Px(235.0 * ui_scale.0),
+                        top: Val::Px(60.0 * ui_scale.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2436,6 +2442,7 @@ fn handle_crs_menu_button(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
@@ -2445,8 +2452,8 @@ fn handle_crs_menu_button(
                 .spawn((
                     Node {
                         position_type: PositionType::Absolute,
-                        left: Val::Px(310.0),
-                        top: Val::Px(60.0),
+                        left: Val::Px(310.0 * ui_scale.0),
+                        top: Val::Px(60.0 * ui_scale.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2505,6 +2512,7 @@ fn handle_view_menu_button(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
 ) {
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
@@ -2514,8 +2522,8 @@ fn handle_view_menu_button(
                 .spawn((
                     Node {
                         position_type: PositionType::Absolute,
-                        left: Val::Px(155.0),
-                        top: Val::Px(60.0),
+                        left: Val::Px(155.0 * ui_scale.0),
+                        top: Val::Px(60.0 * ui_scale.0),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
