@@ -1,4 +1,6 @@
-use crate::geometry::{distance, Arc, Line, Point};
+use crate::geometry::{distance, Line, Point};
+#[cfg(test)]
+use crate::geometry::Arc;
 use crate::io::DxfEntity;
 use crate::surveying::line_intersection;
 
