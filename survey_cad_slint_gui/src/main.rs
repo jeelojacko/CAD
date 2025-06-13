@@ -9,6 +9,8 @@ mod workspace3d;
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
 use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
+use survey_cad::dtm::Tin;
+use survey_cad::alignment::HorizontalAlignment;
 #[cfg(any(feature = "las", feature = "e57"))]
 use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
@@ -333,6 +335,8 @@ export component MainWindow inherits Window {
     callback export_shp();
     callback export_las();
     callback export_e57();
+    callback import_landxml_surface();
+    callback import_landxml_alignment();
 
     MenuBar {
         Menu {
@@ -348,6 +352,8 @@ export component MainWindow inherits Window {
                 MenuItem { title: "SHP"; activated => { root.import_shp(); } }
                 MenuItem { title: "LAS"; activated => { root.import_las(); } }
                 MenuItem { title: "E57"; activated => { root.import_e57(); } }
+                MenuItem { title: "LandXML Surface"; activated => { root.import_landxml_surface(); } }
+                MenuItem { title: "LandXML Alignment"; activated => { root.import_landxml_alignment(); } }
             }
             Menu {
                 title: "Export";
@@ -391,6 +397,8 @@ export component MainWindow inherits Window {
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
+        Button { text: "Load LandXML Surface"; clicked => { root.import_landxml_surface(); } }
+        Button { text: "Load LandXML Alignment"; clicked => { root.import_landxml_alignment(); } }
         Button { text: "Clear"; clicked => { root.clear_workspace(); } }
         Text { text: "View:"; }
         ComboBox {
@@ -436,6 +444,8 @@ fn render_workspace(
     polygons: &[Vec<Point>],
     polylines: &[Polyline],
     arcs: &[Arc],
+    surfaces: &[survey_cad::dtm::Tin],
+    alignments: &[survey_cad::alignment::HorizontalAlignment],
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
@@ -528,6 +538,64 @@ fn render_workspace(
         }
     }
 
+    paint.set_color(Color::from_rgba8(128, 128, 128, 255));
+    for tin in surfaces {
+        for tri in &tin.triangles {
+            let a = tin.vertices[tri[0]];
+            let b = tin.vertices[tri[1]];
+            let c = tin.vertices[tri[2]];
+            let mut pb = PathBuilder::new();
+            pb.move_to((a.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - a.y as f32);
+            pb.line_to((b.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - b.y as f32);
+            pb.line_to((c.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - c.y as f32);
+            pb.close();
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+            }
+        }
+    }
+
+    paint.set_color(Color::from_rgba8(0, 200, 255, 255));
+    for hal in alignments {
+        for elem in &hal.elements {
+            match elem {
+                survey_cad::alignment::HorizontalElement::Tangent { start, end } => {
+                    let mut pb = PathBuilder::new();
+                    pb.move_to((start.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - start.y as f32);
+                    pb.line_to((end.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - end.y as f32);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+                    }
+                }
+                survey_cad::alignment::HorizontalElement::Curve { arc } => {
+                    let steps = 32;
+                    let mut pb = PathBuilder::new();
+                    for i in 0..=steps {
+                        let t = arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
+                        let x = arc.center.x + arc.radius * t.cos();
+                        let y = arc.center.y + arc.radius * t.sin();
+                        let px = (x as f32) + WIDTH as f32 / 2.0;
+                        let py = HEIGHT as f32 / 2.0 - y as f32;
+                        if i == 0 { pb.move_to(px, py); } else { pb.line_to(px, py); }
+                    }
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+                    }
+                }
+                survey_cad::alignment::HorizontalElement::Spiral { spiral } => {
+                    let mut pb = PathBuilder::new();
+                    let sp = spiral.start_point();
+                    let ep = spiral.end_point();
+                    pb.move_to((sp.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - sp.y as f32);
+                    pb.line_to((ep.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - ep.y as f32);
+                    if let Some(path) = pb.finish() {
+                        pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+                    }
+                }
+            }
+        }
+    }
+
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));
     for p in points {
         if let Some(circle) = PathBuilder::from_circle(
@@ -606,6 +674,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let polygons: Rc<RefCell<Vec<Vec<Point>>>> = Rc::new(RefCell::new(Vec::new()));
     let polylines: Rc<RefCell<Vec<Polyline>>> = Rc::new(RefCell::new(Vec::new()));
     let arcs: Rc<RefCell<Vec<Arc>>> = Rc::new(RefCell::new(Vec::new()));
+    let surfaces: Rc<RefCell<Vec<Tin>>> = Rc::new(RefCell::new(Vec::new()));
+    let alignments: Rc<RefCell<Vec<HorizontalAlignment>>> = Rc::new(RefCell::new(Vec::new()));
     let crs_entries = list_known_crs();
     let crs_model = Rc::new(VecModel::from(
         crs_entries
@@ -633,6 +703,8 @@ fn main() -> Result<(), slint::PlatformError> {
         &polygons.borrow(),
         &polylines.borrow(),
         &arcs.borrow(),
+        &surfaces.borrow(),
+        &alignments.borrow(),
     ));
     app.set_workspace_click_mode(false);
     app.set_workspace_texture(Image::default());
@@ -676,6 +748,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
         let weak = app.as_weak();
         std::rc::Rc::new(move || {
             if let Some(app) = weak.upgrade() {
@@ -685,6 +759,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     &polygons.borrow(),
                     &polylines.borrow(),
                     &arcs.borrow(),
+                    &surfaces.borrow(),
+                    &alignments.borrow(),
                 );
                 app.set_workspace_image(img);
             }
@@ -699,6 +775,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
         let update_image = update_image.clone();
         app.on_new_project(move || {
             points.borrow_mut().clear();
@@ -706,6 +784,8 @@ fn main() -> Result<(), slint::PlatformError> {
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
+            surfaces.borrow_mut().clear();
+            alignments.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
             }
@@ -1008,6 +1088,64 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(not(feature = "e57"))]
                     if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("E57 support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let surfaces = surfaces.clone();
+        let update_image = update_image.clone();
+        app.on_import_landxml_surface(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::landxml::read_landxml_surface(p) {
+                        Ok(tin) => {
+                            surfaces.borrow_mut().push(tin);
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from("Imported surface"));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let alignments = alignments.clone();
+        let update_image = update_image.clone();
+        app.on_import_landxml_alignment(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::landxml::read_landxml_alignment(p) {
+                        Ok(al) => {
+                            alignments.borrow_mut().push(al);
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from("Imported alignment"));
+                            }
+                            (update_image.clone())();
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                            }
+                        }
                     }
                 }
             }
@@ -1607,6 +1745,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
     {
         let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
         let update_image = update_image.clone();
         let weak_main = weak.clone();
         app.on_add_arc(move || {
@@ -1716,6 +1856,8 @@ fn main() -> Result<(), slint::PlatformError> {
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
+            surfaces.borrow_mut().clear();
+            alignments.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Workspace cleared"));
             }
