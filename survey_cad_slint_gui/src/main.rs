@@ -11,6 +11,8 @@ use survey_cad::crs::{list_known_crs, Crs};
 use survey_cad::geometry::{Arc, Point, Polyline};
 use survey_cad::dtm::Tin;
 use survey_cad::alignment::HorizontalAlignment;
+use survey_cad::alignment::{Alignment, VerticalAlignment};
+use survey_cad::corridor::corridor_volume;
 #[cfg(any(feature = "las", feature = "e57"))]
 use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
@@ -144,6 +146,35 @@ export component LevelElevationDialog inherits Window {
         HorizontalBox {
             Text { text: "Foresight:"; }
             LineEdit { text <=> root.foresight; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component CorridorVolumeDialog inherits Window {
+    in-out property <string> width_value;
+    in-out property <string> interval_value;
+    in-out property <string> offset_step_value;
+    callback accept();
+    callback cancel();
+    title: "Corridor Volume";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { text: "Width:"; }
+            LineEdit { text <=> root.width_value; }
+        }
+        HorizontalBox {
+            Text { text: "Interval:"; }
+            LineEdit { text <=> root.interval_value; }
+        }
+        HorizontalBox {
+            Text { text: "Offset Step:"; }
+            LineEdit { text <=> root.offset_step_value; }
         }
         HorizontalBox {
             spacing: 6px;
@@ -323,6 +354,7 @@ export component MainWindow inherits Window {
     callback station_distance();
     callback traverse_area();
     callback level_elevation_tool();
+    callback corridor_volume();
     callback import_geojson();
     callback import_kml();
     callback import_dxf();
@@ -379,6 +411,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Station Distance"; activated => { root.station_distance(); } }
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
+            MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
         }
         Menu {
             title: "View";
@@ -399,6 +432,7 @@ export component MainWindow inherits Window {
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
         Button { text: "Load LandXML Surface"; clicked => { root.import_landxml_surface(); } }
         Button { text: "Load LandXML Alignment"; clicked => { root.import_landxml_alignment(); } }
+        Button { text: "Corridor Volume"; clicked => { root.corridor_volume(); } }
         Button { text: "Clear"; clicked => { root.clear_workspace(); } }
         Text { text: "View:"; }
         ComboBox {
@@ -676,6 +710,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs: Rc<RefCell<Vec<Arc>>> = Rc::new(RefCell::new(Vec::new()));
     let surfaces: Rc<RefCell<Vec<Tin>>> = Rc::new(RefCell::new(Vec::new()));
     let alignments: Rc<RefCell<Vec<HorizontalAlignment>>> = Rc::new(RefCell::new(Vec::new()));
+    let surfaces_for_corridor = surfaces.clone();
+    let alignments_for_corridor = alignments.clone();
     let crs_entries = list_known_crs();
     let crs_model = Rc::new(VecModel::from(
         crs_entries
@@ -2034,6 +2070,58 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_status(SharedString::from(format!("Elevation: {:.3}", elev)));
                         } else {
                             app.set_status(SharedString::from("Invalid input"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let surfaces_clone = surfaces_for_corridor.clone();
+        let alignments_clone = alignments_for_corridor.clone();
+        app.on_corridor_volume(move || {
+            let dlg = CorridorVolumeDialog::new().unwrap();
+            dlg.set_width_value("10".into());
+            dlg.set_interval_value("10".into());
+            dlg.set_offset_step_value("1".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let surfs = surfaces_clone.clone();
+            let aligns = alignments_clone.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let width = d.get_width_value().parse::<f64>().ok()?;
+                        let interval = d.get_interval_value().parse::<f64>().ok()?;
+                        let step = d.get_offset_step_value().parse::<f64>().ok()?;
+                        let surfs = surfs.borrow();
+                        let aligns = aligns.borrow();
+                        if surfs.len() < 2 || aligns.is_empty() {
+                            return None;
+                        }
+                        let design = &surfs[0];
+                        let ground = &surfs[1];
+                        let hal = &aligns[0];
+                        let len = hal.length();
+                        let val = VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+                        let al = Alignment::new(hal.clone(), val);
+                        Some(corridor_volume(design, ground, &al, width, interval, step))
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if let Some(vol) = res {
+                            app.set_status(SharedString::from(format!("Volume: {:.3}", vol)));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input or missing data"));
                         }
                     }
                     let _ = d.hide();
