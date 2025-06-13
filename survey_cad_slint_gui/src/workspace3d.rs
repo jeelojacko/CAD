@@ -26,6 +26,8 @@ pub fn setup_scene(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut
 }
 
 pub fn bevy_app(app: &mut App) {
-    app.add_plugins((DefaultPlugins, InfiniteGridPlugin))
+    // `run_bevy_app_with_slint` already registers `DefaultPlugins`.
+    // Only additional plugins specific to this workspace should be added here.
+    app.add_plugins(InfiniteGridPlugin)
         .add_systems(Startup, setup_scene);
 }
