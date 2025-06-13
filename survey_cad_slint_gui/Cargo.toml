@@ -20,6 +20,7 @@ bevy = { version = "0.16", default-features = false, features = [
     "tonemapping_luts",
     "multi_threaded"
 ] }
+bevy_infinite_grid = "0.15"
 spin_on = "0.1"
 smol = "2.0"
 

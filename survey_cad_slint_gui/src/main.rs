@@ -53,7 +53,7 @@ component Workspace3D inherits Rectangle {
     }
 }
 
-import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox } from "std-widgets.slint";
 
 export component AddPointDialog inherits Window {
     callback from_file();
@@ -335,6 +335,7 @@ export component MainWindow inherits Window {
     in-out property <image> workspace_image;
     in-out property <image> workspace_texture;
     in-out property <bool> workspace_click_mode;
+    in-out property <bool> snap_to_grid;
 
     callback workspace_clicked(length, length);
 
@@ -456,6 +457,11 @@ export component MainWindow inherits Window {
             current-index <=> root.crs_index;
             selected => { root.crs_changed(root.crs_index); }
         }
+    }
+
+    HorizontalBox {
+        spacing: 6px;
+        CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
     }
 
     VerticalBox {
@@ -744,6 +750,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ));
     app.set_workspace_click_mode(false);
     app.set_workspace_texture(Image::default());
+    app.set_snap_to_grid(true);
 
     let (bevy_texture_receiver, bevy_control_sender) =
         spin_on(bevy_adapter::run_bevy_app_with_slint(
