@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use bevy::math::primitives::Cuboid;
+use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin};
 
 pub fn setup_scene(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
+    commands.spawn(InfiniteGridBundle::default());
     commands.spawn((
         DirectionalLight {
             illuminance: 10000.0,
@@ -24,6 +26,6 @@ pub fn setup_scene(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut
 }
 
 pub fn bevy_app(app: &mut App) {
-    app.add_plugins(DefaultPlugins)
+    app.add_plugins((DefaultPlugins, InfiniteGridPlugin))
         .add_systems(Startup, setup_scene);
 }
