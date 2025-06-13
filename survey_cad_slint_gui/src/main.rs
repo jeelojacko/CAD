@@ -712,6 +712,16 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    let (bevy_texture_receiver, bevy_control_sender) =
+        spin_on(bevy_adapter::run_bevy_app_with_slint(
+            |_| {},
+            |mut bapp| {
+                workspace3d::bevy_app(&mut bapp);
+                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(0.1, 0.1, 0.1)))
+                    .run();
+            },
+        ))?;
+
     let app = MainWindow::new()?;
     let points: Rc<RefCell<Vec<Point>>> = Rc::new(RefCell::new(Vec::new()));
     let lines: Rc<RefCell<Vec<(Point, Point)>>> = Rc::new(RefCell::new(Vec::new()));
@@ -756,16 +766,6 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_workspace_texture(Image::default());
     app.set_snap_to_grid(true);
     app.set_snap_to_entities(true);
-
-    let (bevy_texture_receiver, bevy_control_sender) =
-        spin_on(bevy_adapter::run_bevy_app_with_slint(
-            |_| {},
-            |mut bapp| {
-                workspace3d::bevy_app(&mut bapp);
-                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(0.1, 0.1, 0.1)))
-                    .run();
-            },
-        ))?;
 
     let app_for_notifier = app.as_weak();
     app.window().set_rendering_notifier(move |state, _| {
