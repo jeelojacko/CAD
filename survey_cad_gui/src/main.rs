@@ -52,6 +52,11 @@ struct DragSelect {
     end: Vec2,
 }
 
+#[derive(Resource, Default)]
+struct MiddleClick {
+    last: f64,
+}
+
 #[derive(Component)]
 struct CadPoint;
 
@@ -413,6 +418,7 @@ fn main() {
         .insert_resource(Dragging::default())
         .insert_resource(SelectMode::default())
         .insert_resource(DragSelect::default())
+        .insert_resource(MiddleClick::default())
         .insert_resource(AlignmentData::default())
         .insert_resource(SurfaceData::default())
         .insert_resource(SurfaceTins::default())
@@ -448,6 +454,7 @@ fn main() {
                 update_surface_edges,
                 maybe_update_surface,
                 camera_pan_zoom,
+                middle_click_zoom_extents,
                 handle_view_toggle_keys,
                 highlight_selected_points,
                 update_lod_meshes,
@@ -530,7 +537,7 @@ fn setup(
         },
         Transform::default(),
     ));
-    spawn_toolbar(&mut commands, &asset_server, profile.0, &theme);
+    spawn_toolbar(&mut commands, &asset_server, profile.0, &theme, &ui_scale);
     spawn_file_toolbar(&mut commands, &asset_server, &theme, &ui_scale);
     let (parcel_text, grade_text) =
         spawn_edit_panel(&mut commands, &asset_server, profile.0, &theme, &ui_scale);
@@ -555,12 +562,13 @@ fn spawn_toolbar(
     asset_server: &Res<AssetServer>,
     profile: WorkspaceProfile,
     theme: &ThemeColors,
+    ui_scale: &UiScale,
 ) {
     commands
         .spawn((
             Node {
                 width: Val::Percent(100.0),
-                height: Val::Px(30.0),
+                height: Val::Px(30.0 * ui_scale.0),
                 justify_content: JustifyContent::FlexStart,
                 align_items: AlignItems::Center,
                 ..default()
@@ -785,14 +793,15 @@ fn spawn_file_toolbar(
     theme: &ThemeColors,
     ui_scale: &UiScale,
 ) {
+    let h = 30.0 * ui_scale.0;
     commands
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
-                top: Val::Px(30.0 * ui_scale.0),
+                top: Val::Px(h),
                 width: Val::Percent(100.0),
-                height: Val::Px(30.0),
+                height: Val::Px(h),
                 justify_content: JustifyContent::FlexStart,
                 align_items: AlignItems::Center,
                 ..default()
@@ -897,6 +906,7 @@ fn spawn_edit_panel(
     theme: &ThemeColors,
     ui_scale: &UiScale,
 ) -> (Entity, Entity) {
+    let h = 30.0 * ui_scale.0;
     let mut parcel_text = Entity::from_raw(0);
     let mut grade_text = Entity::from_raw(0);
     commands
@@ -904,7 +914,7 @@ fn spawn_edit_panel(
             Node {
                 position_type: PositionType::Absolute,
                 right: Val::Px(0.0),
-                top: Val::Px(60.0 * ui_scale.0),
+                top: Val::Px(2.0 * h),
                 width: Val::Px(200.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
@@ -1491,6 +1501,51 @@ fn camera_pan_zoom(
         for ev in motion_evr.read() {
             transform.translation.x -= ev.delta.x * projection.scale;
             transform.translation.y += ev.delta.y * projection.scale;
+        }
+    }
+}
+
+fn middle_click_zoom_extents(
+    buttons: Res<ButtonInput<MouseButton>>,
+    time: Res<Time>,
+    mut state: ResMut<MiddleClick>,
+    mut camera_q: Query<(&mut Transform, &mut OrthographicProjection), With<Camera2d>>,
+    points: Query<&Transform, With<CadPoint>>,
+    windows: Query<&Window>,
+) {
+    if buttons.just_pressed(MouseButton::Middle) {
+        let now = time.elapsed_secs_f64();
+        if now - state.last < 0.4 {
+            state.last = 0.0;
+            let mut iter = points.iter();
+            if let Some(first) = iter.next() {
+                let mut min_x = first.translation.x;
+                let mut max_x = first.translation.x;
+                let mut min_y = first.translation.y;
+                let mut max_y = first.translation.y;
+                for t in iter {
+                    let p = t.translation;
+                    min_x = min_x.min(p.x);
+                    max_x = max_x.max(p.x);
+                    min_y = min_y.min(p.y);
+                    max_y = max_y.max(p.y);
+                }
+                let (mut transform, mut proj) = camera_q.single_mut();
+                transform.translation.x = (min_x + max_x) / 2.0;
+                transform.translation.y = (min_y + max_y) / 2.0;
+                let width = max_x - min_x;
+                let height = max_y - min_y;
+                let window = windows.single();
+                let scale_x = width / window.width();
+                let scale_y = height / window.height();
+                let mut new_scale = scale_x.max(scale_y) * 1.1;
+                if new_scale < 0.1 {
+                    new_scale = 0.1;
+                }
+                proj.scale = new_scale;
+            }
+        } else {
+            state.last = now;
         }
     }
 }
@@ -2219,6 +2274,7 @@ fn handle_file_menu_button(
     theme: Res<ThemeColors>,
     ui_scale: Res<UiScale>,
 ) {
+    let h = 30.0 * ui_scale.0;
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
             commands.entity(ent).despawn_recursive();
@@ -2228,7 +2284,7 @@ fn handle_file_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(5.0),
-                        top: Val::Px(60.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2296,6 +2352,7 @@ fn handle_cogo_menu_button(
     theme: Res<ThemeColors>,
     ui_scale: Res<UiScale>,
 ) {
+    let h = 30.0 * ui_scale.0;
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
             commands.entity(ent).despawn_recursive();
@@ -2305,7 +2362,7 @@ fn handle_cogo_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(160.0 * ui_scale.0),
-                        top: Val::Px(60.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2351,6 +2408,7 @@ fn handle_surface_menu_button(
     theme: Res<ThemeColors>,
     ui_scale: Res<UiScale>,
 ) {
+    let h = 30.0 * ui_scale.0;
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
             commands.entity(ent).despawn_recursive();
@@ -2360,7 +2418,7 @@ fn handle_surface_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(235.0 * ui_scale.0),
-                        top: Val::Px(60.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2444,6 +2502,7 @@ fn handle_crs_menu_button(
     theme: Res<ThemeColors>,
     ui_scale: Res<UiScale>,
 ) {
+    let h = 30.0 * ui_scale.0;
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
             commands.entity(ent).despawn_recursive();
@@ -2453,7 +2512,7 @@ fn handle_crs_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(310.0 * ui_scale.0),
-                        top: Val::Px(60.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
@@ -2514,6 +2573,7 @@ fn handle_view_menu_button(
     theme: Res<ThemeColors>,
     ui_scale: Res<UiScale>,
 ) {
+    let h = 30.0 * ui_scale.0;
     if let Ok(&Interaction::Pressed) = interaction.get_single() {
         if let Some(ent) = state.entity.take() {
             commands.entity(ent).despawn_recursive();
@@ -2523,7 +2583,7 @@ fn handle_view_menu_button(
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(155.0 * ui_scale.0),
-                        top: Val::Px(60.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
                         flex_direction: FlexDirection::Column,
                         ..default()
                     },
