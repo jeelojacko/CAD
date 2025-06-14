@@ -28,10 +28,8 @@ jobs:
         shell: bash
         run: |
           mkdir dist
-          cp target/release/survey_cad_cli.exe dist/
           cp target/release/survey_cad_gui.exe dist/
           cd dist
-          7z a survey_cad_cli-windows.zip survey_cad_cli.exe
           7z a survey_cad_gui-windows.zip survey_cad_gui.exe
       - name: Prepare Release Tag
         id: tag
@@ -52,7 +50,6 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: |
-            dist/survey_cad_cli-windows.zip
             dist/survey_cad_gui-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
