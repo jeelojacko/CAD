@@ -9439,6 +9439,7 @@ version = "0.1.0"
 dependencies = [
  "bevy 0.16.1",
  "bevy_infinite_grid",
+ "crossbeam-channel",
  "rfd",
  "slint",
  "smol",

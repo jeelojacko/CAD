@@ -23,6 +23,7 @@ bevy = { version = "0.16", default-features = false, features = [
 bevy_infinite_grid = "0.15"
 spin_on = "0.1"
 smol = "2.0"
+crossbeam-channel = "0.5"
 
 [features]
 default = []
