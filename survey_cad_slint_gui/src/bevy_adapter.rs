@@ -43,6 +43,8 @@ pub enum ControlMessage {
 pub async fn run_bevy_app_with_slint(
     bevy_app_pre_default_plugins_callback: impl FnOnce(&mut App) + Send + 'static,
     bevy_main: impl FnOnce(App) + Send + 'static,
+    ui_event_receiver: crossbeam_channel::Receiver<crate::workspace3d::UiEvent>,
+    bevy_data_sender: crossbeam_channel::Sender<crate::workspace3d::BevyData>,
 ) -> Result<
     (
         smol::channel::Receiver<wgpu::Texture>,
@@ -179,6 +181,8 @@ pub async fn run_bevy_app_with_slint(
         let mut app = App::new();
         app.set_runner(runner);
         app.insert_resource(BackBuffer(None));
+        app.insert_resource(crate::workspace3d::UiEventReceiver(ui_event_receiver.clone()));
+        app.insert_resource(crate::workspace3d::BevyDataSender(bevy_data_sender.clone()));
         bevy_app_pre_default_plugins_callback(&mut app);
         app.add_plugins(
             DefaultPlugins

@@ -47,11 +47,17 @@ component Workspace3D inherits Rectangle {
     in-out property <image> texture <=> img.source;
     out property <length> requested-texture-width: img.width;
     out property <length> requested-texture-height: img.height;
+    callback mouse_moved(length, length);
     background: #202020;
     img := Image {
         width: 100%;
         height: 100%;
         image-fit: fill;
+    }
+    TouchArea {
+        width: 100%;
+        height: 100%;
+        moved => { root.mouse_moved(self.mouse-x, self.mouse-y); }
     }
 }
 
@@ -341,6 +347,7 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_to_entities;
 
     callback workspace_clicked(length, length);
+    callback workspace_mouse_moved(length, length);
 
     callback crs_changed(int);
     callback cogo_selected(int);
@@ -476,6 +483,7 @@ export component MainWindow inherits Window {
         }
         if root.workspace_mode == 1 : Workspace3D {
             texture <=> root.workspace_texture;
+            mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
         }
         Text { text: root.status; }
     }
@@ -712,6 +720,9 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
+    let (ui_tx, ui_rx) = crossbeam_channel::unbounded::<workspace3d::UiEvent>();
+    let (data_tx, data_rx) = crossbeam_channel::unbounded::<workspace3d::BevyData>();
+
     let (bevy_texture_receiver, bevy_control_sender) =
         spin_on(bevy_adapter::run_bevy_app_with_slint(
             |_| {},
@@ -720,6 +731,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(0.1, 0.1, 0.1)))
                     .run();
             },
+            ui_rx,
+            data_tx,
         ))?;
 
     let app = MainWindow::new()?;
@@ -2212,6 +2225,32 @@ fn main() -> Result<(), slint::PlatformError> {
                     )));
                     (update_image.clone())();
                 }
+            }
+        });
+    }
+
+    {
+        let sender = ui_tx.clone();
+        app.on_workspace_mouse_moved(move |x, y| {
+            let _ = sender.send(workspace3d::UiEvent::MouseMove {
+                dx: x as f32,
+                dy: y as f32,
+            });
+        });
+    }
+
+    {
+        let weak_main = app.as_weak();
+        std::thread::spawn(move || {
+            for data in data_rx {
+                let workspace3d::BevyData::CameraPosition(pos) = data;
+                let txt = SharedString::from(format!("Camera: {:.1}, {:.1}, {:.1}", pos.x, pos.y, pos.z));
+                let weak = weak_main.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(a) = weak.upgrade() {
+                        a.set_status(txt.clone());
+                    }
+                });
             }
         });
     }
