@@ -482,12 +482,15 @@ export component MainWindow inherits Window {
     }
 
     VerticalBox {
+        height: 100%;
         if root.workspace_mode == 0 : Workspace2D {
+            vertical-stretch: 1;
             image <=> root.workspace_image;
             click_mode <=> root.workspace_click_mode;
             clicked(x, y) => { root.workspace_clicked(x, y); }
         }
         if root.workspace_mode == 1 : Workspace3D {
+            vertical-stretch: 1;
             texture <=> root.workspace_texture;
             mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
             mouse_exited() => { root.workspace_mouse_exited(); }
