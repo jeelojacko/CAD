@@ -79,7 +79,7 @@ pub fn setup_scene(
         },
         Transform::from_translation(Vec3::new(0.0, 0.0, 3.0)).looking_at(Vec3::ZERO, Vec3::Y),
         OrientationCamera,
-        RenderLayers::layer(ORIENTATION_LAYER as usize),
+        RenderLayers::layer(ORIENTATION_LAYER),
     ));
 
     // Orientation cube
@@ -89,7 +89,7 @@ pub fn setup_scene(
         Transform::default(),
         GlobalTransform::default(),
         OrientationCube,
-        RenderLayers::layer(ORIENTATION_LAYER as usize),
+        RenderLayers::layer(ORIENTATION_LAYER),
     ));
 }
 
