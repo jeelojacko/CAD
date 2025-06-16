@@ -79,7 +79,7 @@ fn process_ui_events(
                 }
                 UiEvent::UpdatePoints(pts) => {
                     for e in point_entities.0.drain(..) {
-                        commands.entity(e).despawn_recursive();
+                        commands.entity(e).despawn();
                     }
                     for p in pts {
                         let e = commands
