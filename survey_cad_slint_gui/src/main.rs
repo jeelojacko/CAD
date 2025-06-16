@@ -58,7 +58,11 @@ component Workspace3D inherits Rectangle {
         width: 100%;
         height: 100%;
         moved => { root.mouse_moved(self.mouse-x, self.mouse-y); }
-        exited => { root.mouse_exited(); }
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.cancel {
+                root.mouse_exited();
+            }
+        }
     }
 }
 
