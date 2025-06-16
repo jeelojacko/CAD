@@ -373,6 +373,16 @@ fn main() -> Result<(), slint::PlatformError> {
         })
     };
 
+    let refresh_viewports = {
+        let update_image = update_image.clone();
+        let points = points.clone();
+        let ui_tx = ui_tx.clone();
+        std::rc::Rc::new(move || {
+            (update_image.clone())();
+            send_points_update(&ui_tx, &points.borrow());
+        })
+    };
+
     let weak = app.as_weak();
     {
         let points = points.clone();
@@ -396,8 +406,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
             }
-            (update_image.clone())();
-            send_points_update(&ui_tx, &points.borrow());
+            (refresh_viewports.clone())();
         });
     }
 
@@ -421,8 +430,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -482,8 +490,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -520,8 +527,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -567,8 +573,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -605,8 +610,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -650,8 +654,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -695,8 +698,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     points.borrow().len()
                                 )));
                             }
-                            (update_image.clone())();
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -732,7 +734,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
                             }
-                            (update_image.clone())();
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -761,7 +763,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));
                             }
-                            (update_image.clone())();
+                            (refresh_viewports.clone())();
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -957,8 +959,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             points.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
-                                    send_points_update(&ui_tx, &points.borrow());
+                                    (refresh_viewports.clone())();
                                 }
                                 Err(e) => {
                                     if let Some(app) = main_weak.upgrade() {
@@ -1009,8 +1010,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             points.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
-                                    send_points_update(&ui_tx, &points.borrow());
+                                    (refresh_viewports.clone())();
                                 }
                             }
                             if let Some(k) = key_weak2.upgrade() {
@@ -1073,7 +1073,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             lines.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
+                                    (refresh_viewports.clone())();
                                 }
                                 Err(e) => {
                                     if let Some(app) = weak_main.upgrade() {
@@ -1122,7 +1122,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             lines.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
+                                    (refresh_viewports.clone())();
                                 }
                             }
                             if let Some(k) = kd_weak.upgrade() {
@@ -1174,7 +1174,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polygons.borrow().len()
                                             )));
                                         }
-                                        (update_image.clone())();
+                                        (refresh_viewports.clone())();
                                     } else if let Some(app) = weak_main.upgrade() {
                                         app.set_status(SharedString::from("Need at least 3 points"));
                                     }
@@ -1237,7 +1237,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         polygons.borrow().len()
                                     )));
                                 }
-                                (update_image.clone())();
+                                (refresh_viewports.clone())();
                             }
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1288,7 +1288,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polylines.borrow().len()
                                             )));
                                         }
-                                        (update_image.clone())();
+                                        (refresh_viewports.clone())();
                                     } else if let Some(app) = weak_main.upgrade() {
                                         app.set_status(SharedString::from("Need at least 2 points"));
                                     }
@@ -1348,7 +1348,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         polylines.borrow().len()
                                     )));
                                 }
-                                (update_image.clone())();
+                                (refresh_viewports.clone())();
                             }
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1400,7 +1400,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             arcs.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
+                                    (refresh_viewports.clone())();
                                 }
                                 Err(e) => {
                                     if let Some(app) = weak_main.upgrade() {
@@ -1447,7 +1447,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             arcs.borrow().len()
                                         )));
                                     }
-                                    (update_image.clone())();
+                                    (refresh_viewports.clone())();
                                 }
                             }
                             if let Some(a) = ad_weak.upgrade() {
@@ -1490,8 +1490,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Workspace cleared"));
             }
-            (update_image.clone())();
-            send_points_update(&ui_tx, &points.borrow());
+            (refresh_viewports.clone())();
         });
     }
 
@@ -1540,7 +1539,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 "Forward point: {:.3},{:.3}",
                                 p.x, p.y
                             )));
-                            send_points_update(&ui_tx, &points.borrow());
+                            (refresh_viewports.clone())();
                         } else {
                             app.set_status(SharedString::from("Need start point"));
                         }
@@ -1742,7 +1741,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_workspace_mode(mode);
                 *last_mouse_pos_change.borrow_mut() = None;
                 if mode == 0 {
-                    (update_image.clone())();
+                    (refresh_viewports.clone())();
                 }
             }
         });
@@ -1797,8 +1796,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         "Total points: {}",
                         points.borrow().len()
                     )));
-                    (update_image.clone())();
-                    send_points_update(&ui_tx, &points.borrow());
+                    (refresh_viewports.clone())();
                 }
             }
         });
