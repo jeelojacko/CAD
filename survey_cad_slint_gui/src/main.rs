@@ -47,6 +47,7 @@ component Workspace3D inherits Rectangle {
     out property <length> requested-texture-width: img.width;
     out property <length> requested-texture-height: img.height;
     callback mouse_moved(length, length);
+    callback mouse_exited();
     background: #202020;
     img := Image {
         width: 100%;
@@ -57,6 +58,7 @@ component Workspace3D inherits Rectangle {
         width: 100%;
         height: 100%;
         moved => { root.mouse_moved(self.mouse-x, self.mouse-y); }
+        exited => { root.mouse_exited(); }
     }
 }
 
@@ -347,6 +349,7 @@ export component MainWindow inherits Window {
 
     callback workspace_clicked(length, length);
     callback workspace_mouse_moved(length, length);
+    callback workspace_mouse_exited();
 
     callback crs_changed(int);
     callback cogo_selected(int);
@@ -483,6 +486,7 @@ export component MainWindow inherits Window {
         if root.workspace_mode == 1 : Workspace3D {
             texture <=> root.workspace_texture;
             mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+            mouse_exited() => { root.workspace_mouse_exited(); }
         }
         Text { text: root.status; }
     }
@@ -735,6 +739,7 @@ fn main() -> Result<(), slint::PlatformError> {
         ))?;
 
     let app = MainWindow::new()?;
+    let last_mouse_pos: Rc<RefCell<Option<(f32, f32)>>> = Rc::new(RefCell::new(None));
     let points: Rc<RefCell<Vec<Point>>> = Rc::new(RefCell::new(Vec::new()));
     let lines: Rc<RefCell<Vec<(Point, Point)>>> = Rc::new(RefCell::new(Vec::new()));
     let polygons: Rc<RefCell<Vec<Vec<Point>>>> = Rc::new(RefCell::new(Vec::new()));
@@ -2198,9 +2203,11 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let update_image = update_image.clone();
+        let last_mouse_pos_change = last_mouse_pos.clone();
         app.on_view_changed(move |mode| {
             if let Some(app) = weak.upgrade() {
                 app.set_workspace_mode(mode);
+                *last_mouse_pos_change.borrow_mut() = None;
                 if mode == 0 {
                     (update_image.clone())();
                 }
@@ -2266,11 +2273,23 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let sender = ui_tx.clone();
+        let last_mouse_pos_move = last_mouse_pos.clone();
         app.on_workspace_mouse_moved(move |x, y| {
-            let _ = sender.send(workspace3d::UiEvent::MouseMove {
-                dx: x,
-                dy: y,
-            });
+            let mut last = last_mouse_pos_move.borrow_mut();
+            let (dx, dy) = if let Some((lx, ly)) = *last {
+                (x - lx, y - ly)
+            } else {
+                (0.0, 0.0)
+            };
+            *last = Some((x, y));
+            let _ = sender.send(workspace3d::UiEvent::MouseMove { dx, dy });
+        });
+    }
+
+    {
+        let last_mouse_pos_exit = last_mouse_pos.clone();
+        app.on_workspace_mouse_exited(move || {
+            *last_mouse_pos_exit.borrow_mut() = None;
         });
     }
 
