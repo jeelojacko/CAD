@@ -206,7 +206,7 @@ fn handle_orientation_cube_clicks(
     }
     let window = if let Some(w) = windows.iter().next() { w } else { return };
     let Some(cursor) = window.cursor_position() else { return };
-    let Ok((camera, cam_tf)) = ori_cam_q.get_single() else { return };
+    let Ok((camera, cam_tf)) = ori_cam_q.single() else { return };
     let Some(viewport) = &camera.viewport else { return };
     let pos = cursor - viewport.physical_position.as_vec2();
     if pos.x < 0.0
@@ -218,8 +218,8 @@ fn handle_orientation_cube_clicks(
     }
     let Ok(ray) = camera.viewport_to_world(cam_tf, pos) else { return };
     if let Some(local_normal) = ray_cube_intersection(ray) {
-        let Ok(cube_tf) = cube_q.get_single() else { return };
-        let dir_world = cube_tf.rotation * local_normal;
+        let Ok(cube_tf) = cube_q.single() else { return };
+        let dir_world = cube_tf.rotation() * local_normal;
         if let Ok(mut cam) = main_cam_q.single_mut() {
             let dist = cam.translation.length();
             cam.translation = -dir_world.normalize() * dist;
