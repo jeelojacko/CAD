@@ -395,6 +395,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_new_project(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -415,6 +416,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -449,6 +451,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
     {
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -475,6 +478,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
@@ -511,6 +515,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("KML", &["kml", "kmz"])
@@ -552,6 +557,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DXF", &["dxf"])
@@ -594,6 +600,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -635,6 +642,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -679,6 +687,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -722,6 +731,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let update_image = update_image.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_landxml_surface(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -751,6 +761,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let alignments = alignments.clone();
         let update_image = update_image.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_import_landxml_alignment(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -780,6 +791,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
@@ -801,6 +813,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("KML", &["kml"])
@@ -827,6 +840,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DXF", &["dxf"])
@@ -848,6 +862,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -874,6 +889,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -903,6 +919,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let points = points.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_export_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -935,6 +952,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let update_image = update_image.clone();
         let main_weak = weak.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -944,6 +962,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -983,6 +1002,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -997,6 +1017,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let key_weak2 = key_weak.clone();
                         let key_dlg_weak2 = key_dlg_weak.clone();
                         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_dlg_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -1020,6 +1041,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let key_weak2 = key_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         key_dlg.on_cancel(move || {
                             if let Some(k) = key_weak2.upgrade() {
                                 let _ = k.hide();
@@ -1032,6 +1054,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual_click(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1050,6 +1073,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let lines = lines.clone();
         let update_image = update_image.clone();
         let weak_main = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_add_line(move || {
             let dlg = AddLineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -1058,6 +1082,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1096,6 +1121,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1107,6 +1133,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let lines = lines.clone();
                         let update_image = update_image.clone();
                         let weak_main = weak_main.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         kd.on_accept(move || {
                             if let Some(dlg) = kd_weak2.upgrade() {
                                 if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
@@ -1132,6 +1159,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let kd_weak = kd.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
                         kd.on_cancel(move || {
                             if let Some(k) = kd_weak.upgrade() {
                                 let _ = k.hide();
@@ -1150,6 +1178,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let update_image = update_image.clone();
         let weak_main = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_add_polygon(move || {
             let dlg = AddPolygonDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -1158,6 +1187,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1197,6 +1227,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1210,6 +1241,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let model = model.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_add_point(move || {
                             if let Some(d) = pd_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -1228,6 +1260,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let weak_main = weak_main.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_accept(move || {
                             if pts.borrow().len() >= 3 {
                                 polygons.borrow_mut().push(pts.borrow().clone());
@@ -1246,6 +1279,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let pd_weak2 = pd.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_cancel(move || {
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1264,6 +1298,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let update_image = update_image.clone();
         let weak_main = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_add_polyline(move || {
             let dlg = AddPolylineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -1272,6 +1307,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1311,6 +1347,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1324,6 +1361,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let model = model.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_add_point(move || {
                             if let Some(d) = pd_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (d.get_x_value().parse::<f64>(), d.get_y_value().parse::<f64>()) {
@@ -1339,6 +1377,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let weak_main = weak_main.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_accept(move || {
                             if pts.borrow().len() >= 2 {
                                 polylines.borrow_mut().push(Polyline::new(pts.borrow().clone()));
@@ -1357,6 +1396,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let pd_weak2 = pd.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
                         pd.on_cancel(move || {
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1377,6 +1417,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let update_image = update_image.clone();
         let weak_main = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_add_arc(move || {
             let dlg = AddArcDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -1385,6 +1426,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1420,6 +1462,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1431,6 +1474,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let arcs = arcs.clone();
                         let update_image = update_image.clone();
                         let weak_main = weak_main.clone();
+        let refresh_viewports = refresh_viewports.clone();
                         ad.on_accept(move || {
                             if let Some(dlg) = ad_weak2.upgrade() {
                                 if let (Ok(cx), Ok(cy), Ok(r), Ok(sa), Ok(ea)) = (
@@ -1457,6 +1501,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let ad_weak = ad.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
                         ad.on_cancel(move || {
                             if let Some(a) = ad_weak.upgrade() {
                                 let _ = a.hide();
@@ -1479,6 +1524,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs = arcs.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_clear_workspace(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -1498,6 +1544,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let entries = crs_entries.clone();
         let working_crs = working_crs.clone();
         let weak = app.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_crs_changed(move |idx| {
             if let Some(entry) = entries.get(idx as usize) {
                 if let Some(code) = entry.code.split(':').nth(1) {
@@ -1519,6 +1566,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let weak = app.as_weak();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_cogo_selected(move |idx| {
             if let Some(app) = weak.upgrade() {
                 match idx {
@@ -1588,10 +1636,12 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_station_distance(move || {
             let dlg = StationDistanceDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1615,6 +1665,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1626,6 +1677,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_traverse_area(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -1648,10 +1700,12 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_level_elevation_tool(move || {
             let dlg = LevelElevationDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1671,6 +1725,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1684,6 +1739,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let surfaces_clone = surfaces_for_corridor.clone();
         let alignments_clone = alignments_for_corridor.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_corridor_volume(move || {
             let dlg = CorridorVolumeDialog::new().unwrap();
             dlg.set_width_value("10".into());
@@ -1693,6 +1749,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let weak2 = weak.clone();
             let surfs = surfaces_clone.clone();
             let aligns = alignments_clone.clone();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1723,6 +1780,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
+        let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1736,6 +1794,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let update_image = update_image.clone();
         let last_mouse_pos_change = last_mouse_pos.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_view_changed(move |mode| {
             if let Some(app) = weak.upgrade() {
                 app.set_workspace_mode(mode);
@@ -1756,6 +1815,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs = arcs.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_workspace_clicked(move |x, y| {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
@@ -1805,6 +1865,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let sender = ui_tx.clone();
         let last_mouse_pos_move = last_mouse_pos.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_mouse_pos_move.borrow_mut();
             let (dx, dy) = if let Some((lx, ly)) = *last {
@@ -1819,6 +1880,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let last_mouse_pos_exit = last_mouse_pos.clone();
+        let refresh_viewports = refresh_viewports.clone();
         app.on_workspace_mouse_exited(move || {
             *last_mouse_pos_exit.borrow_mut() = None;
         });
