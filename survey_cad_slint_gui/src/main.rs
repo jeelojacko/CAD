@@ -2233,8 +2233,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let sender = ui_tx.clone();
         app.on_workspace_mouse_moved(move |x, y| {
             let _ = sender.send(workspace3d::UiEvent::MouseMove {
-                dx: x as f32,
-                dy: y as f32,
+                dx: x,
+                dy: y,
             });
         });
     }
