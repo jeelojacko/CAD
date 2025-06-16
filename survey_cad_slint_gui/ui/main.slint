@@ -411,36 +411,22 @@ export component MainWindow inherits Window {
         }
     }
 
-    Rectangle {
+    VerticalBox {
         x: 0;
         y: 0;
         width: 100%;
         height: 100%;
-
-        if root.workspace_mode == 0 : Workspace2D {
-            x: 0; y: 0; width: 100%; height: 100%;
-            image <=> root.workspace_image;
-            click_mode <=> root.workspace_click_mode;
-            clicked(x, y) => { root.workspace_clicked(x, y); }
-        }
-        if root.workspace_mode == 1 : Workspace3D {
-            x: 0; y: 0; width: 100%; height: 100%;
-            texture <=> root.workspace_texture;
-            mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
-            mouse_exited() => { root.workspace_mouse_exited(); }
-        }
+        spacing: 0px;
 
         toolbar1 := HorizontalBox {
-            x: 0;
-            y: 30px;
             width: 100%;
-            z: 1;
+            height: 30px;
             spacing: 6px;
-        Button { text: "New"; clicked => { root.new_project(); } }
-        Button { text: "Open"; clicked => { root.open_project(); } }
-        Button { text: "Save"; clicked => { root.save_project(); } }
-        Button { text: "Add Point"; clicked => { root.add_point(); } }
-        Button { text: "Add Line"; clicked => { root.add_line(); } }
+            Button { text: "New"; clicked => { root.new_project(); } }
+            Button { text: "Open"; clicked => { root.open_project(); } }
+            Button { text: "Save"; clicked => { root.save_project(); } }
+            Button { text: "Add Point"; clicked => { root.add_point(); } }
+            Button { text: "Add Line"; clicked => { root.add_line(); } }
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
@@ -463,10 +449,8 @@ export component MainWindow inherits Window {
         }
 
         toolbar2 := HorizontalBox {
-            x: 0;
-            y: 60px;
             width: 100%;
-            z: 1;
+            height: 30px;
             spacing: 6px;
         Text { text: "CRS:"; }
         ComboBox {
@@ -477,21 +461,35 @@ export component MainWindow inherits Window {
         }
 
         toolbar3 := HorizontalBox {
-            x: 0;
-            y: 90px;
             width: 100%;
-            z: 1;
+            height: 30px;
             spacing: 6px;
             CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
             CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; }
         }
 
-        Text {
-            text: root.status;
-            x: 0;
-            y: parent.height - self.height;
+        Rectangle {
             width: 100%;
-            z: 1;
+            vertical-stretch: 1;
+            min-height: 0px;
+
+            if root.workspace_mode == 0 : Workspace2D {
+                x: 0; y: 0; width: 100%; height: 100%;
+                image <=> root.workspace_image;
+                click_mode <=> root.workspace_click_mode;
+                clicked(x, y) => { root.workspace_clicked(x, y); }
+            }
+            if root.workspace_mode == 1 : Workspace3D {
+                x: 0; y: 0; width: 100%; height: 100%;
+                texture <=> root.workspace_texture;
+                mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+                mouse_exited() => { root.workspace_mouse_exited(); }
+            }
+        }
+
+        status_bar := Text {
+            text: root.status;
+            width: 100%;
         }
     }
 }
