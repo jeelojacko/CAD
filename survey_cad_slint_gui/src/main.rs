@@ -387,7 +387,7 @@ export component MainWindow inherits Window {
     callback import_landxml_surface();
     callback import_landxml_alignment();
 
-    MenuBar {
+    menubar := MenuBar {
         Menu {
             title: "File";
             MenuItem { title: "New"; activated => { root.new_project(); } }
@@ -437,8 +437,31 @@ export component MainWindow inherits Window {
         }
     }
 
-    HorizontalBox {
-        spacing: 6px;
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 100%;
+        height: 100%;
+
+        if root.workspace_mode == 0 : Workspace2D {
+            x: 0; y: 0; width: 100%; height: 100%;
+            image <=> root.workspace_image;
+            click_mode <=> root.workspace_click_mode;
+            clicked(x, y) => { root.workspace_clicked(x, y); }
+        }
+        if root.workspace_mode == 1 : Workspace3D {
+            x: 0; y: 0; width: 100%; height: 100%;
+            texture <=> root.workspace_texture;
+            mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+            mouse_exited() => { root.workspace_mouse_exited(); }
+        }
+
+        toolbar1 := HorizontalBox {
+            x: 0;
+            y: 30px;
+            width: 100%;
+            z: 1;
+            spacing: 6px;
         Button { text: "New"; clicked => { root.new_project(); } }
         Button { text: "Open"; clicked => { root.open_project(); } }
         Button { text: "Save"; clicked => { root.save_project(); } }
@@ -463,39 +486,39 @@ export component MainWindow inherits Window {
             current-index <=> root.cogo_index;
             selected => { root.cogo_selected(root.cogo_index); }
         }
-    }
+        }
 
-    HorizontalBox {
-        spacing: 6px;
+        toolbar2 := HorizontalBox {
+            x: 0;
+            y: 60px;
+            width: 100%;
+            z: 1;
+            spacing: 6px;
         Text { text: "CRS:"; }
         ComboBox {
             model: root.crs_list;
             current-index <=> root.crs_index;
             selected => { root.crs_changed(root.crs_index); }
         }
-    }
-
-    HorizontalBox {
-        spacing: 6px;
-        CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
-        CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; }
-    }
-
-    VerticalBox {
-        height: 100%;
-        if root.workspace_mode == 0 : Workspace2D {
-            vertical-stretch: 1;
-            image <=> root.workspace_image;
-            click_mode <=> root.workspace_click_mode;
-            clicked(x, y) => { root.workspace_clicked(x, y); }
         }
-        if root.workspace_mode == 1 : Workspace3D {
-            vertical-stretch: 1;
-            texture <=> root.workspace_texture;
-            mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
-            mouse_exited() => { root.workspace_mouse_exited(); }
+
+        toolbar3 := HorizontalBox {
+            x: 0;
+            y: 90px;
+            width: 100%;
+            z: 1;
+            spacing: 6px;
+            CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
+            CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; }
         }
-        Text { text: root.status; }
+
+        Text {
+            text: root.status;
+            x: 0;
+            y: parent.height - self.height;
+            width: 100%;
+            z: 1;
+        }
     }
 }
 }
