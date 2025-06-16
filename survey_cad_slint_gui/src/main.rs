@@ -15,7 +15,6 @@ use survey_cad::alignment::{Alignment, VerticalAlignment};
 use survey_cad::corridor::corridor_volume;
 use survey_cad::io::DxfEntity;
 use survey_cad::snap::snap_point;
-#[cfg(any(feature = "las", feature = "e57"))]
 use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
     bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
@@ -745,6 +744,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let alignments: Rc<RefCell<Vec<HorizontalAlignment>>> = Rc::new(RefCell::new(Vec::new()));
     let surfaces_for_corridor = surfaces.clone();
     let alignments_for_corridor = alignments.clone();
+
+    fn send_points_update(
+        tx: &crossbeam_channel::Sender<workspace3d::UiEvent>,
+        pts: &[Point],
+    ) {
+        let pts3: Vec<Point3> = pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
+        let _ = tx.send(workspace3d::UiEvent::UpdatePoints(pts3));
+    }
     let crs_entries = list_known_crs();
     let crs_model = Rc::new(VecModel::from(
         crs_entries
@@ -839,6 +846,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_new_project(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -851,6 +859,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_status(SharedString::from("New project created"));
             }
             (update_image.clone())();
+            send_points_update(&ui_tx, &points.borrow());
         });
     }
 
@@ -858,6 +867,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -874,6 +884,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -917,6 +928,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
@@ -933,6 +945,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -952,6 +965,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("KML", &["kml", "kmz"])
@@ -969,6 +983,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -992,6 +1007,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DXF", &["dxf"])
@@ -1014,6 +1030,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -1033,6 +1050,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -1050,6 +1068,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -1073,6 +1092,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -1093,6 +1113,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -1116,6 +1137,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let points = points.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_import_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -1136,6 +1158,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                             }
                             (update_image.clone())();
+                            send_points_update(&ui_tx, &points.borrow());
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
@@ -1371,6 +1394,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let points = points.clone();
         let update_image = update_image.clone();
         let main_weak = weak.clone();
+        let ui_tx = ui_tx.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -1379,6 +1403,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let ui_tx = ui_tx.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1395,6 +1420,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         )));
                                     }
                                     (update_image.clone())();
+                                    send_points_update(&ui_tx, &points.borrow());
                                 }
                                 Err(e) => {
                                     if let Some(app) = main_weak.upgrade() {
@@ -1417,6 +1443,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let ui_tx = ui_tx.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1430,6 +1457,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let main_weak = main_weak.clone();
                         let key_weak2 = key_weak.clone();
                         let key_dlg_weak2 = key_dlg_weak.clone();
+                        let ui_tx = ui_tx.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_dlg_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -1444,6 +1472,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         )));
                                     }
                                     (update_image.clone())();
+                                    send_points_update(&ui_tx, &points.borrow());
                                 }
                             }
                             if let Some(k) = key_weak2.upgrade() {
@@ -1911,6 +1940,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_clear_workspace(move || {
             points.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -1923,6 +1953,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_status(SharedString::from("Workspace cleared"));
             }
             (update_image.clone())();
+            send_points_update(&ui_tx, &points.borrow());
         });
     }
 
@@ -1950,6 +1981,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let points = points.clone();
         let weak = app.as_weak();
+        let ui_tx = ui_tx.clone();
         app.on_cogo_selected(move |idx| {
             if let Some(app) = weak.upgrade() {
                 match idx {
@@ -1970,6 +2002,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 "Forward point: {:.3},{:.3}",
                                 p.x, p.y
                             )));
+                            send_points_update(&ui_tx, &points.borrow());
                         } else {
                             app.set_status(SharedString::from("Need start point"));
                         }
@@ -2183,6 +2216,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let update_image = update_image.clone();
+        let ui_tx = ui_tx.clone();
         app.on_workspace_clicked(move |x, y| {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
@@ -2224,6 +2258,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         points.borrow().len()
                     )));
                     (update_image.clone())();
+                    send_points_update(&ui_tx, &points.borrow());
                 }
             }
         });
