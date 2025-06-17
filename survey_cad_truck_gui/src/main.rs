@@ -251,23 +251,35 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // example data so the 2D workspace has something to draw
     let example_line = Line::new(Point::new(0.0, 0.0), Point::new(50.0, 50.0));
-    let lines = Rc::new(vec![(example_line.start, example_line.end)]);
+    let points = Rc::new(RefCell::new(Vec::<Point>::new()));
+    let lines = Rc::new(RefCell::new(vec![(example_line.start, example_line.end)]));
+    let polygons = Rc::new(RefCell::new(Vec::<Vec<Point>>::new()));
+    let polylines = Rc::new(RefCell::new(Vec::<Polyline>::new()));
+    let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
+    let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
+    let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
 
     let zoom = Rc::new(RefCell::new(1.0_f32));
 
     let render_image = {
+        let points = points.clone();
         let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
         let zoom = zoom.clone();
         move || {
             render_workspace(
                 &WorkspaceRenderData {
-                    points: &[],
-                    lines: &lines,
-                    polygons: &[],
-                    polylines: &[],
-                    arcs: &[],
-                    surfaces: &[],
-                    alignments: &[],
+                    points: &points.borrow(),
+                    lines: &lines.borrow(),
+                    polygons: &polygons.borrow(),
+                    polylines: &polylines.borrow(),
+                    arcs: &arcs.borrow(),
+                    surfaces: &surfaces.borrow(),
+                    alignments: &alignments.borrow(),
                 },
                 *zoom.borrow(),
             )
@@ -337,6 +349,327 @@ fn main() -> Result<(), slint::PlatformError> {
                 if mode == 0 {
                     app.set_workspace_image(render_image());
                     app.set_zoom_level(*zoom.borrow());
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
+        let render_image = render_image.clone();
+        app.on_new_project(move || {
+            points.borrow_mut().clear();
+            lines.borrow_mut().clear();
+            polygons.borrow_mut().clear();
+            polylines.borrow_mut().clear();
+            arcs.borrow_mut().clear();
+            surfaces.borrow_mut().clear();
+            alignments.borrow_mut().clear();
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("New project created"));
+                if app.get_workspace_mode() == 0 {
+                    app.set_workspace_image(render_image());
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let render_image = render_image.clone();
+        app.on_open_project(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::read_points_csv(p, None, None) {
+                        Ok(pts) => {
+                            *points.borrow_mut() = pts;
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Loaded {} points",
+                                    points.borrow().len()
+                                )));
+                                if app.get_workspace_mode() == 0 {
+                                    app.set_workspace_image(render_image());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to open: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        app.on_save_project(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    if let Err(e) =
+                        survey_cad::io::write_points_csv(p, &points.borrow(), None, None)
+                    {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to save: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Saved"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_add_line(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Add Line not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_add_point(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Add Point not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_add_polygon(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Add Polygon not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_add_polyline(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Add Polyline not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_add_arc(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Add Arc not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_station_distance(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Station Distance not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_traverse_area(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Traverse Area not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_level_elevation_tool(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Level Elevation not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_corridor_volume(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Corridor Volume not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_geojson(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import GeoJSON not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_kml(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import KML not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_dxf(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import DXF not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_shp(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import SHP not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_las(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import LAS not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_e57(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import E57 not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_geojson(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export GeoJSON not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_kml(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export KML not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_dxf(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export DXF not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_shp(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export SHP not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_las(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export LAS not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_export_e57(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Export E57 not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_landxml_surface(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import LandXML Surface not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_import_landxml_alignment(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Import LandXML Alignment not implemented"));
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let points = points.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
+        let render_image = render_image.clone();
+        app.on_clear_workspace(move || {
+            points.borrow_mut().clear();
+            lines.borrow_mut().clear();
+            polygons.borrow_mut().clear();
+            polylines.borrow_mut().clear();
+            arcs.borrow_mut().clear();
+            surfaces.borrow_mut().clear();
+            alignments.borrow_mut().clear();
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Cleared workspace"));
+                if app.get_workspace_mode() == 0 {
+                    app.set_workspace_image(render_image());
                 }
             }
         });
