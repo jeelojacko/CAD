@@ -38,6 +38,13 @@ pub struct OrientationCamera;
 #[derive(Component)]
 pub struct OrientationCube;
 
+/// Filter for querying the main camera without the orientation cube.
+type MainCamFilter = (
+    With<Camera3d>,
+    With<MainCamera>,
+    Without<OrientationCube>,
+);
+
 pub fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -156,7 +163,7 @@ fn send_camera_data(
 }
 
 fn sync_orientation_cube(
-    main_cam: Query<&Transform, (With<Camera3d>, With<MainCamera>, Without<OrientationCube>)>,
+    main_cam: Query<&Transform, MainCamFilter>,
     mut cube: Query<&mut Transform, With<OrientationCube>>,
 ) {
     if let (Ok(cam), Ok(mut cube_tf)) = (main_cam.single(), cube.single_mut()) {
