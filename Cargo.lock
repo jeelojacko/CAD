@@ -4319,6 +4319,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e57e16b3fe8ff4364c0661fdaac543fb38b29ea9bc9c2f45612d90adf931d2b"
 dependencies = [
  "hashbrown 0.15.4",
+ "rayon",
  "ttf-parser 0.21.1",
 ]
 
@@ -5170,6 +5171,7 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+ "rayon",
  "serde",
 ]
 
@@ -5413,7 +5415,7 @@ dependencies = [
  "drm",
  "gbm",
  "glutin",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-renderer-femtovg",
  "input",
@@ -5431,7 +5433,7 @@ dependencies = [
  "const-field-offset",
  "cpp",
  "cpp_build",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-core-macros",
  "lyon_path",
@@ -5450,7 +5452,7 @@ dependencies = [
  "i-slint-backend-linuxkms",
  "i-slint-backend-qt",
  "i-slint-backend-winit",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-core-macros",
  "i-slint-renderer-skia",
@@ -5471,7 +5473,7 @@ dependencies = [
  "futures",
  "glutin",
  "glutin-winit",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-core-macros",
  "i-slint-renderer-femtovg",
@@ -5496,6 +5498,19 @@ dependencies = [
 [[package]]
 name = "i-slint-common"
 version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "748b5c0e292b2263fbd5b2855df207f4f6e068382668c55526037ac0ff5ba038"
+dependencies = [
+ "cfg-if",
+ "derive_more 2.0.1",
+ "fontdb 0.23.0",
+ "libloading",
+ "ttf-parser 0.25.1",
+]
+
+[[package]]
+name = "i-slint-common"
+version = "1.12.0"
 source = "git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db#939d605e0688b7ea4cb6e3a5b3f40d918a60a5db"
 dependencies = [
  "cfg-if",
@@ -5508,13 +5523,43 @@ dependencies = [
 [[package]]
 name = "i-slint-compiler"
 version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dae46edba3b6875f66765d4074ecf4d65b8cbf1e7a0f2b4581e23e72bd8f1157"
+dependencies = [
+ "by_address",
+ "codemap",
+ "codemap-diagnostic",
+ "derive_more 2.0.1",
+ "fontdue",
+ "i-slint-common 1.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "image 0.25.6",
+ "itertools 0.14.0",
+ "linked_hash_set",
+ "lyon_extra",
+ "lyon_path",
+ "num_enum",
+ "polib",
+ "proc-macro2",
+ "quote",
+ "rayon",
+ "resvg",
+ "rowan",
+ "smol_str 0.3.2",
+ "strum 0.27.1",
+ "typed-index-collections",
+ "url",
+]
+
+[[package]]
+name = "i-slint-compiler"
+version = "1.12.0"
 source = "git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db#939d605e0688b7ea4cb6e3a5b3f40d918a60a5db"
 dependencies = [
  "by_address",
  "codemap",
  "codemap-diagnostic",
  "derive_more 2.0.1",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "itertools 0.14.0",
  "linked_hash_set",
  "lyon_extra",
@@ -5544,7 +5589,7 @@ dependencies = [
  "derive_more 2.0.1",
  "euclid",
  "fontdue",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core-macros",
  "image 0.25.6",
  "integer-sqrt",
@@ -5600,7 +5645,7 @@ dependencies = [
  "dwrote",
  "femtovg",
  "glow 0.16.0",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-core-macros",
  "imgref",
@@ -5629,7 +5674,7 @@ dependencies = [
  "derive_more 2.0.1",
  "glow 0.16.0",
  "glutin",
- "i-slint-common",
+ "i-slint-common 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "i-slint-core",
  "i-slint-core-macros",
  "lyon_path",
@@ -6262,6 +6307,15 @@ checksum = "db23b9e7e2b7831bbd8aac0bbeeeb7b68cbebc162b227e7052e8e55829a09212"
 dependencies = [
  "libc",
  "x11",
+]
+
+[[package]]
+name = "linereader"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d921fea6860357575519aca014c6e22470585accdd543b370c404a8a72d0dd1d"
+dependencies = [
+ "memchr 2.7.4",
 ]
 
 [[package]]
@@ -7623,6 +7677,15 @@ dependencies = [
  "fdeflate",
  "flate2",
  "miniz_oxide",
+]
+
+[[package]]
+name = "polib"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b393b155cf9be86249cba1b56cc81be0e6212c66d94ac0d76d37a1761f3bb1b"
+dependencies = [
+ "linereader",
 ]
 
 [[package]]
@@ -9016,11 +9079,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "slint-build"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7076e05474941b35df7e2d03c393a3c3b4e4855dd93f0280451002df07e474"
+dependencies = [
+ "derive_more 2.0.1",
+ "i-slint-compiler 1.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "spin_on",
+ "toml_edit 0.22.27",
+]
+
+[[package]]
 name = "slint-macros"
 version = "1.12.0"
 source = "git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db#939d605e0688b7ea4cb6e3a5b3f40d918a60a5db"
 dependencies = [
- "i-slint-compiler",
+ "i-slint-compiler 1.12.0 (git+https://github.com/slint-ui/slint?rev=939d605e0688b7ea4cb6e3a5b3f40d918a60a5db)",
  "proc-macro2",
  "quote",
  "spin_on",
@@ -9442,10 +9517,23 @@ dependencies = [
  "crossbeam-channel",
  "rfd",
  "slint",
+ "slint-build",
  "smol",
  "spin_on",
  "survey_cad",
  "tiny-skia",
+]
+
+[[package]]
+name = "survey_cad_truck_gui"
+version = "0.1.0"
+dependencies = [
+ "rfd",
+ "slint",
+ "slint-build",
+ "survey_cad",
+ "tiny-skia",
+ "truck_cad_engine",
 ]
 
 [[package]]
