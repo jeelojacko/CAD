@@ -121,7 +121,7 @@ impl Rendered for Plane<'_> {
     }
 }
 
-pub fn init_device(backends: Backends) -> DeviceHandler {
+pub fn try_init_device(backends: Backends) -> Option<DeviceHandler> {
     pollster::block_on(async {
         let instance = Instance::new(&InstanceDescriptor {
             backends,
@@ -134,8 +134,8 @@ pub fn init_device(backends: Backends) -> DeviceHandler {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
-        writeln!(&mut std::io::stderr(), "{:?}", adapter.get_info()).unwrap();
+            .ok()?;
+        writeln!(&mut std::io::stderr(), "{:?}", adapter.get_info()).ok();
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 required_features: Default::default(),
@@ -145,9 +145,17 @@ pub fn init_device(backends: Backends) -> DeviceHandler {
                 trace: Default::default(),
             })
             .await
-            .unwrap();
-        DeviceHandler::new(Arc::new(adapter), Arc::new(device), Arc::new(queue))
+            .ok()?;
+        Some(DeviceHandler::new(
+            Arc::new(adapter),
+            Arc::new(device),
+            Arc::new(queue),
+        ))
     })
+}
+
+pub fn init_device(backends: Backends) -> DeviceHandler {
+    try_init_device(backends).expect("failed to initialize wgpu device")
 }
 
 pub fn render_one<R: Rendered>(scene: &mut Scene, object: &R) -> Vec<u8> {

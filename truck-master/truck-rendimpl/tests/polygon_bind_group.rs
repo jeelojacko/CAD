@@ -104,7 +104,10 @@ fn exec_polymesh_nontex_bind_group_test(backend: Backends, out_dir: &str) {
         backends: backend,
         ..Default::default()
     });
-    let handler = common::init_device(&instance);
+    let Some(handler) = common::try_init_device(&instance) else {
+        eprintln!("skip polymesh_nontex_bind_group_test: no suitable backend");
+        return;
+    };
     let mut scene = Scene::new(
         handler,
         &SceneDescriptor {
@@ -160,7 +163,10 @@ fn exec_polymesh_tex_bind_group_test(backend: Backends, out_dir: &str) {
         backends: backend,
         ..Default::default()
     });
-    let handler = common::init_device(&instance);
+    let Some(handler) = common::try_init_device(&instance) else {
+        eprintln!("skip polymesh_tex_bind_group_test: no suitable backend");
+        return;
+    };
     let mut scene = Scene::new(
         handler,
         &SceneDescriptor {
