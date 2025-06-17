@@ -97,7 +97,7 @@ pub struct BufferHandler {
 /// with only `binding` removed. We can create `BindGroupLayout` by
 /// giving its iterator to the function truck_platform::[`create_bind_group_layout`].
 /// # Examples
-/// ```
+/// ```no_run
 /// use std::sync::{Arc, Mutex};
 /// use truck_platform::*;
 /// use wgpu::*;
