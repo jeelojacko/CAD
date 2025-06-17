@@ -25,14 +25,18 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::include_modules!();
 
+struct WorkspaceRenderData<'a> {
+    points: &'a [Point],
+    lines: &'a [(Point, Point)],
+    polygons: &'a [Vec<Point>],
+    polylines: &'a [Polyline],
+    arcs: &'a [Arc],
+    surfaces: &'a [Tin],
+    alignments: &'a [HorizontalAlignment],
+}
+
 fn render_workspace(
-    points: &[Point],
-    lines: &[(Point, Point)],
-    polygons: &[Vec<Point>],
-    polylines: &[Polyline],
-    arcs: &[Arc],
-    surfaces: &[survey_cad::dtm::Tin],
-    alignments: &[survey_cad::alignment::HorizontalAlignment],
+    data: &WorkspaceRenderData,
     zoom: f32,
 ) -> Image {
     const WIDTH: u32 = 600;
@@ -113,7 +117,7 @@ fn render_workspace(
         ..Stroke::default()
     };
 
-    for (s, e) in lines {
+    for (s, e) in data.lines {
         let mut pb = PathBuilder::new();
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
@@ -122,7 +126,7 @@ fn render_workspace(
         }
     }
 
-    for poly in polygons {
+    for poly in data.polygons {
         if poly.len() < 2 {
             continue;
         }
@@ -138,7 +142,7 @@ fn render_workspace(
         }
     }
 
-    for pl in polylines {
+    for pl in data.polylines {
         if pl.vertices.len() < 2 {
             continue;
         }
@@ -153,7 +157,7 @@ fn render_workspace(
         }
     }
 
-    for arc in arcs {
+    for arc in data.arcs {
         let steps = 32;
         let mut pb = PathBuilder::new();
         for i in 0..=steps {
@@ -174,7 +178,7 @@ fn render_workspace(
     }
 
     paint.set_color(Color::from_rgba8(128, 128, 128, 255));
-    for tin in surfaces {
+    for tin in data.surfaces {
         for tri in &tin.triangles {
             let a = tin.vertices[tri[0]];
             let b = tin.vertices[tri[1]];
@@ -191,7 +195,7 @@ fn render_workspace(
     }
 
     paint.set_color(Color::from_rgba8(0, 200, 255, 255));
-    for hal in alignments {
+    for hal in data.alignments {
         for elem in &hal.elements {
             match elem {
                 survey_cad::alignment::HorizontalElement::Tangent { start, end } => {
@@ -237,7 +241,7 @@ fn render_workspace(
     }
 
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));
-    for p in points {
+    for p in data.points {
         if let Some(circle) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), 3.0) {
             pixmap.fill_path(
                 &circle,
@@ -364,13 +368,15 @@ fn main() -> Result<(), slint::PlatformError> {
     let zoom = Rc::new(RefCell::new(1.0_f32));
     app.set_zoom_level(*zoom.borrow());
     app.set_workspace_image(render_workspace(
-        &points.borrow(),
-        &lines.borrow(),
-        &polygons.borrow(),
-        &polylines.borrow(),
-        &arcs.borrow(),
-        &surfaces.borrow(),
-        &alignments.borrow(),
+        &WorkspaceRenderData {
+            points: &points.borrow(),
+            lines: &lines.borrow(),
+            polygons: &polygons.borrow(),
+            polylines: &polylines.borrow(),
+            arcs: &arcs.borrow(),
+            surfaces: &surfaces.borrow(),
+            alignments: &alignments.borrow(),
+        },
         *zoom.borrow(),
     ));
     app.set_workspace_click_mode(false);
@@ -422,13 +428,15 @@ fn main() -> Result<(), slint::PlatformError> {
         std::rc::Rc::new(move || {
             if let Some(app) = weak.upgrade() {
                 let img = render_workspace(
-                    &points.borrow(),
-                    &lines.borrow(),
-                    &polygons.borrow(),
-                    &polylines.borrow(),
-                    &arcs.borrow(),
-                    &surfaces.borrow(),
-                    &alignments.borrow(),
+                    &WorkspaceRenderData {
+                        points: &points.borrow(),
+                        lines: &lines.borrow(),
+                        polygons: &polygons.borrow(),
+                        polylines: &polylines.borrow(),
+                        arcs: &arcs.borrow(),
+                        surfaces: &surfaces.borrow(),
+                        alignments: &alignments.borrow(),
+                    },
                     *zoom.borrow(),
                 );
                 app.set_workspace_image(img);
