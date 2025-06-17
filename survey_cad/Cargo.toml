@@ -18,9 +18,9 @@ bevy_editor_cam = { version = "0.5", optional = true }
 bevy_picking = { version = "0.15", features = ["bevy_mesh_picking_backend"], optional = true }
 bevy_pmetra = { path = "../bevy_pmetra", optional = true }
 bevy_gizmos = { version = "0.15", optional = true }
-truck-modeling = "0.6"
-truck-topology = "0.6"
-truck-geometry = "0.5"
+truck-modeling = { path = "../truck-master/truck-modeling" }
+truck-topology = { path = "../truck-master/truck-topology" }
+truck-geometry = { path = "../truck-master/truck-geometry" }
 delaunator = "1"
 cdt = "0.1"
 roxmltree = "0.20"
