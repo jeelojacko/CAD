@@ -27,7 +27,11 @@ fn exec_math_util_test(backend: Backends, out_dir: &str) {
         },
         ..Default::default()
     };
-    let mut scene = Scene::new(common::init_device(backend), &desc);
+    let Some(handler) = common::try_init_device(backend) else {
+        eprintln!("skip math_util_test: no suitable backend");
+        return;
+    };
+    let mut scene = Scene::new(handler, &desc);
     let plane = new_plane!("shaders/unicolor.wgsl", "vs_main", "fs_main");
     let buffer0 = common::render_one(&mut scene, &plane);
     let shader = include_str!("../wgsl-utils/math.wgsl").to_string()

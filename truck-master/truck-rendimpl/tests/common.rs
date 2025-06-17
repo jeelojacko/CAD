@@ -155,7 +155,7 @@ pub fn gradation_texture(scene: &mut Scene) -> Vec<u8> {
     render_one(scene, &plane)
 }
 
-pub fn init_device(instance: &Instance) -> DeviceHandler {
+pub fn try_init_device(instance: &Instance) -> Option<DeviceHandler> {
     pollster::block_on(async {
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
@@ -164,8 +164,8 @@ pub fn init_device(instance: &Instance) -> DeviceHandler {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
-        writeln!(&mut std::io::stderr(), "{:?}", adapter.get_info()).unwrap();
+            .ok()?;
+        writeln!(&mut std::io::stderr(), "{:?}", adapter.get_info()).ok();
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 required_features: Default::default(),
@@ -175,9 +175,17 @@ pub fn init_device(instance: &Instance) -> DeviceHandler {
                 trace: Default::default(),
             })
             .await
-            .unwrap();
-        DeviceHandler::new(Arc::new(adapter), Arc::new(device), Arc::new(queue))
+            .ok()?;
+        Some(DeviceHandler::new(
+            Arc::new(adapter),
+            Arc::new(device),
+            Arc::new(queue),
+        ))
     })
+}
+
+pub fn init_device(instance: &Instance) -> DeviceHandler {
+    try_init_device(instance).expect("failed to initialize wgpu device")
 }
 
 pub fn swap_chain_descriptor(size: (u32, u32)) -> SurfaceConfiguration {

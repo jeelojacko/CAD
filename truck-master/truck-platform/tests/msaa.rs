@@ -20,7 +20,10 @@ fn save_buffer<P: AsRef<std::path::Path>>(path: P, vec: &[u8]) {
 fn exec_msaa_test(backend: Backends, out_dir: &str) {
     let out_dir = String::from(out_dir);
     std::fs::create_dir_all(&out_dir).unwrap();
-    let handler = common::init_device(backend);
+    let Some(handler) = common::try_init_device(backend) else {
+        eprintln!("skip msaa_test: no suitable backend");
+        return;
+    };
     let mut scene = Scene::new(
         handler,
         &SceneDescriptor {

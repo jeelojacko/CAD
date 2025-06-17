@@ -68,7 +68,10 @@ fn exec_bind_group_test(backend: Backends, out_dir: &str) {
         },
         ..Default::default()
     };
-    let handler = common::init_device(backend);
+    let Some(handler) = common::try_init_device(backend) else {
+        eprintln!("skip bind_group_test: no suitable backend");
+        return;
+    };
     let mut scene = Scene::new(handler, &desc);
     let plane = new_plane!("shaders/unicolor.wgsl", "vs_main", "fs_main");
     let buffer0 = common::render_one(&mut scene, &plane);

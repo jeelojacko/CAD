@@ -12,7 +12,10 @@ fn exec_microfacet_module_test(backend: Backends, out_dir: &str) {
         backends: backend,
         ..Default::default()
     });
-    let handler = common::init_device(&instance);
+    let Some(handler) = common::try_init_device(&instance) else {
+        eprintln!("skip microfacet_module_test: no suitable backend");
+        return;
+    };
     let mut scene = Scene::new(
         handler,
         &SceneDescriptor {

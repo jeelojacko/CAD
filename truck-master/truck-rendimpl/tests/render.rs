@@ -15,13 +15,13 @@ const CUBE_OBJ: &[u8] = include_bytes!(concat!(
 
 const PICTURE_SIZE: (u32, u32) = (1024, 768);
 
-fn test_scene(backend: Backends) -> Scene {
+fn test_scene(backend: Backends) -> Option<Scene> {
     let instance = wgpu::Instance::new(&InstanceDescriptor {
         backends: backend,
         ..Default::default()
     });
-    let handler = common::init_device(&instance);
-    Scene::new(
+    let handler = common::try_init_device(&instance)?;
+    Some(Scene::new(
         handler,
         &SceneDescriptor {
             studio: StudioConfig {
@@ -50,7 +50,7 @@ fn test_scene(backend: Backends) -> Scene {
             },
             ..Default::default()
         },
-    )
+    ))
 }
 
 fn nontex_raytracing(scene: &mut Scene) -> Vec<u8> {
@@ -86,7 +86,10 @@ fn nontex_polygon(scene: &mut Scene, creator: &InstanceCreator) -> Vec<u8> {
 fn exec_nontex_render_test(backend: Backends, out_dir: &str) {
     let out_dir = out_dir.to_string();
     std::fs::create_dir_all(&out_dir).unwrap();
-    let mut scene = test_scene(backend);
+    let Some(mut scene) = test_scene(backend) else {
+        eprintln!("skip nontex_render_test: no suitable backend");
+        return;
+    };
     let creator = scene.instance_creator();
     let buffer0 = nontex_raytracing(&mut scene);
     let buffer1 = nontex_polygon(&mut scene, &creator);
@@ -149,7 +152,10 @@ fn tex_polygon(
 fn exec_tex_render_test(backend: Backends, out_dir: &str) {
     let out_dir = out_dir.to_string();
     std::fs::create_dir_all(&out_dir).unwrap();
-    let mut scene = test_scene(backend);
+    let Some(mut scene) = test_scene(backend) else {
+        eprintln!("skip tex_render_test: no suitable backend");
+        return;
+    };
     let creator = scene.instance_creator();
     let image = Arc::new(generate_texture(&mut scene, out_dir.clone()));
     let anti_buffer = nontex_raytracing(&mut scene);
