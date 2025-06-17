@@ -9,6 +9,7 @@ members = [
     "survey_cad_python",
     "survey_cad_slint_gui",
     "truck_cad_engine",
+    "survey_cad_truck_gui",
 ]
 resolver = "2"
 
