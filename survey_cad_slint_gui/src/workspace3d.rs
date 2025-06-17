@@ -156,7 +156,7 @@ fn send_camera_data(
 }
 
 fn sync_orientation_cube(
-    main_cam: Query<&Transform, (With<Camera3d>, With<MainCamera>)>,
+    main_cam: Query<&Transform, (With<Camera3d>, With<MainCamera>, Without<OrientationCube>)>,
     mut cube: Query<&mut Transform, With<OrientationCube>>,
 ) {
     if let (Ok(cam), Ok(mut cube_tf)) = (main_cam.single(), cube.single_mut()) {
