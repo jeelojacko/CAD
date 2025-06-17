@@ -6,25 +6,24 @@ use std::rc::Rc;
 mod bevy_adapter;
 mod workspace3d;
 
+use bevy::prelude as bevy_prelude;
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer, SharedString, VecModel};
-use survey_cad::crs::{list_known_crs, Crs};
-use survey_cad::geometry::{Arc, Line, Point, Polyline};
-use survey_cad::dtm::Tin;
+use spin_on::spin_on;
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::alignment::{Alignment, VerticalAlignment};
 use survey_cad::corridor::corridor_volume;
+use survey_cad::crs::{list_known_crs, Crs};
+use survey_cad::dtm::Tin;
+use survey_cad::geometry::Point3;
+use survey_cad::geometry::{Arc, Line, Point, Polyline};
 use survey_cad::io::DxfEntity;
 use survey_cad::snap::snap_point;
-use survey_cad::geometry::Point3;
 use survey_cad::surveying::{
     bearing, forward, level_elevation, line_intersection, station_distance, vertical_angle, Station,
 };
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
-use bevy::prelude as bevy_prelude;
-use spin_on::spin_on;
 
 slint::include_modules!();
-
 
 fn render_workspace(
     points: &[Point],
@@ -34,15 +33,81 @@ fn render_workspace(
     arcs: &[Arc],
     surfaces: &[survey_cad::dtm::Tin],
     alignments: &[survey_cad::alignment::HorizontalAlignment],
+    zoom: f32,
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
     let mut pixmap = Pixmap::new(WIDTH, HEIGHT).unwrap();
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
 
+    // Grid setup
     let mut paint = Paint::default();
-    paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+    paint.set_color(Color::from_rgba8(60, 60, 60, 255));
     paint.anti_alias = true;
+    let grid_stroke = Stroke {
+        width: 1.0,
+        ..Stroke::default()
+    };
+    let origin_x = WIDTH as f32 / 2.0;
+    let origin_y = HEIGHT as f32 / 2.0;
+    let tx = |x: f32| x * zoom + origin_x;
+    let ty = |y: f32| origin_y - y * zoom;
+    let step = 50.0 * zoom;
+    let mut x = origin_x;
+    while x < WIDTH as f32 {
+        let mut pb = PathBuilder::new();
+        pb.move_to(x, 0.0);
+        pb.line_to(x, HEIGHT as f32);
+        if let Some(p) = pb.finish() {
+            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        }
+        x += step;
+    }
+    x = origin_x - step;
+    while x >= 0.0 {
+        let mut pb = PathBuilder::new();
+        pb.move_to(x, 0.0);
+        pb.line_to(x, HEIGHT as f32);
+        if let Some(p) = pb.finish() {
+            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        }
+        x -= step;
+    }
+    let mut y = origin_y;
+    while y < HEIGHT as f32 {
+        let mut pb = PathBuilder::new();
+        pb.move_to(0.0, y);
+        pb.line_to(WIDTH as f32, y);
+        if let Some(p) = pb.finish() {
+            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        }
+        y += step;
+    }
+    y = origin_y - step;
+    while y >= 0.0 {
+        let mut pb = PathBuilder::new();
+        pb.move_to(0.0, y);
+        pb.line_to(WIDTH as f32, y);
+        if let Some(p) = pb.finish() {
+            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        }
+        y -= step;
+    }
+    paint.set_color(Color::from_rgba8(90, 90, 90, 255));
+    let mut pb = PathBuilder::new();
+    pb.move_to(origin_x, 0.0);
+    pb.line_to(origin_x, HEIGHT as f32);
+    if let Some(path) = pb.finish() {
+        pixmap.stroke_path(&path, &paint, &grid_stroke, Transform::identity(), None);
+    }
+    let mut pb = PathBuilder::new();
+    pb.move_to(0.0, origin_y);
+    pb.line_to(WIDTH as f32, origin_y);
+    if let Some(path) = pb.finish() {
+        pixmap.stroke_path(&path, &paint, &grid_stroke, Transform::identity(), None);
+    }
+
+    paint.set_color(Color::from_rgba8(255, 0, 0, 255));
     let stroke = Stroke {
         width: 2.0,
         ..Stroke::default()
@@ -50,14 +115,8 @@ fn render_workspace(
 
     for (s, e) in lines {
         let mut pb = PathBuilder::new();
-        pb.move_to(
-            (s.x as f32) + WIDTH as f32 / 2.0,
-            HEIGHT as f32 / 2.0 - s.y as f32,
-        );
-        pb.line_to(
-            (e.x as f32) + WIDTH as f32 / 2.0,
-            HEIGHT as f32 / 2.0 - e.y as f32,
-        );
+        pb.move_to(tx(s.x as f32), ty(s.y as f32));
+        pb.line_to(tx(e.x as f32), ty(e.y as f32));
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
@@ -69,15 +128,9 @@ fn render_workspace(
         }
         let mut pb = PathBuilder::new();
         let first = poly.first().unwrap();
-        pb.move_to(
-            (first.x as f32) + WIDTH as f32 / 2.0,
-            HEIGHT as f32 / 2.0 - first.y as f32,
-        );
+        pb.move_to(tx(first.x as f32), ty(first.y as f32));
         for p in &poly[1..] {
-            pb.line_to(
-                (p.x as f32) + WIDTH as f32 / 2.0,
-                HEIGHT as f32 / 2.0 - p.y as f32,
-            );
+            pb.line_to(tx(p.x as f32), ty(p.y as f32));
         }
         pb.close();
         if let Some(path) = pb.finish() {
@@ -91,15 +144,9 @@ fn render_workspace(
         }
         let mut pb = PathBuilder::new();
         let first = &pl.vertices[0];
-        pb.move_to(
-            (first.x as f32) + WIDTH as f32 / 2.0,
-            HEIGHT as f32 / 2.0 - first.y as f32,
-        );
+        pb.move_to(tx(first.x as f32), ty(first.y as f32));
         for p in &pl.vertices[1..] {
-            pb.line_to(
-                (p.x as f32) + WIDTH as f32 / 2.0,
-                HEIGHT as f32 / 2.0 - p.y as f32,
-            );
+            pb.line_to(tx(p.x as f32), ty(p.y as f32));
         }
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
@@ -113,8 +160,8 @@ fn render_workspace(
             let t = arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
             let x = arc.center.x + arc.radius * t.cos();
             let y = arc.center.y + arc.radius * t.sin();
-            let px = (x as f32) + WIDTH as f32 / 2.0;
-            let py = HEIGHT as f32 / 2.0 - y as f32;
+            let px = tx(x as f32);
+            let py = ty(y as f32);
             if i == 0 {
                 pb.move_to(px, py);
             } else {
@@ -133,9 +180,9 @@ fn render_workspace(
             let b = tin.vertices[tri[1]];
             let c = tin.vertices[tri[2]];
             let mut pb = PathBuilder::new();
-            pb.move_to((a.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - a.y as f32);
-            pb.line_to((b.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - b.y as f32);
-            pb.line_to((c.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - c.y as f32);
+            pb.move_to(tx(a.x as f32), ty(a.y as f32));
+            pb.line_to(tx(b.x as f32), ty(b.y as f32));
+            pb.line_to(tx(c.x as f32), ty(c.y as f32));
             pb.close();
             if let Some(path) = pb.finish() {
                 pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
@@ -149,8 +196,8 @@ fn render_workspace(
             match elem {
                 survey_cad::alignment::HorizontalElement::Tangent { start, end } => {
                     let mut pb = PathBuilder::new();
-                    pb.move_to((start.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - start.y as f32);
-                    pb.line_to((end.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - end.y as f32);
+                    pb.move_to(tx(start.x as f32), ty(start.y as f32));
+                    pb.line_to(tx(end.x as f32), ty(end.y as f32));
                     if let Some(path) = pb.finish() {
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
@@ -159,12 +206,17 @@ fn render_workspace(
                     let steps = 32;
                     let mut pb = PathBuilder::new();
                     for i in 0..=steps {
-                        let t = arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
+                        let t = arc.start_angle
+                            + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
                         let x = arc.center.x + arc.radius * t.cos();
                         let y = arc.center.y + arc.radius * t.sin();
-                        let px = (x as f32) + WIDTH as f32 / 2.0;
-                        let py = HEIGHT as f32 / 2.0 - y as f32;
-                        if i == 0 { pb.move_to(px, py); } else { pb.line_to(px, py); }
+                        let px = tx(x as f32);
+                        let py = ty(y as f32);
+                        if i == 0 {
+                            pb.move_to(px, py);
+                        } else {
+                            pb.line_to(px, py);
+                        }
                     }
                     if let Some(path) = pb.finish() {
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
@@ -174,8 +226,8 @@ fn render_workspace(
                     let mut pb = PathBuilder::new();
                     let sp = spiral.start_point();
                     let ep = spiral.end_point();
-                    pb.move_to((sp.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - sp.y as f32);
-                    pb.line_to((ep.x as f32) + WIDTH as f32 / 2.0, HEIGHT as f32 / 2.0 - ep.y as f32);
+                    pb.move_to(tx(sp.x as f32), ty(sp.y as f32));
+                    pb.line_to(tx(ep.x as f32), ty(ep.y as f32));
                     if let Some(path) = pb.finish() {
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
@@ -186,11 +238,7 @@ fn render_workspace(
 
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));
     for p in points {
-        if let Some(circle) = PathBuilder::from_circle(
-            (p.x as f32) + WIDTH as f32 / 2.0,
-            HEIGHT as f32 / 2.0 - p.y as f32,
-            3.0,
-        ) {
+        if let Some(circle) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), 3.0) {
             pixmap.fill_path(
                 &circle,
                 &paint,
@@ -223,7 +271,10 @@ fn read_points_list(path: &str) -> std::io::Result<Vec<Point>> {
 fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
     let lines = survey_cad::io::read_lines(path)?;
     if lines.is_empty() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "empty file"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "empty file",
+        ));
     }
     let parts: Vec<&str> = lines[0].split(',').collect();
     if parts.len() != 5 {
@@ -264,8 +315,10 @@ fn main() -> Result<(), slint::PlatformError> {
             |_| {},
             |mut bapp| {
                 workspace3d::bevy_app(&mut bapp);
-                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(0.1, 0.1, 0.1)))
-                    .run();
+                bapp.insert_resource(bevy_prelude::ClearColor(bevy_prelude::Color::srgb(
+                    0.1, 0.1, 0.1,
+                )))
+                .run();
             },
             ui_rx,
             data_tx,
@@ -283,10 +336,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let surfaces_for_corridor = surfaces.clone();
     let alignments_for_corridor = alignments.clone();
 
-    fn send_points_update(
-        tx: &crossbeam_channel::Sender<workspace3d::UiEvent>,
-        pts: &[Point],
-    ) {
+    fn send_points_update(tx: &crossbeam_channel::Sender<workspace3d::UiEvent>, pts: &[Point]) {
         let pts3: Vec<Point3> = pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
         let _ = tx.send(workspace3d::UiEvent::UpdatePoints(pts3));
     }
@@ -311,6 +361,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let working_crs = Rc::new(RefCell::new(Crs::wgs84()));
 
     app.set_workspace_mode(0);
+    let zoom = Rc::new(RefCell::new(1.0_f32));
+    app.set_zoom_level(*zoom.borrow());
     app.set_workspace_image(render_workspace(
         &points.borrow(),
         &lines.borrow(),
@@ -319,6 +371,7 @@ fn main() -> Result<(), slint::PlatformError> {
         &arcs.borrow(),
         &surfaces.borrow(),
         &alignments.borrow(),
+        *zoom.borrow(),
     ));
     app.set_workspace_click_mode(false);
     app.set_workspace_texture(Image::default());
@@ -326,27 +379,35 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_snap_to_entities(true);
 
     let app_for_notifier = app.as_weak();
-    app.window().set_rendering_notifier(move |state, _| {
-        if let slint::RenderingState::BeforeRendering = state {
-            let Some(app) = app_for_notifier.upgrade() else { return; };
-            app.window().request_redraw();
-            let Ok(new_texture) = bevy_texture_receiver.try_recv() else { return; };
-            if let Some(old_texture) = app.get_workspace_texture().to_wgpu_24_texture() {
-                let sender = bevy_control_sender.clone();
-                slint::spawn_local(async move {
-                    sender
-                        .send(bevy_adapter::ControlMessage::ReleaseFrontBufferTexture { texture: old_texture })
-                        .await
-                        .unwrap();
-                })
-                .unwrap();
+    app.window()
+        .set_rendering_notifier(move |state, _| {
+            if let slint::RenderingState::BeforeRendering = state {
+                let Some(app) = app_for_notifier.upgrade() else {
+                    return;
+                };
+                app.window().request_redraw();
+                let Ok(new_texture) = bevy_texture_receiver.try_recv() else {
+                    return;
+                };
+                if let Some(old_texture) = app.get_workspace_texture().to_wgpu_24_texture() {
+                    let sender = bevy_control_sender.clone();
+                    slint::spawn_local(async move {
+                        sender
+                            .send(bevy_adapter::ControlMessage::ReleaseFrontBufferTexture {
+                                texture: old_texture,
+                            })
+                            .await
+                            .unwrap();
+                    })
+                    .unwrap();
+                }
+                // Fixed texture size for the 3D workspace
+                if let Ok(image) = new_texture.try_into() {
+                    app.set_workspace_texture(image);
+                }
             }
-            // Fixed texture size for the 3D workspace
-            if let Ok(image) = new_texture.try_into() {
-                app.set_workspace_texture(image);
-            }
-        }
-    }).unwrap();
+        })
+        .unwrap();
 
     let update_image = {
         let points = points.clone();
@@ -356,6 +417,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs = arcs.clone();
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
+        let zoom = zoom.clone();
         let weak = app.as_weak();
         std::rc::Rc::new(move || {
             if let Some(app) = weak.upgrade() {
@@ -367,6 +429,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     &arcs.borrow(),
                     &surfaces.borrow(),
                     &alignments.borrow(),
+                    *zoom.borrow(),
                 );
                 app.set_workspace_image(img);
             }
@@ -652,10 +715,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "las")]
                     match survey_cad::io::las::read_points_las(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() = pts3
-                                .into_iter()
-                                .map(|p3| Point::new(p3.x, p3.y))
-                                .collect();
+                            *points.borrow_mut() =
+                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
@@ -697,10 +758,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "e57")]
                     match survey_cad::io::e57::read_points_e57(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() = pts3
-                                .into_iter()
-                                .map(|p3| Point::new(p3.x, p3.y))
-                                .collect();
+                            *points.borrow_mut() =
+                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
@@ -748,7 +807,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
                             }
                         }
                     }
@@ -778,7 +840,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
                             }
                         }
                     }
@@ -798,7 +863,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    if let Err(e) = survey_cad::io::write_points_geojson(p, &points.borrow(), None, None) {
+                    if let Err(e) =
+                        survey_cad::io::write_points_geojson(p, &points.borrow(), None, None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -847,7 +914,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    if let Err(e) = survey_cad::io::write_points_dxf(p, &points.borrow(), None, None) {
+                    if let Err(e) =
+                        survey_cad::io::write_points_dxf(p, &points.borrow(), None, None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -870,7 +939,8 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
-                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None) {
+                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -898,10 +968,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "las")]
                     {
-                        let pts3: Vec<Point3> = points.borrow().iter().map(|pt| Point3::new(pt.x, pt.y, 0.0)).collect();
+                        let pts3: Vec<Point3> = points
+                            .borrow()
+                            .iter()
+                            .map(|pt| Point3::new(pt.x, pt.y, 0.0))
+                            .collect();
                         if let Err(e) = survey_cad::io::las::write_points_las(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {}",
+                                    e
+                                )));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -928,10 +1005,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "e57")]
                     {
-                        let pts3: Vec<Point3> = points.borrow().iter().map(|pt| Point3::new(pt.x, pt.y, 0.0)).collect();
+                        let pts3: Vec<Point3> = points
+                            .borrow()
+                            .iter()
+                            .map(|pt| Point3::new(pt.x, pt.y, 0.0))
+                            .collect();
                         if let Err(e) = survey_cad::io::e57::write_points_e57(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {}",
+                                    e
+                                )));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -962,7 +1046,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let ui_tx = ui_tx.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1002,7 +1086,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let ui_tx = ui_tx.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1017,7 +1101,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let key_weak2 = key_weak.clone();
                         let key_dlg_weak2 = key_dlg_weak.clone();
                         let ui_tx = ui_tx.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_dlg_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -1041,7 +1125,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let key_weak2 = key_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         key_dlg.on_cancel(move || {
                             if let Some(k) = key_weak2.upgrade() {
                                 let _ = k.hide();
@@ -1054,7 +1138,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let main_weak = main_weak.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual_click(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1082,7 +1166,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1121,7 +1205,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1133,7 +1217,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let lines = lines.clone();
                         let update_image = update_image.clone();
                         let weak_main = weak_main.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         kd.on_accept(move || {
                             if let Some(dlg) = kd_weak2.upgrade() {
                                 if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
@@ -1142,7 +1226,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dlg.get_x2().parse::<f64>(),
                                     dlg.get_y2().parse::<f64>(),
                                 ) {
-                                    lines.borrow_mut().push((Point::new(x1, y1), Point::new(x2, y2)));
+                                    lines
+                                        .borrow_mut()
+                                        .push((Point::new(x1, y1), Point::new(x2, y2)));
                                     if let Some(app) = weak_main.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total lines: {}",
@@ -1159,7 +1245,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let kd_weak = kd.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         kd.on_cancel(move || {
                             if let Some(k) = kd_weak.upgrade() {
                                 let _ = k.hide();
@@ -1187,7 +1273,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1206,12 +1292,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                         }
                                         (refresh_viewports.clone())();
                                     } else if let Some(app) = weak_main.upgrade() {
-                                        app.set_status(SharedString::from("Need at least 3 points"));
+                                        app.set_status(SharedString::from(
+                                            "Need at least 3 points",
+                                        ));
                                     }
                                 }
                                 Err(e) => {
                                     if let Some(app) = weak_main.upgrade() {
-                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                        app.set_status(SharedString::from(format!(
+                                            "Failed to open: {}",
+                                            e
+                                        )));
                                     }
                                 }
                             }
@@ -1227,7 +1318,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1241,7 +1332,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let model = model.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_add_point(move || {
                             if let Some(d) = pd_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -1260,7 +1351,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let weak_main = weak_main.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_accept(move || {
                             if pts.borrow().len() >= 3 {
                                 polygons.borrow_mut().push(pts.borrow().clone());
@@ -1279,7 +1370,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let pd_weak2 = pd.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_cancel(move || {
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1307,7 +1398,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1326,12 +1417,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                         }
                                         (refresh_viewports.clone())();
                                     } else if let Some(app) = weak_main.upgrade() {
-                                        app.set_status(SharedString::from("Need at least 2 points"));
+                                        app.set_status(SharedString::from(
+                                            "Need at least 2 points",
+                                        ));
                                     }
                                 }
                                 Err(e) => {
                                     if let Some(app) = weak_main.upgrade() {
-                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                        app.set_status(SharedString::from(format!(
+                                            "Failed to open: {}",
+                                            e
+                                        )));
                                     }
                                 }
                             }
@@ -1347,7 +1443,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1361,10 +1457,13 @@ fn main() -> Result<(), slint::PlatformError> {
                         let model = model.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_add_point(move || {
                             if let Some(d) = pd_weak2.upgrade() {
-                                if let (Ok(x), Ok(y)) = (d.get_x_value().parse::<f64>(), d.get_y_value().parse::<f64>()) {
+                                if let (Ok(x), Ok(y)) = (
+                                    d.get_x_value().parse::<f64>(),
+                                    d.get_y_value().parse::<f64>(),
+                                ) {
                                     pts.borrow_mut().push(Point::new(x, y));
                                     model.push(SharedString::from(format!("{:.3},{:.3}", x, y)));
                                 }
@@ -1377,10 +1476,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         let weak_main = weak_main.clone();
                         let pd_weak2 = pd.as_weak();
                         let pts = pts.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_accept(move || {
                             if pts.borrow().len() >= 2 {
-                                polylines.borrow_mut().push(Polyline::new(pts.borrow().clone()));
+                                polylines
+                                    .borrow_mut()
+                                    .push(Polyline::new(pts.borrow().clone()));
                                 if let Some(app) = weak_main.upgrade() {
                                     app.set_status(SharedString::from(format!(
                                         "Total polylines: {}",
@@ -1396,7 +1497,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let pd_weak2 = pd.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         pd.on_cancel(move || {
                             if let Some(p) = pd_weak2.upgrade() {
                                 let _ = p.hide();
@@ -1426,7 +1527,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1446,7 +1547,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                 }
                                 Err(e) => {
                                     if let Some(app) = weak_main.upgrade() {
-                                        app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                        app.set_status(SharedString::from(format!(
+                                            "Failed to open: {}",
+                                            e
+                                        )));
                                     }
                                 }
                             }
@@ -1462,7 +1566,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let update_image = update_image.clone();
                 let weak_main = weak_main.clone();
                 let dlg_weak = dlg_weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                let refresh_viewports = refresh_viewports.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1474,7 +1578,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let arcs = arcs.clone();
                         let update_image = update_image.clone();
                         let weak_main = weak_main.clone();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         ad.on_accept(move || {
                             if let Some(dlg) = ad_weak2.upgrade() {
                                 if let (Ok(cx), Ok(cy), Ok(r), Ok(sa), Ok(ea)) = (
@@ -1484,7 +1588,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dlg.get_start_angle().parse::<f64>(),
                                     dlg.get_end_angle().parse::<f64>(),
                                 ) {
-                                    arcs.borrow_mut().push(Arc::new(Point::new(cx, cy), r, sa, ea));
+                                    arcs.borrow_mut()
+                                        .push(Arc::new(Point::new(cx, cy), r, sa, ea));
                                     if let Some(app) = weak_main.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total arcs: {}",
@@ -1501,7 +1606,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     {
                         let ad_weak = ad.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+                        let refresh_viewports = refresh_viewports.clone();
                         ad.on_cancel(move || {
                             if let Some(a) = ad_weak.upgrade() {
                                 let _ = a.hide();
@@ -1641,7 +1746,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg = StationDistanceDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1665,7 +1770,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1705,7 +1810,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg = LevelElevationDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1725,7 +1830,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1749,7 +1854,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let weak2 = weak.clone();
             let surfs = surfaces_clone.clone();
             let aligns = alignments_clone.clone();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     let res = (|| {
@@ -1780,7 +1885,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-        let refresh_viewports = refresh_viewports.clone();
+            let refresh_viewports = refresh_viewports.clone();
             dlg.on_cancel(move || {
                 if let Some(d) = dlg_weak2.upgrade() {
                     let _ = d.hide();
@@ -1826,19 +1931,34 @@ fn main() -> Result<(), slint::PlatformError> {
                     if app.get_snap_to_entities() {
                         let mut ents: Vec<DxfEntity> = Vec::new();
                         for pt in points.borrow().iter() {
-                            ents.push(DxfEntity::Point { point: *pt, layer: None });
+                            ents.push(DxfEntity::Point {
+                                point: *pt,
+                                layer: None,
+                            });
                         }
                         for (s, e) in lines.borrow().iter() {
-                            ents.push(DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                            ents.push(DxfEntity::Line {
+                                line: Line::new(*s, *e),
+                                layer: None,
+                            });
                         }
                         for poly in polygons.borrow().iter() {
-                            ents.push(DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                            ents.push(DxfEntity::Polyline {
+                                polyline: Polyline::new(poly.clone()),
+                                layer: None,
+                            });
                         }
                         for pl in polylines.borrow().iter() {
-                            ents.push(DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                            ents.push(DxfEntity::Polyline {
+                                polyline: pl.clone(),
+                                layer: None,
+                            });
                         }
                         for arc in arcs.borrow().iter() {
-                            ents.push(DxfEntity::Arc { arc: *arc, layer: None });
+                            ents.push(DxfEntity::Arc {
+                                arc: *arc,
+                                layer: None,
+                            });
                         }
                         if let Some(sp) = snap_point(p, &ents, 5.0) {
                             p = sp;
@@ -1891,7 +2011,8 @@ fn main() -> Result<(), slint::PlatformError> {
         std::thread::spawn(move || {
             for data in data_rx {
                 let workspace3d::BevyData::CameraPosition(pos) = data;
-                let txt = SharedString::from(format!("Camera: {:.1}, {:.1}, {:.1}", pos.x, pos.y, pos.z));
+                let txt =
+                    SharedString::from(format!("Camera: {:.1}, {:.1}, {:.1}", pos.x, pos.y, pos.z));
                 let weak = weak_main.clone();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(a) = weak.upgrade() {
@@ -1899,6 +2020,32 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 });
             }
+        });
+    }
+
+    {
+        let zoom = zoom.clone();
+        let update_image = update_image.clone();
+        let weak = app.as_weak();
+        app.on_zoom_in(move || {
+            *zoom.borrow_mut() *= 1.2;
+            if let Some(a) = weak.upgrade() {
+                a.set_zoom_level(*zoom.borrow());
+            }
+            (update_image.clone())();
+        });
+    }
+
+    {
+        let zoom = zoom.clone();
+        let update_image = update_image.clone();
+        let weak = app.as_weak();
+        app.on_zoom_out(move || {
+            *zoom.borrow_mut() /= 1.2;
+            if let Some(a) = weak.upgrade() {
+                a.set_zoom_level(*zoom.borrow());
+            }
+            (update_image.clone())();
         });
     }
 
