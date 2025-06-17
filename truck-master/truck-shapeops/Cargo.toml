@@ -1,0 +1,33 @@
+[package]
+name = "truck-shapeops"
+version = "0.4.0"
+edition = "2021"
+description = "Provides boolean operations to Solid"
+homepage = "https://github.com/ricosjp/truck"
+repository = "https://github.com/ricosjp/truck"
+license = "Apache-2.0"
+
+[features]
+default = ["step-test"]
+step-test = ["truck-stepio"]
+
+[dependencies]
+derive_more = { version = "2.0.1", features = ["full"] }
+rustc-hash = "2.1.1"
+itertools = "0.14.0"
+truck-base = { version = "0.5.0", path = "../truck-base" }
+truck-geometry = { version = "0.5.0", path = "../truck-geometry" }
+truck-topology = { version = "0.6.0", path = "../truck-topology" }
+truck-meshalgo = { version = "0.4.0", path = "../truck-meshalgo" }
+
+truck-geotrait = { version = "0.4.0", path = "../truck-geotrait" }
+truck-stepio = { version = "0.3.0", path = "../truck-stepio", optional = true }
+
+[dev-dependencies]
+rand = "0.9.1"
+serde_json = "1.0.140"
+truck-modeling = { version = "0.6.0", path = "../truck-modeling" }
+proptest = "1.7.0"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+getrandom = { version = "0.3.3", features = ["wasm_js"] }

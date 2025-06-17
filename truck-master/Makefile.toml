@@ -1,0 +1,149 @@
+[config]
+default_to_workspace = false
+
+# --- test ---
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.create-shape-json]
+description = "Creates shape jsons for test"
+script = [
+	"cd resources/shape",
+	"cargo run -p truck-modeling --example bottle",
+	"cargo run -p truck-modeling --example cube",
+	"cargo run -p truck-modeling --example cylinder",
+	"cargo run -p truck-modeling --example punched-cube",
+	"cargo run -p truck-modeling --example torus-punched-cube",
+	"cargo run -p truck-modeling --example cube-in-cube",
+	"cargo run -p truck-modeling --example torus",
+	"cargo run -p truck-modeling --example sphere",
+	"cargo run -p truck-modeling --example torus -- 500 100 large-torus.json",
+	"cargo run -p truck-shapeops --example punched-cube-shapeops",
+]
+
+[tasks.cpu-test]
+description = "Tests using only CPU"
+command = "cargo"
+args = [
+	"test",
+	"-p", "truck-base",
+	"-p", "truck-geotrait",
+	"-p", "truck-geometry",
+	"-p", "truck-topology",
+	"-p", "truck-polymesh",
+	"-p", "truck-meshalgo",
+	"-p", "truck-modeling",
+	"-p", "truck-shapeops",
+	"-p", "truck-stepio",
+	"--features", "derive",
+	"--", "--nocapture",
+]
+
+[tasks.cpu-nightly-test]
+description = "Tests using only CPU"
+command = "rustup"
+args = [
+	"run",
+	"nightly",
+	"cargo",
+	"test",
+	"-p", "truck-base",
+	"-p", "truck-geotrait",
+	"-p", "truck-geometry",
+	"-p", "truck-topology",
+	"-p", "truck-polymesh",
+	"-p", "truck-meshalgo",
+	"-p", "truck-modeling",
+	"-p", "truck-shapeops",
+	"-p", "truck-stepio",
+	"--features", "derive",
+	"--", "--nocapture",
+]
+
+[tasks.gpu-test]
+description = "Tests using GPU"
+command = "cargo"
+args = [
+	"test",
+	"-p", "truck-platform",
+	"-p", "truck-rendimpl",
+	"--", "--nocapture", "--test-threads=1",
+]
+
+[tasks.gpu-release-build-test]
+description = "Tests using GPU"
+command = "cargo"
+args = [
+	"test", "--release",
+	"-p", "truck-platform",
+	"-p", "truck-rendimpl",
+	"--", "--nocapture", "--test-threads=1",
+]
+
+[tasks.collect-gpu-artifacts]
+description = "Collects artifacts for gpu tests"
+script_runner = "@shell"
+script = [
+	"mkdir images",
+	"mv truck-platform/output images/platform",
+	"mv truck-rendimpl/output images/rendimpl",
+]
+
+[tasks.ci-cpu-test]
+dependencies = ["clean", "cpu-test"]
+
+[tasks.ci-cpu-nightly-test]
+dependencies = ["clean", "cpu-nightly-test"]
+
+[tasks.ci-gpu-test]
+dependencies = ["clean", "gpu-release-build-test", "collect-gpu-artifacts"]
+
+[tasks.wasm-build]
+description = "Build to wasm-target"
+env = { "RUSTFLAGS" = "--cfg=web_sys_unstable_apis --cfg=getrandom_backend=\"wasm_js\"" }
+command = "cargo"
+args = ["build", "--target=wasm32-unknown-unknown"]
+
+[tasks.webgl-build]
+description = "Build to wasm-target with webgl feature"
+env = { "RUSTFLAGS" = "--cfg=web_sys_unstable_apis --cfg=getrandom_backend=\"wasm_js\"" }
+command = "cargo"
+args = [
+	"build",
+	"--target=wasm32-unknown-unknown",
+	"--features", "webgl"
+]
+
+[tasks.build-wgpu-examples]
+description = "Build wasms"
+env = { "RUSTFLAGS" = "--cfg=web_sys_unstable_apis --cfg=getrandom_backend=\"wasm_js\"" }
+command = "cargo"
+args = ["run", "--bin", "example-pages-generator"]
+
+[tasks.js-test]
+description = "test for js"
+env = { "RUSTFLAGS" = "--cfg=getrandom_backend=\"wasm_js\"" }
+script = [
+	"cd truck-js",
+	"wasm-pack build --target web",
+	"deno test -A tests/",
+]
+
+[tasks.adhoc-viewer]
+description = "build adhoc viewer"
+env = { "RUSTFLAGS" = "--cfg=getrandom_backend=\"wasm_js\"" }
+script_runner = "@shell"
+script = [
+	"cd truck-js",
+	"wasm-pack build --target web",
+	"cp examples/index.html pkg/",
+	"cp examples/bootstrap.js pkg/",
+	"cp examples/script.js pkg/",
+]
+
+[tasks.wasm-test]
+dependencies = ["wasm-build", "webgl-build", "js-test"]
+
+[tasks.page-build]
+dependencies = ["adhoc-viewer", "build-wgpu-examples"]
