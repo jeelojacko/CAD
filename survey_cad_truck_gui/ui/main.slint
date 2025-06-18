@@ -1,3 +1,5 @@
+export { PointManager } from "point_manager.slint";
+
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
     in-out property <bool> click_mode;
@@ -385,6 +387,7 @@ export component MainWindow inherits Window {
     callback traverse_area();
     callback level_elevation_tool();
     callback corridor_volume();
+    callback point_manager();
     callback import_geojson();
     callback import_kml();
     callback import_dxf();
@@ -441,6 +444,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }
             MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
             MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
+            MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
         }
         Menu {
@@ -474,6 +478,7 @@ export component MainWindow inherits Window {
             Button { text: "Open"; clicked => { root.open_project(); } }
             Button { text: "Save"; clicked => { root.save_project(); } }
             Button { text: "Add Point"; clicked => { root.add_point(); } }
+            Button { text: "Point Manager..."; clicked => { root.point_manager(); } }
             Button { text: "Add Line"; clicked => { root.add_line(); } }
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }

@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
 use slint::platform::PointerEventButton;
-use slint::{Image, SharedString, VecModel};
+use slint::{Image, SharedString, VecModel, Model};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -1886,6 +1886,103 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
             }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        app.on_point_manager(move || {
+            let dlg = PointManager::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let model = Rc::new(VecModel::<PointRow>::from(
+                point_db
+                    .borrow()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| PointRow {
+                        number: SharedString::from(format!("{}", i + 1)),
+                        name: SharedString::from(""),
+                        x: SharedString::from(format!("{:.3}", p.x)),
+                        y: SharedString::from(format!("{:.3}", p.y)),
+                        group_index: 0,
+                        style: SharedString::from(""),
+                    })
+                    .collect::<Vec<_>>(),
+            ));
+            dlg.set_points_model(model.clone().into());
+            dlg.set_groups_model(
+                Rc::new(VecModel::<SharedString>::from(
+                    point_db
+                        .borrow()
+                        .iter_groups()
+                        .map(|(_, g)| SharedString::from(g.name.clone()))
+                        .collect::<Vec<_>>(),
+                ))
+                .into(),
+            );
+            dlg.set_selected_index(-1);
+
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                dlg.on_edit_x(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(p) = point_db.borrow_mut().get_mut(idx as usize) {
+                            p.x = v;
+                            if let Some(row) = model.row_data(idx as usize) {
+                                let mut r = row.clone();
+                                r.x = SharedString::from(format!("{:.3}", v));
+                                model.set_row_data(idx as usize, r);
+                            }
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                dlg.on_edit_y(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(p) = point_db.borrow_mut().get_mut(idx as usize) {
+                            p.y = v;
+                            if let Some(row) = model.row_data(idx as usize) {
+                                let mut r = row.clone();
+                                r.y = SharedString::from(format!("{:.3}", v));
+                                model.set_row_data(idx as usize, r);
+                            }
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                dlg.on_add_point(move || {
+                    point_db.borrow_mut().push(Point::new(0.0, 0.0));
+                    let idx = point_db.borrow().len();
+                    model.push(PointRow {
+                        number: SharedString::from(format!("{}", idx)),
+                        name: SharedString::from(""),
+                        x: SharedString::from("0.000"),
+                        y: SharedString::from("0.000"),
+                        group_index: 0,
+                        style: SharedString::from(""),
+                    });
+                });
+            }
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                dlg.on_remove_point(move |idx| {
+                    if idx >= 0 && (idx as usize) < point_db.borrow().len() {
+                        point_db.borrow_mut().remove(idx as usize);
+                        model.remove(idx as usize);
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
         });
     }
 
