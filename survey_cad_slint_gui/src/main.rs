@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Instant;
 
 mod bevy_adapter;
 mod workspace3d;
@@ -30,6 +31,7 @@ struct WorkspaceRenderData<'a> {
     lines: &'a [(Point, Point)],
     polygons: &'a [Vec<Point>],
     polylines: &'a [Polyline],
+    temp_polyline: Option<&'a Polyline>,
     arcs: &'a [Arc],
     surfaces: &'a [Tin],
     alignments: &'a [HorizontalAlignment],
@@ -154,6 +156,20 @@ fn render_workspace(
         }
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    if let Some(pl) = data.temp_polyline {
+        if pl.vertices.len() >= 2 {
+            let mut pb = PathBuilder::new();
+            let first = &pl.vertices[0];
+            pb.move_to(tx(first.x as f32), ty(first.y as f32));
+            for p in &pl.vertices[1..] {
+                pb.line_to(tx(p.x as f32), ty(p.y as f32));
+            }
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+            }
         }
     }
 
@@ -337,6 +353,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs: Rc<RefCell<Vec<Arc>>> = Rc::new(RefCell::new(Vec::new()));
     let surfaces: Rc<RefCell<Vec<Tin>>> = Rc::new(RefCell::new(Vec::new()));
     let alignments: Rc<RefCell<Vec<HorizontalAlignment>>> = Rc::new(RefCell::new(Vec::new()));
+    let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
+    let last_click: Rc<RefCell<Option<Instant>>> = Rc::new(RefCell::new(None));
     let surfaces_for_corridor = surfaces.clone();
     let alignments_for_corridor = alignments.clone();
 
@@ -373,6 +391,7 @@ fn main() -> Result<(), slint::PlatformError> {
             lines: &lines.borrow(),
             polygons: &polygons.borrow(),
             polylines: &polylines.borrow(),
+            temp_polyline: current_line.borrow().as_ref(),
             arcs: &arcs.borrow(),
             surfaces: &surfaces.borrow(),
             alignments: &alignments.borrow(),
@@ -380,6 +399,7 @@ fn main() -> Result<(), slint::PlatformError> {
         *zoom.borrow(),
     ));
     app.set_workspace_click_mode(false);
+    app.set_line_draw_mode(false);
     app.set_workspace_texture(Image::default());
     app.set_snap_to_grid(true);
     app.set_snap_to_entities(true);
@@ -420,6 +440,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let lines = lines.clone();
         let polygons = polygons.clone();
         let polylines = polylines.clone();
+        let current_line = current_line.clone();
         let arcs = arcs.clone();
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
@@ -433,6 +454,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         lines: &lines.borrow(),
                         polygons: &polygons.borrow(),
                         polylines: &polylines.borrow(),
+                        temp_polyline: current_line.borrow().as_ref(),
                         arcs: &arcs.borrow(),
                         surfaces: &surfaces.borrow(),
                         alignments: &alignments.borrow(),
@@ -1635,6 +1657,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let current_line = current_line.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
         let refresh_viewports = refresh_viewports.clone();
@@ -1926,6 +1949,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let polylines = polylines.clone();
         let arcs = arcs.clone();
+        let current_line = current_line.clone();
         let update_image = update_image.clone();
         let ui_tx = ui_tx.clone();
         let refresh_viewports = refresh_viewports.clone();
@@ -1985,6 +2009,69 @@ fn main() -> Result<(), slint::PlatformError> {
                         points.borrow().len()
                     )));
                     (refresh_viewports.clone())();
+                } else if app.get_line_draw_mode() {
+                    const WIDTH: f64 = 600.0;
+                    const HEIGHT: f64 = 400.0;
+                    let mut p = Point::new(x as f64 - WIDTH / 2.0, HEIGHT / 2.0 - y as f64);
+
+                    if app.get_snap_to_entities() {
+                        let mut ents: Vec<DxfEntity> = Vec::new();
+                        for pt in points.borrow().iter() {
+                            ents.push(DxfEntity::Point { point: *pt, layer: None });
+                        }
+                        for (s, e) in lines.borrow().iter() {
+                            ents.push(DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                        }
+                        for poly in polygons.borrow().iter() {
+                            ents.push(DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                        }
+                        for pl in polylines.borrow().iter() {
+                            ents.push(DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                        }
+                        for arc in arcs.borrow().iter() {
+                            ents.push(DxfEntity::Arc { arc: *arc, layer: None });
+                        }
+                        if let Some(sp) = snap_point(p, &ents, 5.0) {
+                            p = sp;
+                        }
+                    }
+
+                    if app.get_snap_to_grid() {
+                        p.x = p.x.round();
+                        p.y = p.y.round();
+                    }
+
+                    let now = Instant::now();
+                    let double_click = if let Some(prev) = *last_click.borrow() {
+                        now.duration_since(prev).as_millis() < 500
+                    } else {
+                        false
+                    };
+                    *last_click.borrow_mut() = Some(now);
+
+                    let mut cl_opt = current_line.borrow_mut();
+                    if let Some(cl) = cl_opt.as_mut() {
+                        if double_click {
+                            if let Some(last) = cl.vertices.last_mut() {
+                                *last = p;
+                            }
+                            let finished = cl_opt.take().unwrap();
+                            if finished.vertices.len() == 2 {
+                                lines.borrow_mut().push((finished.vertices[0], finished.vertices[1]));
+                            } else {
+                                polylines.borrow_mut().push(finished);
+                            }
+                            app.set_line_draw_mode(false);
+                        } else {
+                            if let Some(last) = cl.vertices.last_mut() {
+                                *last = p;
+                            }
+                            cl.vertices.push(p);
+                        }
+                    } else {
+                        *cl_opt = Some(Polyline::new(vec![p, p]));
+                    }
+                    (refresh_viewports.clone())();
                 }
             }
         });
@@ -1994,6 +2081,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let sender = ui_tx.clone();
         let last_mouse_pos_move = last_mouse_pos.clone();
         let refresh_viewports = refresh_viewports.clone();
+        let current_line = current_line.clone();
+        let weak_app = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_mouse_pos_move.borrow_mut();
             let (dx, dy) = if let Some((lx, ly)) = *last {
@@ -2002,6 +2091,19 @@ fn main() -> Result<(), slint::PlatformError> {
                 (0.0, 0.0)
             };
             *last = Some((x, y));
+            if let Some(app) = weak_app.upgrade() {
+                if app.get_line_draw_mode() {
+                    const WIDTH: f64 = 600.0;
+                    const HEIGHT: f64 = 400.0;
+                    let p = Point::new(x as f64 - WIDTH / 2.0, HEIGHT / 2.0 - y as f64);
+                    if let Some(cl) = current_line.borrow_mut().as_mut() {
+                        if let Some(last_v) = cl.vertices.last_mut() {
+                            *last_v = p;
+                        }
+                    }
+                    (refresh_viewports.clone())();
+                }
+            }
             let _ = sender.send(workspace3d::UiEvent::MouseMove { dx, dy });
         });
     }
@@ -2011,6 +2113,32 @@ fn main() -> Result<(), slint::PlatformError> {
         let refresh_viewports = refresh_viewports.clone();
         app.on_workspace_mouse_exited(move || {
             *last_mouse_pos_exit.borrow_mut() = None;
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let lines = lines.clone();
+        let polylines = polylines.clone();
+        let current_line = current_line.clone();
+        let refresh_viewports = refresh_viewports.clone();
+        app.on_right_click(move |_x, _y| {
+            if let Some(app) = weak.upgrade() {
+                if app.get_line_draw_mode() {
+                    if let Some(mut pl) = current_line.borrow_mut().take() {
+                        if pl.vertices.len() > 1 {
+                            pl.vertices.pop();
+                            if pl.vertices.len() == 2 {
+                                lines.borrow_mut().push((pl.vertices[0], pl.vertices[1]));
+                            } else {
+                                polylines.borrow_mut().push(pl);
+                            }
+                        }
+                        app.set_line_draw_mode(false);
+                        (refresh_viewports.clone())();
+                    }
+                }
+            }
         });
     }
 
