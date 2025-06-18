@@ -29,8 +29,10 @@ pub mod reporting;
 pub mod truck_integration;
 pub mod variable_offset;
 pub mod workspace;
+pub mod point_database;
 
 #[cfg(feature = "render")]
 pub use lidar::point_cloud_to_mesh;
 pub use lidar::{classify_points, extract_breaklines, filter_noise, Classification};
 pub use local_grid::LocalGrid;
+pub use point_database::{PointDatabase, PointGroup};

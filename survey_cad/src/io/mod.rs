@@ -115,6 +115,29 @@ pub fn write_points_csv(
     Ok(())
 }
 
+use crate::point_database::PointDatabase;
+
+pub fn read_point_database_csv(
+    path: &str,
+    db: &mut PointDatabase,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<()> {
+    let pts = read_points_csv(path, src_epsg, dst_epsg)?;
+    db.clear();
+    db.extend(pts);
+    Ok(())
+}
+
+pub fn write_point_database_csv(
+    path: &str,
+    db: &PointDatabase,
+    src_epsg: Option<u32>,
+    dst_epsg: Option<u32>,
+) -> io::Result<()> {
+    write_points_csv(path, db.points(), src_epsg, dst_epsg)
+}
+
 /// Writes 3D points to a CSV file in `x,y,z` format commonly used for GNSS exports.
 pub fn write_points_csv_gnss(path: &str, points: &[Point3]) -> io::Result<()> {
     let mut file = File::create(path)?;

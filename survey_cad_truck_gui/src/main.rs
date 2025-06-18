@@ -9,6 +9,7 @@ use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
 use survey_cad::geometry::{Arc, Line, Point, Polyline};
+use survey_cad::point_database::PointDatabase;
 
 mod truck_backend;
 use truck_backend::TruckBackend;
@@ -374,7 +375,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // example data so the 2D workspace has something to draw
     let example_line = Line::new(Point::new(0.0, 0.0), Point::new(50.0, 50.0));
-    let points = Rc::new(RefCell::new(Vec::<Point>::new()));
+    let point_db = Rc::new(RefCell::new(PointDatabase::new()));
     let lines = Rc::new(RefCell::new(vec![(example_line.start, example_line.end)]));
     let polygons = Rc::new(RefCell::new(Vec::<Vec<Point>>::new()));
     let polylines = Rc::new(RefCell::new(Vec::<Polyline>::new()));
@@ -393,7 +394,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
 
     let render_image = {
-        let points = points.clone();
+        let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();
         let polylines = polylines.clone();
@@ -407,7 +408,7 @@ fn main() -> Result<(), slint::PlatformError> {
         move || {
             render_workspace(
                 &WorkspaceRenderData {
-                    points: &points.borrow(),
+                    points: &point_db.borrow(),
                     lines: &lines.borrow(),
                     polygons: &polygons.borrow(),
                     polylines: &polylines.borrow(),
@@ -533,7 +534,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let pan_2d_flag = pan_2d_flag.clone();
         let drag_select = drag_select.clone();
         let selected_indices = selected_indices.clone();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let offset = offset.clone();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
@@ -554,7 +555,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let min_y = p1.y.min(p2.y);
                     let max_y = p1.y.max(p2.y);
                     selected_indices.borrow_mut().clear();
-                    for (i, pt) in points.borrow().iter().enumerate() {
+                    for (i, pt) in point_db.borrow().iter().enumerate() {
                         if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
                             selected_indices.borrow_mut().push(i);
                         }
@@ -652,7 +653,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();
         let polylines = polylines.clone();
@@ -661,7 +662,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let render_image = render_image.clone();
         app.on_new_project(move || {
-            points.borrow_mut().clear();
+            point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
@@ -679,7 +680,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -687,13 +688,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
-                    match survey_cad::io::read_points_csv(p, None, None) {
-                        Ok(pts) => {
-                            *points.borrow_mut() = pts;
+                    let mut db_ref = point_db.borrow_mut();
+                    match survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None) {
+                        Ok(()) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Loaded {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -716,7 +717,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -724,7 +725,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     if let Err(e) =
-                        survey_cad::io::write_points_csv(p, &points.borrow(), None, None)
+                        survey_cad::io::write_points_csv(p, &point_db.borrow(), None, None)
                     {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to save: {}", e)));
@@ -844,13 +845,13 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             {
-                let points = points.clone();
+                let point_db = point_db.clone();
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
@@ -862,11 +863,13 @@ fn main() -> Result<(), slint::PlatformError> {
                         if let Some(p) = path.to_str() {
                             match survey_cad::io::read_points_csv(p, None, None) {
                                 Ok(pts) => {
-                                    *points.borrow_mut() = pts;
+                                    let mut db = point_db.borrow_mut();
+                                    db.clear();
+                                    db.extend(pts);
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Loaded {} points",
-                                            points.borrow().len()
+                                            point_db.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
                                             app.set_workspace_image(render_image());
@@ -890,7 +893,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
             {
-                let points = points.clone();
+                let point_db = point_db.clone();
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
@@ -902,7 +905,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let key_weak = key_dlg.as_weak();
                     let key_weak2 = key_dlg.as_weak();
                     {
-                        let points = points.clone();
+                        let point_db = point_db.clone();
                         let render_image = render_image.clone();
                         let weak = weak.clone();
                         key_dlg.on_accept(move || {
@@ -911,11 +914,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dlg.get_x_value().parse::<f64>(),
                                     dlg.get_y_value().parse::<f64>(),
                                 ) {
-                                    points.borrow_mut().push(Point::new(x, y));
+                                    point_db.borrow_mut().push(Point::new(x, y));
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total points: {}",
-                                            points.borrow().len()
+                                            point_db.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
                                             app.set_workspace_image(render_image());
@@ -1457,7 +1460,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1467,11 +1470,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::read_points_geojson(p, None, None) {
                         Ok(pts) => {
-                            *points.borrow_mut() = pts;
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(pts);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1494,7 +1499,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1505,11 +1510,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "kml")]
                     match survey_cad::io::kml::read_points_kml(p) {
                         Ok(pts) => {
-                            *points.borrow_mut() = pts;
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(pts);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1536,7 +1543,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1546,17 +1553,19 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::read_dxf(p) {
                         Ok(ents) => {
-                            *points.borrow_mut() = ents
-                                .into_iter()
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(
+                                ents.into_iter()
                                 .filter_map(|e| match e {
                                     survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
                                     _ => None,
                                 })
-                                .collect();
+                            );
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1579,7 +1588,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1590,11 +1599,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "shapefile")]
                     match survey_cad::io::shp::read_points_shp(p) {
                         Ok((pts, _)) => {
-                            *points.borrow_mut() = pts;
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(pts);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1621,7 +1632,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_las(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1632,12 +1643,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "las")]
                     match survey_cad::io::las::read_points_las(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() =
-                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1664,7 +1676,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let render_image = render_image.clone();
         app.on_import_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
@@ -1675,12 +1687,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "e57")]
                     match survey_cad::io::e57::read_points_e57(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() =
-                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
+                            let mut db = point_db.borrow_mut();
+                            db.clear();
+                            db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    points.borrow().len()
+                                    point_db.borrow().len()
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1707,7 +1720,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
@@ -1715,7 +1728,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     if let Err(e) =
-                        survey_cad::io::write_points_geojson(p, &points.borrow(), None, None)
+                        survey_cad::io::write_points_geojson(p, &point_db.borrow(), None, None)
                     {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
@@ -1730,7 +1743,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("KML", &["kml"])
@@ -1738,7 +1751,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "kml")]
-                    if let Err(e) = survey_cad::io::kml::write_points_kml(p, &points.borrow()) {
+                    if let Err(e) = survey_cad::io::kml::write_points_kml(p, &point_db.borrow()) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -1756,7 +1769,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DXF", &["dxf"])
@@ -1764,7 +1777,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     if let Err(e) =
-                        survey_cad::io::write_points_dxf(p, &points.borrow(), None, None)
+                        survey_cad::io::write_points_dxf(p, &point_db.borrow(), None, None)
                     {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
@@ -1779,7 +1792,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -1787,7 +1800,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
-                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None)
+                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &point_db.borrow(), None)
                     {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
@@ -1806,7 +1819,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -1842,7 +1855,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         app.on_export_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -1946,7 +1959,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();
         let polylines = polylines.clone();
@@ -1964,7 +1977,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     if app.get_snap_to_entities() {
                         let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
-                        for pt in points.borrow().iter() {
+                        for pt in point_db.borrow().iter() {
                             ents.push(survey_cad::io::DxfEntity::Point {
                                 point: *pt,
                                 layer: None,
@@ -1998,11 +2011,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             p = sp;
                         }
                     }
-                    points.borrow_mut().push(p);
+                    point_db.borrow_mut().push(p);
                     app.set_workspace_click_mode(false);
                     app.set_status(SharedString::from(format!(
                         "Total points: {}",
-                        points.borrow().len()
+                        point_db.borrow().len()
                     )));
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
@@ -2014,7 +2027,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
-        let points = points.clone();
+        let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();
         let polylines = polylines.clone();
@@ -2023,7 +2036,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let render_image = render_image.clone();
         app.on_clear_workspace(move || {
-            points.borrow_mut().clear();
+            point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
