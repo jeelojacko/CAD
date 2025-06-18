@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 
 use slint::{Image, SharedString, VecModel};
+use slint::platform::PointerEventButton;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -26,7 +27,17 @@ struct WorkspaceRenderData<'a> {
     alignments: &'a [HorizontalAlignment],
 }
 
-fn render_workspace(data: &WorkspaceRenderData, zoom: f32) -> Image {
+#[derive(Default, Clone)]
+struct Vec2 {
+    x: f32,
+    y: f32,
+}
+
+fn render_workspace(
+    data: &WorkspaceRenderData,
+    offset: &Rc<RefCell<Vec2>>,
+    zoom: &Rc<RefCell<f32>>,
+) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
     let mut pixmap = Pixmap::new(WIDTH, HEIGHT).unwrap();
@@ -40,9 +51,14 @@ fn render_workspace(data: &WorkspaceRenderData, zoom: f32) -> Image {
     };
     let origin_x = WIDTH as f32 / 2.0;
     let origin_y = HEIGHT as f32 / 2.0;
-    let tx = |x: f32| x * zoom + origin_x;
-    let ty = |y: f32| origin_y - y * zoom;
-    let step = 50.0 * zoom;
+    let zoom_val = *zoom.borrow();
+    let off = offset.borrow();
+    let off_x = off.x;
+    let off_y = off.y;
+    drop(off);
+    let tx = |x: f32| (x + off_x) * zoom_val + origin_x;
+    let ty = |y: f32| origin_y - (y + off_y) * zoom_val;
+    let step = 50.0 * zoom_val;
     let mut x = origin_x;
     while x < WIDTH as f32 {
         let mut pb = PathBuilder::new();
@@ -313,6 +329,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
 
     let zoom = Rc::new(RefCell::new(1.0_f32));
+    let offset = Rc::new(RefCell::new(Vec2::default()));
+    let pan_2d_flag = Rc::new(RefCell::new(false));
+    let last_pos_2d = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let rotate_flag = Rc::new(RefCell::new(false));
     let pan_flag = Rc::new(RefCell::new(false));
     let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
@@ -326,6 +345,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
         let zoom = zoom.clone();
+        let offset = offset.clone();
         move || {
             render_workspace(
                 &WorkspaceRenderData {
@@ -337,7 +357,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     surfaces: &surfaces.borrow(),
                     alignments: &alignments.borrow(),
                 },
-                *zoom.borrow(),
+                &offset,
+                &zoom,
             )
         }
     };
@@ -430,11 +451,22 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     {
+        let pan_2d_flag = pan_2d_flag.clone();
+        app.on_workspace_pointer_pressed(move |ev| {
+            if ev.button == PointerEventButton::Middle {
+                *pan_2d_flag.borrow_mut() = true;
+            }
+        });
+    }
+
+    {
         let rotate_flag = rotate_flag.clone();
         let pan_flag = pan_flag.clone();
+        let pan_2d_flag = pan_2d_flag.clone();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
+            *pan_2d_flag.borrow_mut() = false;
         });
     }
 
@@ -443,6 +475,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let rotate_flag = rotate_flag.clone();
         let pan_flag = pan_flag.clone();
         let last_pos = last_pos.clone();
+        let pan_2d_flag = pan_2d_flag.clone();
+        let last_pos_2d = last_pos_2d.clone();
+        let offset = offset.clone();
+        let zoom = zoom.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
             let dx = x as f64 - last.0;
@@ -453,13 +491,45 @@ fn main() -> Result<(), slint::PlatformError> {
             } else if *pan_flag.borrow() {
                 backend.borrow_mut().pan(dx, dy);
             }
+
+            let mut last2 = last_pos_2d.borrow_mut();
+            let dx2 = x as f32 - last2.0 as f32;
+            let dy2 = y as f32 - last2.1 as f32;
+            *last2 = (x as f64, y as f64);
+            if *pan_2d_flag.borrow() {
+                let z = *zoom.borrow();
+                offset.borrow_mut().x += dx2 / z;
+                offset.borrow_mut().y += -dy2 / z;
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    }
+                }
+            }
         });
     }
 
     {
         let backend = backend.clone();
+        let zoom = zoom.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
         app.on_workspace_scrolled(move |_dx, dy| {
-            backend.borrow_mut().zoom(dy as f64);
+            if let Some(app) = weak.upgrade() {
+                if app.get_workspace_mode() == 1 {
+                    backend.borrow_mut().zoom(dy as f64);
+                } else {
+                    let mut z = zoom.borrow_mut();
+                    if dy < 0.0 {
+                        *z *= 1.1;
+                    } else {
+                        *z /= 1.1;
+                    }
+                    *z = (*z).clamp(0.1, 100.0);
+                    app.set_zoom_level(*z);
+                    app.set_workspace_image(render_image());
+                }
+            }
         });
     }
 
