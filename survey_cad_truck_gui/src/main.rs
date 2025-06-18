@@ -64,6 +64,7 @@ fn render_workspace(
     offset: &Rc<RefCell<Vec2>>,
     zoom: &Rc<RefCell<f32>>,
     selected: &Rc<RefCell<Vec<usize>>>,
+    selected_lines: &Rc<RefCell<Vec<(Point, Point)>>>,
     drag: &Rc<RefCell<DragSelect>>,
     point_styles: &[PointStyle],
     style_indices: &Rc<RefCell<Vec<usize>>>,
@@ -150,6 +151,15 @@ fn render_workspace(
     };
 
     for (s, e) in data.lines {
+        let selected = selected_lines
+            .borrow()
+            .iter()
+            .any(|(ls, le)| (*ls == *s && *le == *e) || (*ls == *e && *le == *s));
+        if selected {
+            paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+        } else {
+            paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+        }
         let mut pb = PathBuilder::new();
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
@@ -422,6 +432,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let pan_flag = Rc::new(RefCell::new(false));
     let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let selected_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let selected_lines = Rc::new(RefCell::new(Vec::<(Point, Point)>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_styles = survey_cad::styles::default_point_styles();
@@ -443,6 +454,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset = offset.clone();
         let selected_indices = selected_indices.clone();
         let drag_select = drag_select.clone();
+        let selected_lines = selected_lines.clone();
         let style_indices = point_style_indices.clone();
         let point_styles = point_style_values.clone();
         move || {
@@ -459,6 +471,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 &offset,
                 &zoom,
                 &selected_indices,
+                &selected_lines,
                 &drag_select,
                 &point_styles,
                 &style_indices,
@@ -576,7 +589,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let pan_2d_flag = pan_2d_flag.clone();
         let drag_select = drag_select.clone();
         let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
         let point_db = point_db.clone();
+        let lines_ref = lines.clone();
         let offset = offset.clone();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
@@ -597,9 +612,17 @@ fn main() -> Result<(), slint::PlatformError> {
                     let min_y = p1.y.min(p2.y);
                     let max_y = p1.y.max(p2.y);
                     selected_indices.borrow_mut().clear();
+                    selected_lines.borrow_mut().clear();
                     for (i, pt) in point_db.borrow().iter().enumerate() {
                         if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
                             selected_indices.borrow_mut().push(i);
+                        }
+                    }
+                    for (s, e) in lines_ref.borrow().iter() {
+                        if (s.x >= min_x && s.x <= max_x && s.y >= min_y && s.y <= max_y)
+                            && (e.x >= min_x && e.x <= max_x && e.y >= min_y && e.y <= max_y)
+                        {
+                            selected_lines.borrow_mut().push((*s, *e));
                         }
                     }
                     ds.active = false;
@@ -703,6 +726,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
         let render_image = render_image.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -711,6 +736,8 @@ fn main() -> Result<(), slint::PlatformError> {
             arcs.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
+            selected_indices.borrow_mut().clear();
+            selected_lines.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
                 if app.get_workspace_mode() == 0 {
@@ -1355,6 +1382,69 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
             dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let render_image = render_image.clone();
+        app.on_create_polygon_from_selection(move || {
+            let mut verts: Vec<Point> = selected_indices
+                .borrow()
+                .iter()
+                .filter_map(|&i| point_db.borrow().get(i).copied())
+                .collect();
+            let mut line_chain: Vec<Line> = selected_lines
+                .borrow()
+                .iter()
+                .map(|(s, e)| Line::new(*s, *e))
+                .collect();
+            if !line_chain.is_empty() {
+                let mut chain = Vec::new();
+                let mut current = line_chain.pop().unwrap();
+                chain.push(current.start);
+                chain.push(current.end);
+                let mut last = current.end;
+                while !line_chain.is_empty() {
+                    if let Some(pos) = line_chain
+                        .iter()
+                        .position(|l| l.start == last || l.end == last)
+                    {
+                        let l = line_chain.remove(pos);
+                        if l.start == last {
+                            chain.push(l.end);
+                            last = l.end;
+                        } else {
+                            chain.push(l.start);
+                            last = l.start;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                verts.extend(chain);
+            }
+            if verts.len() >= 3 {
+                polygons.borrow_mut().push(verts);
+                selected_indices.borrow_mut().clear();
+                selected_lines.borrow_mut().clear();
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from(format!(
+                        "Total polygons: {}",
+                        polygons.borrow().len()
+                    )));
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    }
+                }
+            } else if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Need at least 3 vertices"));
+            }
         });
     }
 
@@ -2221,6 +2311,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let render_image = render_image.clone();
         let point_style_indices = point_style_indices.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
         app.on_clear_workspace(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -2230,6 +2322,8 @@ fn main() -> Result<(), slint::PlatformError> {
             point_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
+            selected_indices.borrow_mut().clear();
+            selected_lines.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Cleared workspace"));
                 if app.get_workspace_mode() == 0 {
