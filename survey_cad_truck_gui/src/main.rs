@@ -543,21 +543,28 @@ fn main() -> Result<(), slint::PlatformError> {
             *pan_flag.borrow_mut() = false;
             *pan_2d_flag.borrow_mut() = false;
 
-            let mut ds = drag_select.borrow_mut();
-            if ds.active {
-                let p1 = screen_to_workspace(ds.start.0, ds.start.1, &offset, &zoom);
-                let p2 = screen_to_workspace(ds.end.0, ds.end.1, &offset, &zoom);
-                let min_x = p1.x.min(p2.x);
-                let max_x = p1.x.max(p2.x);
-                let min_y = p1.y.min(p2.y);
-                let max_y = p1.y.max(p2.y);
-                selected_indices.borrow_mut().clear();
-                for (i, pt) in points.borrow().iter().enumerate() {
-                    if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
-                        selected_indices.borrow_mut().push(i);
+            let mut update = false;
+            {
+                let mut ds = drag_select.borrow_mut();
+                if ds.active {
+                    let p1 = screen_to_workspace(ds.start.0, ds.start.1, &offset, &zoom);
+                    let p2 = screen_to_workspace(ds.end.0, ds.end.1, &offset, &zoom);
+                    let min_x = p1.x.min(p2.x);
+                    let max_x = p1.x.max(p2.x);
+                    let min_y = p1.y.min(p2.y);
+                    let max_y = p1.y.max(p2.y);
+                    selected_indices.borrow_mut().clear();
+                    for (i, pt) in points.borrow().iter().enumerate() {
+                        if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
+                            selected_indices.borrow_mut().push(i);
+                        }
                     }
+                    ds.active = false;
+                    update = true;
                 }
-                ds.active = false;
+            }
+
+            if update {
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
@@ -626,14 +633,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 if app.get_workspace_mode() == 1 {
                     backend.borrow_mut().zoom(dy as f64);
                 } else {
-                    let mut z = zoom.borrow_mut();
-                    if dy < 0.0 {
-                        *z *= 1.1;
-                    } else {
-                        *z /= 1.1;
-                    }
-                    *z = (*z).clamp(0.1, 100.0);
-                    app.set_zoom_level(*z);
+                    let new_zoom = {
+                        let mut z = zoom.borrow_mut();
+                        if dy < 0.0 {
+                            *z *= 1.1;
+                        } else {
+                            *z /= 1.1;
+                        }
+                        *z = (*z).clamp(0.1, 100.0);
+                        *z
+                    };
+                    app.set_zoom_level(new_zoom);
                     app.set_workspace_image(render_image());
                 }
             }
