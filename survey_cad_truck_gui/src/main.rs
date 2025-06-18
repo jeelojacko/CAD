@@ -8,16 +8,22 @@ use std::rc::Rc;
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
-use survey_cad::geometry::{Arc, Line, Point, Polyline, PointSymbol};
+use survey_cad::geometry::{Arc, Line, Point, Polyline, PointSymbol, LineAnnotation, LineStyle};
 use survey_cad::geometry::point::PointStyle;
+use survey_cad::styles::{LineLabelStyle, LineLabelPosition};
 use survey_cad::point_database::PointDatabase;
 
 mod truck_backend;
 use truck_backend::TruckBackend;
 
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use once_cell::sync::Lazy;
+use rusttype::{Font, Scale, point};
 
 slint::include_modules!();
+
+static FONT_DATA: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
 
 struct WorkspaceRenderData<'a> {
     points: &'a [Point],
@@ -40,6 +46,28 @@ struct DragSelect {
     start: (f32, f32),
     end: (f32, f32),
     active: bool,
+}
+
+fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size: f32) {
+    let scale = Scale::uniform(size);
+    let v_metrics = FONT.v_metrics(scale);
+    let mut cursor = x;
+    for ch in text.chars() {
+        let glyph = FONT.glyph(ch).scaled(scale).positioned(point(cursor, y + v_metrics.ascent));
+        if let Some(bb) = glyph.pixel_bounding_box() {
+            glyph.draw(|gx, gy, gv| {
+                let px = gx as i32 + bb.min.x;
+                let py = gy as i32 + bb.min.y;
+                if px >= 0 && py >= 0 && (px as u32) < pixmap.width() && (py as u32) < pixmap.height() {
+                    let idx = (py as u32 * pixmap.width() + px as u32) as usize;
+                    pixmap.pixels_mut()[idx] = tiny_skia::PremultipliedColorU8::from_rgba_unchecked(
+                        color.red(), color.green(), color.blue(), (gv * 255.0) as u8,
+                    );
+                }
+            });
+        }
+        cursor += glyph.h_metrics().advance_width;
+    }
 }
 
 fn screen_to_workspace(
@@ -68,6 +96,10 @@ fn render_workspace(
     drag: &Rc<RefCell<DragSelect>>,
     point_styles: &[PointStyle],
     style_indices: &Rc<RefCell<Vec<usize>>>,
+    line_styles: &[LineStyle],
+    line_style_indices: &Rc<RefCell<Vec<usize>>>,
+    show_labels: bool,
+    label_style: &LineLabelStyle,
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
@@ -145,26 +177,66 @@ fn render_workspace(
     }
 
     paint.set_color(Color::from_rgba8(255, 0, 0, 255));
-    let stroke = Stroke {
-        width: 2.0,
-        ..Stroke::default()
-    };
-
-    for (s, e) in data.lines {
+    for (i, (s, e)) in data.lines.iter().enumerate() {
         let selected = selected_lines
             .borrow()
             .iter()
             .any(|(ls, le)| (*ls == *s && *le == *e) || (*ls == *e && *le == *s));
+        let style_idx = line_style_indices
+            .borrow()
+            .get(i)
+            .copied()
+            .unwrap_or(0);
+        let mut style = line_styles.get(style_idx).copied().unwrap_or_default();
         if selected {
-            paint.set_color(Color::from_rgba8(255, 255, 0, 255));
-        } else {
-            paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+            style.color = [255, 255, 0];
+        }
+        paint.set_color(Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255));
+        let mut stroke = Stroke { width: style.weight.0, ..Stroke::default() };
+        use tiny_skia_path::StrokeDash;
+        match style.line_type {
+            LineType::Dashed => {
+                stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0);
+            }
+            LineType::Dotted => {
+                stroke.dash = StrokeDash::new(vec![2.0, 6.0], 0.0);
+            }
+            _ => {}
         }
         let mut pb = PathBuilder::new();
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+
+        if show_labels {
+            let line = Line::new(*s, *e);
+            let ann = LineAnnotation::from_line(&line);
+            let mut angle = 90.0 - ann.azimuth.to_degrees();
+            if angle < 0.0 { angle += 360.0; }
+            let text = format!("{:.2} m\n{:.1}\u{00B0}", ann.distance, angle);
+            let mid = line.midpoint();
+            let dx = e.x - s.x;
+            let dy = e.y - s.y;
+            let len = (dx*dx + dy*dy).sqrt();
+            let (ox, oy) = if len > 0.0 {
+                let nx = dx / len;
+                let ny = dy / len;
+                match label_style.position {
+                    LineLabelPosition::Above => (-ny as f32, nx as f32),
+                    LineLabelPosition::Below => (ny as f32, -nx as f32),
+                    LineLabelPosition::Center => (0.0, 0.0),
+                }
+            } else { (0.0, 0.0) };
+            draw_text(
+                &mut pixmap,
+                &text,
+                tx(mid.x as f32 + ox * 10.0),
+                ty(mid.y as f32 + oy * 10.0),
+                Color::from_rgba8(label_style.color[0], label_style.color[1], label_style.color[2], 255),
+                label_style.text_style.height as f32,
+            );
         }
     }
 
@@ -442,6 +514,12 @@ fn main() -> Result<(), slint::PlatformError> {
         .collect();
     let point_style_values: Vec<PointStyle> = point_styles.iter().map(|(_, s)| *s).collect();
 
+    let line_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let line_styles = survey_cad::styles::default_line_styles();
+    let line_label_styles = survey_cad::styles::default_line_label_styles();
+    let line_style_names: Vec<SharedString> = line_styles.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+    let line_style_values: Vec<LineStyle> = line_styles.iter().map(|(_, s)| *s).collect();
+
     let render_image = {
         let point_db = point_db.clone();
         let lines = lines.clone();
@@ -457,6 +535,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_lines = selected_lines.clone();
         let style_indices = point_style_indices.clone();
         let point_styles = point_style_values.clone();
+        let line_styles_vals = line_style_values.clone();
+        let line_style_indices = line_style_indices.clone();
+        let label_style = line_label_styles[0].1.clone();
         move || {
             render_workspace(
                 &WorkspaceRenderData {
@@ -475,6 +556,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 &drag_select,
                 &point_styles,
                 &style_indices,
+                &line_styles_vals,
+                &line_style_indices,
+                true,
+                &label_style,
             )
         }
     };
@@ -828,6 +913,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             match read_line_csv(p) {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
+                                    line_style_indices.borrow_mut().push(0);
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total lines: {}",
@@ -881,6 +967,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
+                                    line_style_indices.borrow_mut().push(0);
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total lines: {}",
@@ -2164,6 +2251,59 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let lines = lines.clone();
+        let line_style_indices = line_style_indices.clone();
+        let line_style_names = line_style_names.clone();
+        let render_image = render_image.clone();
+        app.on_line_style_manager(move || {
+            let dlg = LineStyleManager::new().unwrap();
+            let model = Rc::new(VecModel::<LineRow>::from(
+                lines
+                    .borrow()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (s, e))| {
+                        if line_style_indices.borrow().len() <= i { line_style_indices.borrow_mut().push(0); }
+                        LineRow {
+                            start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
+                            end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
+                            style_index: line_style_indices.borrow()[i] as i32,
+                        }
+                    })
+                    .collect::<Vec<_>>(),
+            ));
+            dlg.set_lines_model(model.clone().into());
+            dlg.set_styles_model(Rc::new(VecModel::from(line_style_names.clone())).into());
+            dlg.set_selected_index(-1);
+
+            {
+                let model = model.clone();
+                let indices = line_style_indices.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                dlg.on_style_changed(move |idx, style_idx| {
+                    if let Some(row) = model.row_data(idx as usize) {
+                        let mut r = row.clone();
+                        r.style_index = style_idx;
+                        model.set_row_data(idx as usize, r);
+                        if indices.borrow().len() > idx as usize {
+                            indices.borrow_mut()[idx as usize] = style_idx as usize;
+                        }
+                        if let Some(app) = weak.upgrade() {
+                            if app.get_workspace_mode() == 0 {
+                                app.set_workspace_image(render_image());
+                            }
+                        }
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let render_image = render_image.clone();
         app.on_import_landxml_surface(move || {
@@ -2320,6 +2460,7 @@ fn main() -> Result<(), slint::PlatformError> {
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
             point_style_indices.borrow_mut().clear();
+            line_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();

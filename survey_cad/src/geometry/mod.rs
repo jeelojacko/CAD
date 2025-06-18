@@ -5,7 +5,7 @@ pub mod line3;
 pub mod point;
 pub mod point3;
 
-pub use line::{Line, LineAnnotation, LineType};
+pub use line::{Line, LineAnnotation, LineType, LineStyle};
 pub use line3::Line3;
 pub use point::{NamedPoint, Point, PointSymbol};
 pub use point3::Point3;
