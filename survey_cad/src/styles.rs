@@ -1,3 +1,5 @@
+use crate::geometry::point::PointStyle;
+
 /// Basic styling structures for drawing entities.
 /// Represents the weight of a line in millimeters.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,4 +65,54 @@ impl DimensionStyle {
 pub struct DimensionStyleOverride {
     pub text_style: Option<TextStyle>,
     pub scale: Option<f64>,
+}
+
+/// Style definition for point labels.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PointLabelStyle {
+    pub text_style: TextStyle,
+    pub color: [u8; 3],
+    pub offset: [f32; 2],
+}
+
+impl PointLabelStyle {
+    pub fn new(text_style: TextStyle, color: [u8; 3], offset: [f32; 2]) -> Self {
+        Self {
+            text_style,
+            color,
+            offset,
+        }
+    }
+}
+
+/// Returns a basic set of default point styles.
+pub fn default_point_styles() -> Vec<(String, PointStyle)> {
+    vec![
+        (
+            "Green Circle".to_string(),
+            PointStyle::new(crate::geometry::PointSymbol::Circle, [0, 255, 0], 3.0),
+        ),
+        (
+            "Red Square".to_string(),
+            PointStyle::new(crate::geometry::PointSymbol::Square, [255, 0, 0], 3.0),
+        ),
+        (
+            "Blue Cross".to_string(),
+            PointStyle::new(crate::geometry::PointSymbol::Cross, [0, 0, 255], 3.0),
+        ),
+    ]
+}
+
+/// Returns a basic set of default point label styles.
+pub fn default_point_label_styles() -> Vec<(String, PointLabelStyle)> {
+    vec![
+        (
+            "Small White".to_string(),
+            PointLabelStyle::new(TextStyle::new("small", "Arial", 2.5), [255, 255, 255], [5.0, 5.0]),
+        ),
+        (
+            "Large Yellow".to_string(),
+            PointLabelStyle::new(TextStyle::new("large", "Arial", 5.0), [255, 255, 0], [5.0, 5.0]),
+        ),
+    ]
 }

@@ -9,6 +9,21 @@ pub enum PointSymbol {
     Cross,
 }
 
+/// Basic visual style information for a point.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PointStyle {
+    pub symbol: PointSymbol,
+    pub color: [u8; 3],
+    pub size: f32,
+}
+
+impl PointStyle {
+    /// Creates a new point style.
+    pub fn new(symbol: PointSymbol, color: [u8; 3], size: f32) -> Self {
+        Self { symbol, color, size }
+    }
+}
+
 /// Representation of a point with optional name and number.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct NamedPoint {

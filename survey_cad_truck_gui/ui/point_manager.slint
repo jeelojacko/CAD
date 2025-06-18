@@ -4,7 +4,7 @@ export struct PointRow {
     x: string,
     y: string,
     group_index: int,
-    style: string,
+    style_index: int,
 }
 
 import { Button, VerticalBox, HorizontalBox, LineEdit, ComboBox, ListView } from "std-widgets.slint";
@@ -12,6 +12,7 @@ import { Button, VerticalBox, HorizontalBox, LineEdit, ComboBox, ListView } from
 export component PointManager inherits Window {
     in-out property <[PointRow]> points_model;
     in-out property <[string]> groups_model;
+    in-out property <[string]> styles_model;
     in-out property <int> selected_index;
     callback add_point();
     callback remove_point(int);
@@ -21,7 +22,7 @@ export component PointManager inherits Window {
     callback edit_x(int, string);
     callback edit_y(int, string);
     callback group_changed(int, int);
-    callback select_style(int);
+    callback style_changed(int, int);
     title: "Point Manager";
     width: 600px;
     height: 400px;
@@ -61,7 +62,12 @@ export component PointManager inherits Window {
                         selected => { root.group_changed(i, self.current-index); }
                         width: 80px;
                     }
-                    Button { text: row.style; clicked => { root.select_style(i); } width: 60px; }
+                    ComboBox {
+                        model: root.styles_model;
+                        current-index: row.style_index;
+                        selected => { root.style_changed(i, self.current-index); }
+                        width: 80px;
+                    }
                 }
                 TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
             }
