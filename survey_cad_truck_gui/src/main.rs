@@ -299,7 +299,7 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    let mut backend = TruckBackend::new(640, 480);
+    let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
     let app = MainWindow::new()?;
 
     // example data so the 2D workspace has something to draw
@@ -313,6 +313,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
 
     let zoom = Rc::new(RefCell::new(1.0_f32));
+    let rotate_flag = Rc::new(RefCell::new(false));
+    let pan_flag = Rc::new(RefCell::new(false));
+    let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
 
     let render_image = {
         let points = points.clone();
@@ -404,6 +407,59 @@ fn main() -> Result<(), slint::PlatformError> {
                     app.set_zoom_level(*zoom.borrow());
                 }
             }
+        });
+    }
+
+    // camera interaction callbacks for the 3D workspace
+    {
+        let rotate_flag = rotate_flag.clone();
+        let last_pos = last_pos.clone();
+        app.on_workspace_left_pressed(move |x, y| {
+            *rotate_flag.borrow_mut() = true;
+            *last_pos.borrow_mut() = (x as f64, y as f64);
+        });
+    }
+
+    {
+        let pan_flag = pan_flag.clone();
+        let last_pos = last_pos.clone();
+        app.on_workspace_right_pressed(move |x, y| {
+            *pan_flag.borrow_mut() = true;
+            *last_pos.borrow_mut() = (x as f64, y as f64);
+        });
+    }
+
+    {
+        let rotate_flag = rotate_flag.clone();
+        let pan_flag = pan_flag.clone();
+        app.on_workspace_pointer_released(move || {
+            *rotate_flag.borrow_mut() = false;
+            *pan_flag.borrow_mut() = false;
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let rotate_flag = rotate_flag.clone();
+        let pan_flag = pan_flag.clone();
+        let last_pos = last_pos.clone();
+        app.on_workspace_mouse_moved(move |x, y| {
+            let mut last = last_pos.borrow_mut();
+            let dx = x as f64 - last.0;
+            let dy = y as f64 - last.1;
+            *last = (x as f64, y as f64);
+            if *rotate_flag.borrow() {
+                backend.borrow_mut().rotate(dx, dy);
+            } else if *pan_flag.borrow() {
+                backend.borrow_mut().pan(dx, dy);
+            }
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        app.on_workspace_scrolled(move |_dx, dy| {
+            backend.borrow_mut().zoom(dy as f64);
         });
     }
 
@@ -1749,11 +1805,12 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
+    let backend_render = backend.clone();
     app.window()
         .set_rendering_notifier(move |state, _| {
             if let slint::RenderingState::BeforeRendering = state {
                 if let Some(app) = weak.upgrade() {
-                    let image = backend.render();
+                    let image = backend_render.borrow_mut().render();
                     app.set_workspace_texture(image);
                     app.window().request_redraw();
                 }

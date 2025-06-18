@@ -22,6 +22,10 @@ component Workspace3D inherits Rectangle {
     out property <length> requested-texture-height: img.height;
     callback mouse_moved(length, length);
     callback mouse_exited();
+    callback left_pressed(length, length);
+    callback right_pressed(length, length);
+    callback pointer_released();
+    callback scrolled(length, length);
     background: #202020;
     img := Image {
         width: 100%;
@@ -31,11 +35,24 @@ component Workspace3D inherits Rectangle {
     TouchArea {
         width: 100%;
         height: 100%;
-        moved => { root.mouse_moved(self.mouse-x, self.mouse-y); }
         pointer-event(event) => {
-            if event.kind == PointerEventKind.cancel {
+            if event.kind == PointerEventKind.down {
+                if event.button == PointerEventButton.left {
+                    root.left_pressed(self.mouse-x, self.mouse-y);
+                } else if event.button == PointerEventButton.right {
+                    root.right_pressed(self.mouse-x, self.mouse-y);
+                }
+            } else if event.kind == PointerEventKind.up {
+                root.pointer_released();
+            } else if event.kind == PointerEventKind.move {
+                root.mouse_moved(self.mouse-x, self.mouse-y);
+            } else if event.kind == PointerEventKind.cancel {
                 root.mouse_exited();
             }
+        }
+        scroll-event(ev) => {
+            root.scrolled(ev.delta_x, ev.delta_y);
+            return EventResult.accept;
         }
     }
 }
@@ -363,6 +380,10 @@ export component MainWindow inherits Window {
     callback import_landxml_alignment();
     callback zoom_in();
     callback zoom_out();
+    callback workspace_left_pressed(length, length);
+    callback workspace_right_pressed(length, length);
+    callback workspace_pointer_released();
+    callback workspace_scrolled(length, length);
 
     menubar := MenuBar {
         Menu {
@@ -489,6 +510,10 @@ export component MainWindow inherits Window {
                 texture <=> root.workspace_texture;
                 mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
                 mouse_exited() => { root.workspace_mouse_exited(); }
+                left_pressed(x, y) => { root.workspace_left_pressed(x, y); }
+                right_pressed(x, y) => { root.workspace_right_pressed(x, y); }
+                pointer_released() => { root.workspace_pointer_released(); }
+                scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }
         }
 
