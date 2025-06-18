@@ -591,8 +591,8 @@ fn main() -> Result<(), slint::PlatformError> {
             }
 
             let mut last2 = last_pos_2d.borrow_mut();
-            let dx2 = x as f32 - last2.0 as f32;
-            let dy2 = y as f32 - last2.1 as f32;
+            let dx2 = x - last2.0 as f32;
+            let dy2 = y - last2.1 as f32;
             *last2 = (x as f64, y as f64);
             if *pan_2d_flag.borrow() {
                 let z = *zoom.borrow();
@@ -606,7 +606,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
 
             if drag_select.borrow().active {
-                drag_select.borrow_mut().end = (x as f32, y as f32);
+                drag_select.borrow_mut().end = (x, y);
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
