@@ -2,6 +2,10 @@ component Workspace2D inherits Rectangle {
     in-out property <image> image;
     in-out property <bool> click_mode;
     callback clicked(length, length);
+    callback mouse_moved(length, length);
+    callback pointer_pressed(PointerEvent);
+    callback pointer_released();
+    callback scrolled(length, length);
     background: #202020;
     Image {
         source: root.image;
@@ -9,10 +13,27 @@ component Workspace2D inherits Rectangle {
         width: 100%;
         height: 100%;
     }
-    if root.click_mode : TouchArea {
+    TouchArea {
         width: 100%;
         height: 100%;
-        clicked => { root.clicked(self.mouse-x, self.mouse-y); }
+        clicked => {
+            if root.click_mode {
+                root.clicked(self.mouse-x, self.mouse-y);
+            }
+        }
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down {
+                root.pointer_pressed(event);
+            } else if event.kind == PointerEventKind.up {
+                root.pointer_released();
+            } else if event.kind == PointerEventKind.move {
+                root.mouse_moved(self.mouse-x, self.mouse-y);
+            }
+        }
+        scroll-event(ev) => {
+            root.scrolled(ev.delta_x, ev.delta_y);
+            return EventResult.accept;
+        }
     }
 }
 
@@ -382,6 +403,7 @@ export component MainWindow inherits Window {
     callback zoom_out();
     callback workspace_left_pressed(length, length);
     callback workspace_right_pressed(length, length);
+    callback workspace_pointer_pressed(PointerEvent);
     callback workspace_pointer_released();
     callback workspace_scrolled(length, length);
 
@@ -504,6 +526,10 @@ export component MainWindow inherits Window {
                 image <=> root.workspace_image;
                 click_mode <=> root.workspace_click_mode;
                 clicked(x, y) => { root.workspace_clicked(x, y); }
+                mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+                pointer_pressed(ev) => { root.workspace_pointer_pressed(ev); }
+                pointer_released() => { root.workspace_pointer_released(); }
+                scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }
             if root.workspace_mode == 1 : Workspace3D {
                 x: 0; y: 0; width: 100%; height: 100%;
