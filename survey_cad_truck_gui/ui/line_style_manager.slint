@@ -1,0 +1,53 @@
+export struct LineRow {
+    start: string,
+    end: string,
+    style_index: int,
+}
+
+import { VerticalBox, HorizontalBox, ComboBox, ListView } from "std-widgets.slint";
+
+export component LineStyleManager inherits Window {
+    in-out property <[LineRow]> lines_model;
+    in-out property <[string]> styles_model;
+    in-out property <int> selected_index;
+    callback style_changed(int, int);
+    title: "Line Style Manager";
+    width: 500px;
+    height: 300px;
+
+    VerticalBox {
+        spacing: 4px;
+        Rectangle {
+            width: 100%;
+            height: 20px;
+            border-width: 1px;
+            border-color: #808080;
+            HorizontalBox {
+                spacing: 8px;
+                Text { text: "Start"; width: 140px; }
+                Text { text: "End"; width: 140px; }
+                Text { text: "Style"; width: 80px; }
+            }
+        }
+        ListView {
+            vertical-stretch: 1;
+            for row[i] in root.lines_model : Rectangle {
+                property <bool> selected: root.selected_index == i;
+                background: selected ? #404040 : transparent;
+                height: 24px;
+                HorizontalBox {
+                    spacing: 8px;
+                    Text { text: row.start; width: 140px; }
+                    Text { text: row.end; width: 140px; }
+                    ComboBox {
+                        model: root.styles_model;
+                        current-index: row.style_index;
+                        selected => { root.style_changed(i, self.current-index); }
+                        width: 80px;
+                    }
+                }
+                TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
+            }
+        }
+    }
+}

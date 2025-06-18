@@ -1,6 +1,7 @@
 //! Basic 2D line types used throughout the crate.
 
 use super::{distance, Point};
+use crate::styles::LineWeight;
 
 /// Available drawing styles for a line entity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -11,6 +12,34 @@ pub enum LineType {
     Dashed,
     /// Dotted line style.
     Dotted,
+}
+
+/// Style information for rendering a line.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LineStyle {
+    pub line_type: LineType,
+    pub color: [u8; 3],
+    pub weight: LineWeight,
+}
+
+impl LineStyle {
+    pub fn new(line_type: LineType, color: [u8; 3], weight: LineWeight) -> Self {
+        Self {
+            line_type,
+            color,
+            weight,
+        }
+    }
+}
+
+impl Default for LineStyle {
+    fn default() -> Self {
+        Self {
+            line_type: LineType::Solid,
+            color: [255, 255, 255],
+            weight: LineWeight::default(),
+        }
+    }
 }
 
 /// Representation of a 2D line segment between two points.

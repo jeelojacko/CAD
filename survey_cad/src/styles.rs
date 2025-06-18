@@ -85,6 +85,32 @@ impl PointLabelStyle {
     }
 }
 
+/// Position of a line label relative to the line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineLabelPosition {
+    Above,
+    Below,
+    Center,
+}
+
+/// Style definition for line labels.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LineLabelStyle {
+    pub text_style: TextStyle,
+    pub color: [u8; 3],
+    pub position: LineLabelPosition,
+}
+
+impl LineLabelStyle {
+    pub fn new(text_style: TextStyle, color: [u8; 3], position: LineLabelPosition) -> Self {
+        Self {
+            text_style,
+            color,
+            position,
+        }
+    }
+}
+
 /// Returns a basic set of default point styles.
 pub fn default_point_styles() -> Vec<(String, PointStyle)> {
     vec![
@@ -113,6 +139,47 @@ pub fn default_point_label_styles() -> Vec<(String, PointLabelStyle)> {
         (
             "Large Yellow".to_string(),
             PointLabelStyle::new(TextStyle::new("large", "Arial", 5.0), [255, 255, 0], [5.0, 5.0]),
+        ),
+    ]
+}
+
+/// Returns a basic set of default line styles.
+pub fn default_line_styles() -> Vec<(String, crate::geometry::line::LineStyle)> {
+    use crate::geometry::line::{LineStyle, LineType};
+    vec![
+        (
+            "White Solid".to_string(),
+            LineStyle::new(LineType::Solid, [255, 255, 255], LineWeight(1.0)),
+        ),
+        (
+            "Red Dashed".to_string(),
+            LineStyle::new(LineType::Dashed, [255, 0, 0], LineWeight(1.0)),
+        ),
+        (
+            "Blue Dotted".to_string(),
+            LineStyle::new(LineType::Dotted, [0, 0, 255], LineWeight(1.0)),
+        ),
+    ]
+}
+
+/// Returns a basic set of default line label styles.
+pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
+    vec![
+        (
+            "Above Small".to_string(),
+            LineLabelStyle::new(
+                TextStyle::new("small", "Arial", 3.0),
+                [255, 255, 255],
+                LineLabelPosition::Above,
+            ),
+        ),
+        (
+            "Below Small".to_string(),
+            LineLabelStyle::new(
+                TextStyle::new("small", "Arial", 3.0),
+                [255, 255, 0],
+                LineLabelPosition::Below,
+            ),
         ),
     ]
 }
