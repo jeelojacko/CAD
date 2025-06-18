@@ -381,6 +381,7 @@ export component MainWindow inherits Window {
     callback add_polygon();
     callback add_polyline();
     callback add_arc();
+    callback create_polygon_from_selection();
     callback clear_workspace();
     callback view_changed(int);
     callback station_distance();
@@ -444,6 +445,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }
             MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
             MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
+            MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
         }
@@ -483,6 +485,7 @@ export component MainWindow inherits Window {
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
+        Button { text: "Create Polygon"; clicked => { root.create_polygon_from_selection(); } }
         Button { text: "Load LandXML Surface"; clicked => { root.import_landxml_surface(); } }
         Button { text: "Load LandXML Alignment"; clicked => { root.import_landxml_alignment(); } }
         Button { text: "Corridor Volume"; clicked => { root.corridor_volume(); } }
