@@ -8,7 +8,8 @@ use std::rc::Rc;
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
-use survey_cad::geometry::{Arc, Line, Point, Polyline};
+use survey_cad::geometry::{Arc, Line, Point, Polyline, PointSymbol};
+use survey_cad::geometry::point::PointStyle;
 use survey_cad::point_database::PointDatabase;
 
 mod truck_backend;
@@ -64,6 +65,8 @@ fn render_workspace(
     zoom: &Rc<RefCell<f32>>,
     selected: &Rc<RefCell<Vec<usize>>>,
     drag: &Rc<RefCell<DragSelect>>,
+    point_styles: &[PointStyle],
+    style_indices: &Rc<RefCell<Vec<usize>>>,
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
@@ -270,20 +273,48 @@ fn render_workspace(
     }
 
     for (idx, p) in data.points.iter().enumerate() {
+        let style_idx = style_indices
+            .borrow()
+            .get(idx)
+            .copied()
+            .unwrap_or(0);
+        let style = point_styles.get(style_idx).copied().unwrap_or(PointStyle::new(PointSymbol::Circle, [0, 255, 0], 3.0));
         let selected = selected.borrow().contains(&idx);
-        if selected {
-            paint.set_color(Color::from_rgba8(255, 255, 0, 255));
-        } else {
-            paint.set_color(Color::from_rgba8(0, 255, 0, 255));
-        }
-        if let Some(circle) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), 3.0) {
-            pixmap.fill_path(
-                &circle,
-                &paint,
-                tiny_skia::FillRule::Winding,
-                Transform::identity(),
-                None,
-            );
+        let color = if selected { [255, 255, 0] } else { style.color };
+        paint.set_color(Color::from_rgba8(color[0], color[1], color[2], 255));
+        match style.symbol {
+            PointSymbol::Circle => {
+                if let Some(c) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), style.size) {
+                    pixmap.fill_path(&c, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+                }
+            }
+            PointSymbol::Square => {
+                let half = style.size;
+                let mut pb = PathBuilder::new();
+                pb.move_to(tx(p.x as f32 - half), ty(p.y as f32 - half));
+                pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 - half));
+                pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 + half));
+                pb.line_to(tx(p.x as f32 - half), ty(p.y as f32 + half));
+                pb.close();
+                if let Some(path) = pb.finish() {
+                    pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+                }
+            }
+            PointSymbol::Cross => {
+                let half = style.size;
+                let mut pb = PathBuilder::new();
+                pb.move_to(tx(p.x as f32 - half), ty(p.y as f32 - half));
+                pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 + half));
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                }
+                let mut pb = PathBuilder::new();
+                pb.move_to(tx(p.x as f32 - half), ty(p.y as f32 + half));
+                pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 - half));
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                }
+            }
         }
     }
 
@@ -392,6 +423,13 @@ fn main() -> Result<(), slint::PlatformError> {
     let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let selected_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
+    let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let point_styles = survey_cad::styles::default_point_styles();
+    let point_style_names: Vec<SharedString> = point_styles
+        .iter()
+        .map(|(n, _)| SharedString::from(n.clone()))
+        .collect();
+    let point_style_values: Vec<PointStyle> = point_styles.iter().map(|(_, s)| *s).collect();
 
     let render_image = {
         let point_db = point_db.clone();
@@ -405,6 +443,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset = offset.clone();
         let selected_indices = selected_indices.clone();
         let drag_select = drag_select.clone();
+        let style_indices = point_style_indices.clone();
+        let point_styles = point_style_values.clone();
         move || {
             render_workspace(
                 &WorkspaceRenderData {
@@ -420,6 +460,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 &zoom,
                 &selected_indices,
                 &drag_select,
+                &point_styles,
+                &style_indices,
             )
         }
     };
@@ -847,6 +889,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -855,6 +898,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let point_style_indices = point_style_indices.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -866,6 +910,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     let mut db = point_db.borrow_mut();
                                     db.clear();
                                     db.extend(pts);
+                                    point_style_indices.borrow_mut().clear();
+                                    point_style_indices
+                                        .borrow_mut()
+                                        .extend(std::iter::repeat(0).take(db.len()));
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Loaded {} points",
@@ -897,6 +945,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let point_style_indices = point_style_indices.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -908,6 +957,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let point_db = point_db.clone();
                         let render_image = render_image.clone();
                         let weak = weak.clone();
+                        let psi = point_style_indices.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -915,6 +965,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dlg.get_y_value().parse::<f64>(),
                                 ) {
                                     point_db.borrow_mut().push(Point::new(x, y));
+                                    psi.borrow_mut().push(0);
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total points: {}",
@@ -1892,7 +1943,11 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
+        let point_style_names = point_style_names.clone();
+        let render_image_pm = render_image.clone();
         app.on_point_manager(move || {
+            let render_image = render_image_pm.clone();
             let dlg = PointManager::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let model = Rc::new(VecModel::<PointRow>::from(
@@ -1900,13 +1955,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     .borrow()
                     .iter()
                     .enumerate()
-                    .map(|(i, p)| PointRow {
-                        number: SharedString::from(format!("{}", i + 1)),
-                        name: SharedString::from(""),
-                        x: SharedString::from(format!("{:.3}", p.x)),
-                        y: SharedString::from(format!("{:.3}", p.y)),
-                        group_index: 0,
-                        style: SharedString::from(""),
+                    .map(|(i, p)| {
+                        if point_style_indices.borrow().len() <= i {
+                            point_style_indices.borrow_mut().push(0);
+                        }
+                        PointRow {
+                            number: SharedString::from(format!("{}", i + 1)),
+                            name: SharedString::from(""),
+                            x: SharedString::from(format!("{:.3}", p.x)),
+                            y: SharedString::from(format!("{:.3}", p.y)),
+                            group_index: 0,
+                            style_index: point_style_indices.borrow()[i] as i32,
+                        }
                     })
                     .collect::<Vec<_>>(),
             ));
@@ -1921,6 +1981,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 ))
                 .into(),
             );
+            dlg.set_styles_model(Rc::new(VecModel::from(point_style_names.clone())).into());
             dlg.set_selected_index(-1);
 
             {
@@ -1958,8 +2019,10 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let model = model.clone();
                 let point_db = point_db.clone();
+                let psi = point_style_indices.clone();
                 dlg.on_add_point(move || {
                     point_db.borrow_mut().push(Point::new(0.0, 0.0));
+                    psi.borrow_mut().push(0);
                     let idx = point_db.borrow().len();
                     model.push(PointRow {
                         number: SharedString::from(format!("{}", idx)),
@@ -1967,17 +2030,40 @@ fn main() -> Result<(), slint::PlatformError> {
                         x: SharedString::from("0.000"),
                         y: SharedString::from("0.000"),
                         group_index: 0,
-                        style: SharedString::from(""),
+                        style_index: 0,
                     });
                 });
             }
             {
                 let model = model.clone();
                 let point_db = point_db.clone();
+                let psi = point_style_indices.clone();
                 dlg.on_remove_point(move |idx| {
                     if idx >= 0 && (idx as usize) < point_db.borrow().len() {
                         point_db.borrow_mut().remove(idx as usize);
+                        psi.borrow_mut().remove(idx as usize);
                         model.remove(idx as usize);
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let style_indices = point_style_indices.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                dlg.on_style_changed(move |idx, style_idx| {
+                    if let Some(row) = model.row_data(idx as usize) {
+                        let mut r = row.clone();
+                        r.style_index = style_idx;
+                        model.set_row_data(idx as usize, r);
+                        if style_indices.borrow().len() > idx as usize {
+                            style_indices.borrow_mut()[idx as usize] = style_idx as usize;
+                        }
+                        if let Some(app) = weak.upgrade() {
+                            if app.get_workspace_mode() == 0 {
+                                app.set_workspace_image(render_image());
+                            }
+                        }
                     }
                 });
             }
@@ -2062,6 +2148,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let render_image = render_image.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_workspace_clicked(move |x, y| {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
@@ -2109,6 +2196,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     point_db.borrow_mut().push(p);
+                    point_style_indices.borrow_mut().push(0);
                     app.set_workspace_click_mode(false);
                     app.set_status(SharedString::from(format!(
                         "Total points: {}",
@@ -2132,12 +2220,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
         let render_image = render_image.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_clear_workspace(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
+            point_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
             if let Some(app) = weak.upgrade() {
