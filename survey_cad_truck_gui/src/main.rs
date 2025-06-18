@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 
-use slint::{Image, SharedString, VecModel};
 use slint::platform::PointerEventButton;
+use slint::{Image, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -33,10 +33,36 @@ struct Vec2 {
     y: f32,
 }
 
+#[derive(Default, Clone)]
+struct DragSelect {
+    start: (f32, f32),
+    end: (f32, f32),
+    active: bool,
+}
+
+fn screen_to_workspace(
+    x: f32,
+    y: f32,
+    offset: &Rc<RefCell<Vec2>>,
+    zoom: &Rc<RefCell<f32>>,
+) -> Point {
+    const WIDTH: f32 = 600.0;
+    const HEIGHT: f32 = 400.0;
+    let origin_x = WIDTH / 2.0;
+    let origin_y = HEIGHT / 2.0;
+    let z = *zoom.borrow();
+    let off = offset.borrow();
+    let wx = (x - origin_x) / z - off.x;
+    let wy = -((y - origin_y) / z) - off.y;
+    Point::new(wx as f64, wy as f64)
+}
+
 fn render_workspace(
     data: &WorkspaceRenderData,
     offset: &Rc<RefCell<Vec2>>,
     zoom: &Rc<RefCell<f32>>,
+    selected: &Rc<RefCell<Vec<usize>>>,
+    drag: &Rc<RefCell<DragSelect>>,
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
@@ -212,7 +238,8 @@ fn render_workspace(
                     let steps = 32;
                     let mut pb = PathBuilder::new();
                     for i in 0..=steps {
-                        let t = arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
+                        let t = arc.start_angle
+                            + (arc.end_angle - arc.start_angle) * (i as f64 / steps as f64);
                         let x = arc.center.x + arc.radius * t.cos();
                         let y = arc.center.y + arc.radius * t.sin();
                         let px = tx(x as f32);
@@ -241,8 +268,13 @@ fn render_workspace(
         }
     }
 
-    paint.set_color(Color::from_rgba8(0, 255, 0, 255));
-    for p in data.points {
+    for (idx, p) in data.points.iter().enumerate() {
+        let selected = selected.borrow().contains(&idx);
+        if selected {
+            paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+        } else {
+            paint.set_color(Color::from_rgba8(0, 255, 0, 255));
+        }
         if let Some(circle) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), 3.0) {
             pixmap.fill_path(
                 &circle,
@@ -251,6 +283,28 @@ fn render_workspace(
                 Transform::identity(),
                 None,
             );
+        }
+    }
+
+    if drag.borrow().active {
+        let ds = drag.borrow();
+        let x1 = ds.start.0.min(ds.end.0);
+        let y1 = ds.start.1.min(ds.end.1);
+        let x2 = ds.start.0.max(ds.end.0);
+        let y2 = ds.start.1.max(ds.end.1);
+        paint.set_color(Color::from_rgba8(255, 255, 255, 128));
+        let rect_stroke = Stroke {
+            width: 1.0,
+            ..Stroke::default()
+        };
+        let mut pb = PathBuilder::new();
+        pb.move_to(x1, y1);
+        pb.line_to(x2, y1);
+        pb.line_to(x2, y2);
+        pb.line_to(x1, y2);
+        pb.close();
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &rect_stroke, Transform::identity(), None);
         }
     }
     let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
@@ -335,6 +389,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let rotate_flag = Rc::new(RefCell::new(false));
     let pan_flag = Rc::new(RefCell::new(false));
     let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
+    let selected_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let drag_select = Rc::new(RefCell::new(DragSelect::default()));
 
     let render_image = {
         let points = points.clone();
@@ -346,6 +402,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let zoom = zoom.clone();
         let offset = offset.clone();
+        let selected_indices = selected_indices.clone();
+        let drag_select = drag_select.clone();
         move || {
             render_workspace(
                 &WorkspaceRenderData {
@@ -359,6 +417,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 },
                 &offset,
                 &zoom,
+                &selected_indices,
+                &drag_select,
             )
         }
     };
@@ -452,9 +512,17 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let pan_2d_flag = pan_2d_flag.clone();
+        let drag_select = drag_select.clone();
+        let last_pos_2d = last_pos_2d.clone();
         app.on_workspace_pointer_pressed(move |ev| {
             if ev.button == PointerEventButton::Middle {
                 *pan_2d_flag.borrow_mut() = true;
+            } else if ev.button == PointerEventButton::Left {
+                let pos = *last_pos_2d.borrow();
+                let mut ds = drag_select.borrow_mut();
+                ds.start = (pos.0 as f32, pos.1 as f32);
+                ds.end = ds.start;
+                ds.active = true;
             }
         });
     }
@@ -463,10 +531,39 @@ fn main() -> Result<(), slint::PlatformError> {
         let rotate_flag = rotate_flag.clone();
         let pan_flag = pan_flag.clone();
         let pan_2d_flag = pan_2d_flag.clone();
+        let drag_select = drag_select.clone();
+        let selected_indices = selected_indices.clone();
+        let points = points.clone();
+        let offset = offset.clone();
+        let zoom = zoom.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
             *pan_2d_flag.borrow_mut() = false;
+
+            let mut ds = drag_select.borrow_mut();
+            if ds.active {
+                let p1 = screen_to_workspace(ds.start.0, ds.start.1, &offset, &zoom);
+                let p2 = screen_to_workspace(ds.end.0, ds.end.1, &offset, &zoom);
+                let min_x = p1.x.min(p2.x);
+                let max_x = p1.x.max(p2.x);
+                let min_y = p1.y.min(p2.y);
+                let max_y = p1.y.max(p2.y);
+                selected_indices.borrow_mut().clear();
+                for (i, pt) in points.borrow().iter().enumerate() {
+                    if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
+                        selected_indices.borrow_mut().push(i);
+                    }
+                }
+                ds.active = false;
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    }
+                }
+            }
         });
     }
 
@@ -480,6 +577,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset = offset.clone();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
+        let drag_select = drag_select.clone();
         let weak = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
@@ -500,6 +598,15 @@ fn main() -> Result<(), slint::PlatformError> {
                 let z = *zoom.borrow();
                 offset.borrow_mut().x += dx2 / z;
                 offset.borrow_mut().y += -dy2 / z;
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    }
+                }
+            }
+
+            if drag_select.borrow().active {
+                drag_select.borrow_mut().end = (x as f32, y as f32);
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
@@ -870,7 +977,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                             }
                                         }
                                     } else if let Some(app) = weak.upgrade() {
-                                        app.set_status(SharedString::from("Need at least 3 points"));
+                                        app.set_status(SharedString::from(
+                                            "Need at least 3 points",
+                                        ));
                                     }
                                 }
                                 Err(e) => {
@@ -989,7 +1098,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                             }
                                         }
                                     } else if let Some(app) = weak.upgrade() {
-                                        app.set_status(SharedString::from("Need at least 2 points"));
+                                        app.set_status(SharedString::from(
+                                            "Need at least 2 points",
+                                        ));
                                     }
                                 }
                                 Err(e) => {
@@ -1045,7 +1156,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         let pts = pts.clone();
                         pd.on_accept(move || {
                             if pts.borrow().len() >= 2 {
-                                polylines.borrow_mut().push(Polyline::new(pts.borrow().clone()));
+                                polylines
+                                    .borrow_mut()
+                                    .push(Polyline::new(pts.borrow().clone()));
                                 if let Some(app) = weak.upgrade() {
                                     app.set_status(SharedString::from(format!(
                                         "Total polylines: {}",
@@ -1148,8 +1261,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dlg.get_start_angle().parse::<f64>(),
                                     dlg.get_end_angle().parse::<f64>(),
                                 ) {
-                                    arcs
-                                        .borrow_mut()
+                                    arcs.borrow_mut()
                                         .push(Arc::new(Point::new(cx, cy), r, sa, ea));
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
@@ -1304,9 +1416,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         let ground = &surfs[1];
                         let hal = &aligns[0];
                         let len = hal.length();
-                        let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+                        let val = survey_cad::alignment::VerticalAlignment::new(vec![
+                            (0.0, 0.0),
+                            (len, 0.0),
+                        ]);
                         let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
-                        Some(survey_cad::corridor::corridor_volume(design, ground, &al, width, interval, step))
+                        Some(survey_cad::corridor::corridor_volume(
+                            design, ground, &al, width, interval, step,
+                        ))
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(vol) = res {
@@ -1505,7 +1622,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "las")]
                     match survey_cad::io::las::read_points_las(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() = pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
+                            *points.borrow_mut() =
+                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
@@ -1547,7 +1665,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "e57")]
                     match survey_cad::io::e57::read_points_e57(p) {
                         Ok(pts3) => {
-                            *points.borrow_mut() = pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
+                            *points.borrow_mut() =
+                                pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)).collect();
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
@@ -1585,7 +1704,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    if let Err(e) = survey_cad::io::write_points_geojson(p, &points.borrow(), None, None) {
+                    if let Err(e) =
+                        survey_cad::io::write_points_geojson(p, &points.borrow(), None, None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -1632,7 +1753,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    if let Err(e) = survey_cad::io::write_points_dxf(p, &points.borrow(), None, None) {
+                    if let Err(e) =
+                        survey_cad::io::write_points_dxf(p, &points.borrow(), None, None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -1654,7 +1777,8 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
-                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None) {
+                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &points.borrow(), None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
@@ -1688,7 +1812,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             .collect();
                         if let Err(e) = survey_cad::io::las::write_points_las(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {}",
+                                    e
+                                )));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -1721,7 +1848,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             .collect();
                         if let Err(e) = survey_cad::io::e57::write_points_e57(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {}",
+                                    e
+                                )));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -1758,7 +1888,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
                             }
                         }
                     }
@@ -1789,7 +1922,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to import: {}", e)));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
                             }
                         }
                     }
@@ -1819,19 +1955,34 @@ fn main() -> Result<(), slint::PlatformError> {
                     if app.get_snap_to_entities() {
                         let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
                         for pt in points.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Point { point: *pt, layer: None });
+                            ents.push(survey_cad::io::DxfEntity::Point {
+                                point: *pt,
+                                layer: None,
+                            });
                         }
                         for (s, e) in lines.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                            ents.push(survey_cad::io::DxfEntity::Line {
+                                line: Line::new(*s, *e),
+                                layer: None,
+                            });
                         }
                         for poly in polygons.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                            ents.push(survey_cad::io::DxfEntity::Polyline {
+                                polyline: Polyline::new(poly.clone()),
+                                layer: None,
+                            });
                         }
                         for pl in polylines.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                            ents.push(survey_cad::io::DxfEntity::Polyline {
+                                polyline: pl.clone(),
+                                layer: None,
+                            });
                         }
                         for arc in arcs.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Arc { arc: *arc, layer: None });
+                            ents.push(survey_cad::io::DxfEntity::Arc {
+                                arc: *arc,
+                                layer: None,
+                            });
                         }
                         if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0) {
                             p = sp;
@@ -1839,7 +1990,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     points.borrow_mut().push(p);
                     app.set_workspace_click_mode(false);
-                    app.set_status(SharedString::from(format!("Total points: {}", points.borrow().len())));
+                    app.set_status(SharedString::from(format!(
+                        "Total points: {}",
+                        points.borrow().len()
+                    )));
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
                     }
