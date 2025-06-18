@@ -52,4 +52,33 @@ impl TruckCadEngine {
         let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&bytes, w, h);
         Image::from_rgba8_premultiplied(buffer)
     }
+
+    /// Rotate the camera based on pointer movement delta in screen space.
+    pub fn rotate_camera(&mut self, dx: f64, dy: f64) {
+        let camera = &mut self.scene.studio_config_mut().camera;
+        let mut axis = dy * camera.matrix[0].truncate();
+        axis += dx * camera.matrix[1].truncate();
+        if axis.magnitude() > 0.0 {
+            axis /= axis.magnitude();
+            let angle = (dx * dx + dy * dy).sqrt() * 0.01;
+            let mat = Matrix4::from_axis_angle(axis, Rad(angle));
+            camera.matrix = mat.invert().unwrap() * camera.matrix;
+        }
+    }
+
+    /// Translate the camera parallel to the view plane.
+    pub fn pan_camera(&mut self, dx: f64, dy: f64) {
+        let camera = &mut self.scene.studio_config_mut().camera;
+        let right = camera.matrix[0].truncate();
+        let up = camera.matrix[1].truncate();
+        let trans = right * (dx * 0.01) - up * (dy * 0.01);
+        camera.matrix = Matrix4::from_translation(trans) * camera.matrix;
+    }
+
+    /// Zoom the camera along its view direction.
+    pub fn zoom_camera(&mut self, delta: f64) {
+        let camera = &mut self.scene.studio_config_mut().camera;
+        let dir = camera.eye_direction();
+        camera.matrix = Matrix4::from_translation(dir * (delta * 0.002)) * camera.matrix;
+    }
 }
