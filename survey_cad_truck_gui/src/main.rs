@@ -2549,5 +2549,7 @@ fn main() -> Result<(), slint::PlatformError> {
         })
         .unwrap();
 
+    app.window().request_redraw();
+
     app.run()
 }
