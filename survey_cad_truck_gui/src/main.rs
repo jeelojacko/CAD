@@ -1,35 +1,37 @@
 #![allow(unused_variables)]
 
-use slint::platform::PointerEventButton;
-use slint::{Image, SharedString, VecModel, Model};
 use i_slint_common::sharedfontdb;
+use slint::platform::PointerEventButton;
+use slint::{Image, Model, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
-use survey_cad::geometry::{
-    Arc, Line, Point, Polyline, PointSymbol, LineAnnotation, LineStyle, LineType,
-};
 use survey_cad::geometry::point::PointStyle;
-use survey_cad::styles::{LineLabelStyle, LineLabelPosition};
+use survey_cad::geometry::{
+    Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
+};
 use survey_cad::point_database::PointDatabase;
+use survey_cad::styles::{LineLabelPosition, LineLabelStyle};
 
 mod truck_backend;
 use truck_backend::TruckBackend;
 
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 use once_cell::sync::Lazy;
-use rusttype::{Font, Scale, point};
+use rusttype::{point, Font, Scale};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::include_modules!();
 
 // Load font from the crate's `assets` directory. The binary font file is not
 // committed to the repository; place `DejaVuSans.ttf` inside the `assets`
 // folder next to this crate's `Cargo.toml`.
-static FONT_DATA: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/DejaVuSans.ttf"));
+static FONT_DATA: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/assets/DejaVuSans.ttf"
+));
 static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
 
 struct WorkspaceRenderData<'a> {
@@ -77,21 +79,27 @@ fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size
     let v_metrics = FONT.v_metrics(scale);
     let mut cursor = x;
     for ch in text.chars() {
-        let glyph = FONT.glyph(ch).scaled(scale).positioned(point(cursor, y + v_metrics.ascent));
+        let glyph = FONT
+            .glyph(ch)
+            .scaled(scale)
+            .positioned(point(cursor, y + v_metrics.ascent));
         if let Some(bb) = glyph.pixel_bounding_box() {
             glyph.draw(|gx, gy, gv| {
                 let px = gx as i32 + bb.min.x;
                 let py = gy as i32 + bb.min.y;
-                if px >= 0 && py >= 0 && (px as u32) < pixmap.width() && (py as u32) < pixmap.height() {
+                if px >= 0
+                    && py >= 0
+                    && (px as u32) < pixmap.width()
+                    && (py as u32) < pixmap.height()
+                {
                     let idx = (py as u32 * pixmap.width() + px as u32) as usize;
-                    pixmap.pixels_mut()[idx] =
-                        tiny_skia::ColorU8::from_rgba(
-                            (color.red() * 255.0) as u8,
-                            (color.green() * 255.0) as u8,
-                            (color.blue() * 255.0) as u8,
-                            (gv * 255.0) as u8,
-                        )
-                        .premultiply();
+                    pixmap.pixels_mut()[idx] = tiny_skia::ColorU8::from_rgba(
+                        (color.red() * 255.0) as u8,
+                        (color.green() * 255.0) as u8,
+                        (color.blue() * 255.0) as u8,
+                        (gv * 255.0) as u8,
+                    )
+                    .premultiply();
                 }
             });
         }
@@ -198,21 +206,35 @@ fn render_workspace(
 
     paint.set_color(Color::from_rgba8(255, 0, 0, 255));
     for (i, (s, e)) in data.lines.iter().enumerate() {
-        let selected = state.selected_lines
+        let selected = state
+            .selected_lines
             .borrow()
             .iter()
             .any(|(ls, le)| (*ls == *s && *le == *e) || (*ls == *e && *le == *s));
-        let style_idx = styles.line_style_indices
+        let style_idx = styles
+            .line_style_indices
             .borrow()
             .get(i)
             .copied()
             .unwrap_or(0);
-        let mut style = styles.line_styles.get(style_idx).copied().unwrap_or_default();
+        let mut style = styles
+            .line_styles
+            .get(style_idx)
+            .copied()
+            .unwrap_or_default();
         if selected {
             style.color = [255, 255, 0];
         }
-        paint.set_color(Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255));
-        let mut stroke = Stroke { width: style.weight.0, ..Stroke::default() };
+        paint.set_color(Color::from_rgba8(
+            style.color[0],
+            style.color[1],
+            style.color[2],
+            255,
+        ));
+        let mut stroke = Stroke {
+            width: style.weight.0,
+            ..Stroke::default()
+        };
         use tiny_skia::StrokeDash;
         match style.line_type {
             LineType::Dashed => {
@@ -227,7 +249,10 @@ fn render_workspace(
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
 
@@ -235,12 +260,14 @@ fn render_workspace(
             let line = Line::new(*s, *e);
             let ann = LineAnnotation::from_line(&line);
             let mut angle = 90.0 - ann.azimuth.to_degrees();
-            if angle < 0.0 { angle += 360.0; }
+            if angle < 0.0 {
+                angle += 360.0;
+            }
             let text = format!("{:.2} m\n{:.1}\u{00B0}", ann.distance, angle);
             let mid = line.midpoint();
             let dx = e.x - s.x;
             let dy = e.y - s.y;
-            let len = (dx*dx + dy*dy).sqrt();
+            let len = (dx * dx + dy * dy).sqrt();
             let (ox, oy) = if len > 0.0 {
                 let nx = dx / len;
                 let ny = dy / len;
@@ -249,13 +276,20 @@ fn render_workspace(
                     LineLabelPosition::Below => (ny as f32, -nx as f32),
                     LineLabelPosition::Center => (0.0, 0.0),
                 }
-            } else { (0.0, 0.0) };
+            } else {
+                (0.0, 0.0)
+            };
             draw_text(
                 &mut pixmap,
                 &text,
                 tx(mid.x as f32 + ox * 10.0),
                 ty(mid.y as f32 + oy * 10.0),
-                Color::from_rgba8(styles.label_style.color[0], styles.label_style.color[1], styles.label_style.color[2], 255),
+                Color::from_rgba8(
+                    styles.label_style.color[0],
+                    styles.label_style.color[1],
+                    styles.label_style.color[2],
+                    255,
+                ),
                 styles.label_style.text_style.height as f32,
             );
         }
@@ -273,7 +307,10 @@ fn render_workspace(
         }
         pb.close();
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -289,7 +326,10 @@ fn render_workspace(
             pb.line_to(tx(p.x as f32), ty(p.y as f32));
         }
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -309,10 +349,13 @@ fn render_workspace(
                 pb.line_to(px, py);
             }
         }
-                if let Some(path) = pb.finish() {
-                    let stroke = Stroke { width: 1.0, ..Stroke::default() };
-                    pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
-                }
+        if let Some(path) = pb.finish() {
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
     }
 
     paint.set_color(Color::from_rgba8(128, 128, 128, 255));
@@ -327,7 +370,10 @@ fn render_workspace(
             pb.line_to(tx(c.x as f32), ty(c.y as f32));
             pb.close();
             if let Some(path) = pb.finish() {
-                let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                let stroke = Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                };
                 pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
             }
         }
@@ -342,7 +388,10 @@ fn render_workspace(
                     pb.move_to(tx(start.x as f32), ty(start.y as f32));
                     pb.line_to(tx(end.x as f32), ty(end.y as f32));
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                        let stroke = Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -363,7 +412,10 @@ fn render_workspace(
                         }
                     }
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                        let stroke = Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -374,7 +426,10 @@ fn render_workspace(
                     pb.move_to(tx(sp.x as f32), ty(sp.y as f32));
                     pb.line_to(tx(ep.x as f32), ty(ep.y as f32));
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                        let stroke = Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -383,19 +438,27 @@ fn render_workspace(
     }
 
     for (idx, p) in data.points.iter().enumerate() {
-        let style_idx = styles.style_indices
-            .borrow()
-            .get(idx)
+        let style_idx = styles.style_indices.borrow().get(idx).copied().unwrap_or(0);
+        let style = styles
+            .point_styles
+            .get(style_idx)
             .copied()
-            .unwrap_or(0);
-        let style = styles.point_styles.get(style_idx).copied().unwrap_or(PointStyle::new(PointSymbol::Circle, [0, 255, 0], 3.0));
+            .unwrap_or(PointStyle::new(PointSymbol::Circle, [0, 255, 0], 3.0));
         let selected = state.selected.borrow().contains(&idx);
         let color = if selected { [255, 255, 0] } else { style.color };
         paint.set_color(Color::from_rgba8(color[0], color[1], color[2], 255));
         match style.symbol {
             PointSymbol::Circle => {
-                if let Some(c) = PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), style.size) {
-                    pixmap.fill_path(&c, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+                if let Some(c) =
+                    PathBuilder::from_circle(tx(p.x as f32), ty(p.y as f32), style.size)
+                {
+                    pixmap.fill_path(
+                        &c,
+                        &paint,
+                        tiny_skia::FillRule::Winding,
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
             PointSymbol::Square => {
@@ -407,7 +470,13 @@ fn render_workspace(
                 pb.line_to(tx(p.x as f32 - half), ty(p.y as f32 + half));
                 pb.close();
                 if let Some(path) = pb.finish() {
-                    pixmap.fill_path(&path, &paint, tiny_skia::FillRule::Winding, Transform::identity(), None);
+                    pixmap.fill_path(
+                        &path,
+                        &paint,
+                        tiny_skia::FillRule::Winding,
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
             PointSymbol::Cross => {
@@ -416,13 +485,31 @@ fn render_workspace(
                 pb.move_to(tx(p.x as f32 - half), ty(p.y as f32 - half));
                 pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 + half));
                 if let Some(path) = pb.finish() {
-                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
+                        Transform::identity(),
+                        None,
+                    );
                 }
                 let mut pb = PathBuilder::new();
                 pb.move_to(tx(p.x as f32 - half), ty(p.y as f32 + half));
                 pb.line_to(tx(p.x as f32 + half), ty(p.y as f32 - half));
                 if let Some(path) = pb.finish() {
-                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
         }
@@ -515,6 +602,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // Register bundled font before creating the window
     sharedfontdb::register_font_from_memory(FONT_DATA).unwrap();
     let app = MainWindow::new()?;
+    let window_size = Rc::new(RefCell::new(app.window().size()));
 
     // example data so the 2D workspace has something to draw
     let example_line = Line::new(Point::new(0.0, 0.0), Point::new(50.0, 50.0));
@@ -547,7 +635,10 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let line_styles = survey_cad::styles::default_line_styles();
     let line_label_styles = survey_cad::styles::default_line_label_styles();
-    let line_style_names: Vec<SharedString> = line_styles.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+    let line_style_names: Vec<SharedString> = line_styles
+        .iter()
+        .map(|(n, _)| SharedString::from(n.clone()))
+        .collect();
     let line_style_values: Vec<LineStyle> = line_styles.iter().map(|(_, s)| *s).collect();
 
     let render_image = {
@@ -570,10 +661,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let label_style = line_label_styles[0].1.clone();
         move || {
-            let size = app_weak
-                .upgrade()
-                .map(|a| a.window().inner_size())
-                .unwrap();
+            let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
             render_workspace(
                 &WorkspaceRenderData {
                     points: &point_db.borrow(),
@@ -736,7 +824,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut ds = drag_select.borrow_mut();
                 if ds.active {
                     if let Some(app) = weak.upgrade() {
-                        let size = app.window().inner_size();
+                        let size = app.window().size();
                         let p1 = screen_to_workspace(
                             ds.start.0,
                             ds.start.1,
@@ -911,7 +999,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     let (result, len) = {
                         let mut db_ref = point_db.borrow_mut();
-                        let res = survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None);
+                        let res =
+                            survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None);
                         let len = db_ref.len();
                         (res, len)
                     };
@@ -1884,13 +1973,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             let len = {
                                 let mut db = point_db.borrow_mut();
                                 db.clear();
-                                db.extend(
-                                    ents.into_iter()
-                                        .filter_map(|e| match e {
-                                            survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
-                                            _ => None,
-                                        })
-                                );
+                                db.extend(ents.into_iter().filter_map(|e| match e {
+                                    survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
+                                    _ => None,
+                                }));
                                 db.len()
                             };
                             if let Some(app) = weak.upgrade() {
@@ -2144,7 +2230,8 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
-                    if let Err(e) = survey_cad::io::shp::write_points_shp(p, &point_db.borrow(), None)
+                    if let Err(e) =
+                        survey_cad::io::shp::write_points_shp(p, &point_db.borrow(), None)
                     {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
@@ -2380,7 +2467,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     .iter()
                     .enumerate()
                     .map(|(i, (s, e))| {
-                        if line_style_indices.borrow().len() <= i { line_style_indices.borrow_mut().push(0); }
+                        if line_style_indices.borrow().len() <= i {
+                            line_style_indices.borrow_mut().push(0);
+                        }
                         LineRow {
                             start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
                             end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
@@ -2597,10 +2686,18 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     let backend_render = backend.clone();
+    let window_size_rc = window_size.clone();
     app.window()
         .set_rendering_notifier(move |state, _| {
             if let slint::RenderingState::BeforeRendering = state {
                 if let Some(app) = weak.upgrade() {
+                    let current_size = app.window().size();
+                    if *window_size_rc.borrow() != current_size {
+                        backend_render
+                            .borrow_mut()
+                            .resize(current_size.width, current_size.height);
+                        *window_size_rc.borrow_mut() = current_size;
+                    }
                     let image = backend_render.borrow_mut().render();
                     app.set_workspace_texture(image);
                     app.window().request_redraw();
