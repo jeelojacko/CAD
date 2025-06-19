@@ -24,7 +24,11 @@ use rusttype::{Font, Scale, point};
 
 slint::include_modules!();
 
-static FONT_DATA: &[u8] = include_bytes!("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf");
+// Load font from the crate's `assets` directory. The binary font file is not
+// committed to the repository; place `DejaVuSans.ttf` inside the `assets`
+// folder next to this crate's `Cargo.toml`.
+static FONT_DATA: &[u8] =
+    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/DejaVuSans.ttf"));
 static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
 
 struct WorkspaceRenderData<'a> {
