@@ -599,8 +599,11 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 
 fn main() -> Result<(), slint::PlatformError> {
     let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
-    // Register bundled font before creating the window
-    sharedfontdb::register_font_from_memory(FONT_DATA).unwrap();
+    // Register bundled font before creating the window. If registration fails
+    // we fall back to the system fonts so the application remains usable.
+    if let Err(err) = sharedfontdb::register_font_from_memory(FONT_DATA) {
+        eprintln!("Failed to register bundled font: {err}. Falling back to system fonts");
+    }
     let app = MainWindow::new()?;
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
