@@ -635,10 +635,29 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let line_styles = survey_cad::styles::default_line_styles();
     let line_label_styles = survey_cad::styles::default_line_label_styles();
-    let line_style_names: Vec<SharedString> = line_styles
-        .iter()
-        .map(|(n, _)| SharedString::from(n.clone()))
-        .collect();
+    let line_style_names: Rc<Vec<SharedString>> = Rc::new(
+        line_styles
+            .iter()
+            .map(|(n, _)| SharedString::from(n.clone()))
+            .collect(),
+    );
+    let open_line_style_managers: Rc<RefCell<Vec<slint::Weak<LineStyleManager>>>> =
+        Rc::new(RefCell::new(Vec::new()));
+    let refresh_line_style_dialogs: Rc<dyn Fn()> = {
+        let dialogs = open_line_style_managers.clone();
+        let style_names = line_style_names.clone();
+        Rc::new(move || {
+            let model = Rc::new(VecModel::from((*style_names).clone()));
+            dialogs.borrow_mut().retain(|d| {
+                if let Some(dlg) = d.upgrade() {
+                    dlg.set_styles_model(model.clone().into());
+                    true
+                } else {
+                    false
+                }
+            });
+        })
+    };
     let line_style_values: Vec<LineStyle> = line_styles.iter().map(|(_, s)| *s).collect();
 
     let render_image = {
@@ -977,6 +996,7 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
                 if app.get_workspace_mode() == 0 {
@@ -1079,6 +1099,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
                                     line_style_indices.borrow_mut().push(0);
+                                    refresh_line_style_dialogs();
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total lines: {}",
@@ -1136,6 +1157,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
                                     line_style_indices.borrow_mut().push(0);
+                                    refresh_line_style_dialogs();
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total lines: {}",
@@ -2459,8 +2481,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let line_style_names = line_style_names.clone();
         let render_image = render_image.clone();
+        let dialogs = open_line_style_managers.clone();
         app.on_line_style_manager(move || {
             let dlg = LineStyleManager::new().unwrap();
+            dialogs.borrow_mut().push(dlg.as_weak());
             let model = Rc::new(VecModel::<LineRow>::from(
                 lines
                     .borrow()
@@ -2479,7 +2503,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     .collect::<Vec<_>>(),
             ));
             dlg.set_lines_model(model.clone().into());
-            dlg.set_styles_model(Rc::new(VecModel::from(line_style_names.clone())).into());
+            dlg.set_styles_model(Rc::new(VecModel::from((*line_style_names).clone())).into());
             dlg.set_selected_index(-1);
 
             {
@@ -2675,6 +2699,7 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Cleared workspace"));
                 if app.get_workspace_mode() == 0 {
