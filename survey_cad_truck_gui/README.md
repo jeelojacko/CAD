@@ -19,3 +19,10 @@ cargo build -p survey_cad_truck_gui
 
 Rebuilding ensures that any changes in the `.slint` files are reflected in the
 Rust code via the generated bindings.
+
+## Fonts
+
+This application bundles the `DejaVuSans.ttf` font located in the `assets/`
+directory. The build script checks for this file and aborts if it is missing.
+Replace it with a different font by copying the `.ttf` file into `assets/` before
+running `cargo build`.
