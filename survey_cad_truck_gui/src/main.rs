@@ -50,6 +50,23 @@ struct DragSelect {
     active: bool,
 }
 
+struct RenderState<'a> {
+    offset: &'a Rc<RefCell<Vec2>>,
+    zoom: &'a Rc<RefCell<f32>>,
+    selected: &'a Rc<RefCell<Vec<usize>>>,
+    selected_lines: &'a Rc<RefCell<Vec<(Point, Point)>>>,
+    drag: &'a Rc<RefCell<DragSelect>>,
+}
+
+struct RenderStyles<'a> {
+    point_styles: &'a [PointStyle],
+    style_indices: &'a Rc<RefCell<Vec<usize>>>,
+    line_styles: &'a [LineStyle],
+    line_style_indices: &'a Rc<RefCell<Vec<usize>>>,
+    show_labels: bool,
+    label_style: &'a LineLabelStyle,
+}
+
 fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size: f32) {
     let scale = Scale::uniform(size);
     let v_metrics = FONT.v_metrics(scale);
@@ -96,17 +113,8 @@ fn screen_to_workspace(
 
 fn render_workspace(
     data: &WorkspaceRenderData,
-    offset: &Rc<RefCell<Vec2>>,
-    zoom: &Rc<RefCell<f32>>,
-    selected: &Rc<RefCell<Vec<usize>>>,
-    selected_lines: &Rc<RefCell<Vec<(Point, Point)>>>,
-    drag: &Rc<RefCell<DragSelect>>,
-    point_styles: &[PointStyle],
-    style_indices: &Rc<RefCell<Vec<usize>>>,
-    line_styles: &[LineStyle],
-    line_style_indices: &Rc<RefCell<Vec<usize>>>,
-    show_labels: bool,
-    label_style: &LineLabelStyle,
+    state: &RenderState,
+    styles: &RenderStyles,
 ) -> Image {
     const WIDTH: u32 = 600;
     const HEIGHT: u32 = 400;
@@ -121,8 +129,8 @@ fn render_workspace(
     };
     let origin_x = WIDTH as f32 / 2.0;
     let origin_y = HEIGHT as f32 / 2.0;
-    let zoom_val = *zoom.borrow();
-    let off = offset.borrow();
+    let zoom_val = *state.zoom.borrow();
+    let off = state.offset.borrow();
     let off_x = off.x;
     let off_y = off.y;
     drop(off);
@@ -185,16 +193,16 @@ fn render_workspace(
 
     paint.set_color(Color::from_rgba8(255, 0, 0, 255));
     for (i, (s, e)) in data.lines.iter().enumerate() {
-        let selected = selected_lines
+        let selected = state.selected_lines
             .borrow()
             .iter()
             .any(|(ls, le)| (*ls == *s && *le == *e) || (*ls == *e && *le == *s));
-        let style_idx = line_style_indices
+        let style_idx = styles.line_style_indices
             .borrow()
             .get(i)
             .copied()
             .unwrap_or(0);
-        let mut style = line_styles.get(style_idx).copied().unwrap_or_default();
+        let mut style = styles.line_styles.get(style_idx).copied().unwrap_or_default();
         if selected {
             style.color = [255, 255, 0];
         }
@@ -218,7 +226,7 @@ fn render_workspace(
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
 
-        if show_labels {
+        if styles.show_labels {
             let line = Line::new(*s, *e);
             let ann = LineAnnotation::from_line(&line);
             let mut angle = 90.0 - ann.azimuth.to_degrees();
@@ -231,7 +239,7 @@ fn render_workspace(
             let (ox, oy) = if len > 0.0 {
                 let nx = dx / len;
                 let ny = dy / len;
-                match label_style.position {
+                match styles.label_style.position {
                     LineLabelPosition::Above => (-ny as f32, nx as f32),
                     LineLabelPosition::Below => (ny as f32, -nx as f32),
                     LineLabelPosition::Center => (0.0, 0.0),
@@ -242,8 +250,8 @@ fn render_workspace(
                 &text,
                 tx(mid.x as f32 + ox * 10.0),
                 ty(mid.y as f32 + oy * 10.0),
-                Color::from_rgba8(label_style.color[0], label_style.color[1], label_style.color[2], 255),
-                label_style.text_style.height as f32,
+                Color::from_rgba8(styles.label_style.color[0], styles.label_style.color[1], styles.label_style.color[2], 255),
+                styles.label_style.text_style.height as f32,
             );
         }
     }
@@ -370,13 +378,13 @@ fn render_workspace(
     }
 
     for (idx, p) in data.points.iter().enumerate() {
-        let style_idx = style_indices
+        let style_idx = styles.style_indices
             .borrow()
             .get(idx)
             .copied()
             .unwrap_or(0);
-        let style = point_styles.get(style_idx).copied().unwrap_or(PointStyle::new(PointSymbol::Circle, [0, 255, 0], 3.0));
-        let selected = selected.borrow().contains(&idx);
+        let style = styles.point_styles.get(style_idx).copied().unwrap_or(PointStyle::new(PointSymbol::Circle, [0, 255, 0], 3.0));
+        let selected = state.selected.borrow().contains(&idx);
         let color = if selected { [255, 255, 0] } else { style.color };
         paint.set_color(Color::from_rgba8(color[0], color[1], color[2], 255));
         match style.symbol {
@@ -415,8 +423,8 @@ fn render_workspace(
         }
     }
 
-    if drag.borrow().active {
-        let ds = drag.borrow();
+    if state.drag.borrow().active {
+        let ds = state.drag.borrow();
         let x1 = ds.start.0.min(ds.end.0);
         let y1 = ds.start.1.min(ds.end.1);
         let x2 = ds.start.0.max(ds.end.0);
@@ -564,17 +572,21 @@ fn main() -> Result<(), slint::PlatformError> {
                     surfaces: &surfaces.borrow(),
                     alignments: &alignments.borrow(),
                 },
-                &offset,
-                &zoom,
-                &selected_indices,
-                &selected_lines,
-                &drag_select,
-                &point_styles,
-                &style_indices,
-                &line_styles_vals,
-                &line_style_indices,
-                true,
-                &label_style,
+                &RenderState {
+                    offset: &offset,
+                    zoom: &zoom,
+                    selected: &selected_indices,
+                    selected_lines: &selected_lines,
+                    drag: &drag_select,
+                },
+                &RenderStyles {
+                    point_styles: &point_styles,
+                    style_indices: &style_indices,
+                    line_styles: &line_styles_vals,
+                    line_style_indices: &line_style_indices,
+                    show_labels: true,
+                    label_style: &label_style,
+                },
             )
         }
     };
@@ -1047,7 +1059,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     point_style_indices.borrow_mut().clear();
                                     point_style_indices
                                         .borrow_mut()
-                                        .extend(std::iter::repeat(0).take(db.len()));
+                                        .extend(std::iter::repeat_n(0, db.len()));
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Loaded {} points",
@@ -1513,7 +1525,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .collect();
             if !line_chain.is_empty() {
                 let mut chain = Vec::new();
-                let mut current = line_chain.pop().unwrap();
+                let current = line_chain.pop().unwrap();
                 chain.push(current.start);
                 chain.push(current.end);
                 let mut last = current.end;
