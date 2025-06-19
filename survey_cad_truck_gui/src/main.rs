@@ -873,13 +873,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
-                    let mut db_ref = point_db.borrow_mut();
-                    match survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None) {
+                    let (result, len) = {
+                        let mut db_ref = point_db.borrow_mut();
+                        let res = survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None);
+                        let len = db_ref.len();
+                        (res, len)
+                    };
+                    match result {
                         Ok(()) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Loaded {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1057,17 +1062,20 @@ fn main() -> Result<(), slint::PlatformError> {
                         if let Some(p) = path.to_str() {
                             match survey_cad::io::read_points_csv(p, None, None) {
                                 Ok(pts) => {
-                                    let mut db = point_db.borrow_mut();
-                                    db.clear();
-                                    db.extend(pts);
-                                    point_style_indices.borrow_mut().clear();
-                                    point_style_indices
-                                        .borrow_mut()
-                                        .extend(std::iter::repeat_n(0, db.len()));
+                                    let len = {
+                                        let mut db = point_db.borrow_mut();
+                                        db.clear();
+                                        db.extend(pts);
+                                        point_style_indices.borrow_mut().clear();
+                                        point_style_indices
+                                            .borrow_mut()
+                                            .extend(std::iter::repeat_n(0, db.len()));
+                                        db.len()
+                                    };
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Loaded {} points",
-                                            point_db.borrow().len()
+                                            len
                                         )));
                                         if app.get_workspace_mode() == 0 {
                                             app.set_workspace_image(render_image());
@@ -1734,13 +1742,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::read_points_geojson(p, None, None) {
                         Ok(pts) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(pts);
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts);
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1774,13 +1785,16 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "kml")]
                     match survey_cad::io::kml::read_points_kml(p) {
                         Ok(pts) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(pts);
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts);
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1817,19 +1831,22 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::read_dxf(p) {
                         Ok(ents) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(
-                                ents.into_iter()
-                                .filter_map(|e| match e {
-                                    survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
-                                    _ => None,
-                                })
-                            );
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(
+                                    ents.into_iter()
+                                        .filter_map(|e| match e {
+                                            survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
+                                            _ => None,
+                                        })
+                                );
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1863,13 +1880,16 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "shapefile")]
                     match survey_cad::io::shp::read_points_shp(p) {
                         Ok((pts, _)) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(pts);
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts);
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1907,13 +1927,16 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "las")]
                     match survey_cad::io::las::read_points_las(p) {
                         Ok(pts3) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -1951,13 +1974,16 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "e57")]
                     match survey_cad::io::e57::read_points_e57(p) {
                         Ok(pts3) => {
-                            let mut db = point_db.borrow_mut();
-                            db.clear();
-                            db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
+                                db.len()
+                            };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
                                     "Imported {} points",
-                                    point_db.borrow().len()
+                                    len
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
