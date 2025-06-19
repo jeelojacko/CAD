@@ -27,4 +27,8 @@ impl TruckBackend {
     pub fn zoom(&mut self, delta: f64) {
         self.engine.zoom_camera(delta);
     }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.engine.resize(width, height);
+    }
 }

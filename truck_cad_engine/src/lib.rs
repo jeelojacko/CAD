@@ -25,13 +25,19 @@ impl TruckCadEngine {
         };
         let scene = block_on(Scene::from_default_device(&scene_desc));
         let creator = scene.instance_creator();
-        Self { scene, creator, instances: Vec::new() }
+        Self {
+            scene,
+            creator,
+            instances: Vec::new(),
+        }
     }
 
     /// Add a solid model to the scene.
     pub fn add_solid(&mut self, solid: truck::topology::Solid) {
         let mesh = solid.triangulation(0.01).to_polygon();
-        let instance = self.creator.create_instance(&mesh, &PolygonState::default());
+        let instance = self
+            .creator
+            .create_instance(&mesh, &PolygonState::default());
         self.scene.add_object(&instance);
         self.instances.push(instance);
     }
@@ -80,5 +86,11 @@ impl TruckCadEngine {
         let camera = &mut self.scene.studio_config_mut().camera;
         let dir = camera.eye_direction();
         camera.matrix = Matrix4::from_translation(dir * (delta * 0.002)) * camera.matrix;
+    }
+
+    /// Resize the render target.
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let mut desc = self.scene.descriptor_mut();
+        desc.render_texture.canvas_size = (width, height);
     }
 }
