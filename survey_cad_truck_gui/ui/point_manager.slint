@@ -52,7 +52,17 @@ export component PointManager inherits Window {
                 height: 24px;
                 HorizontalLayout {
                     spacing: 8px;
-                    Text { text: row.number; width: 30px; }
+                    Text {
+                        text: row.number;
+                        width: 30px;
+                        TouchArea {
+                            x: 0px;
+                            y: 0px;
+                            width: parent.width;
+                            height: parent.height;
+                            clicked => { root.selected_index = i; }
+                        }
+                    }
                     LineEdit { text: row.name; horizontal-stretch: 1; edited(text) => { root.edit_name(i, text); } }
                     LineEdit { text: row.x; width: 60px; edited(text) => { root.edit_x(i, text); } }
                     LineEdit { text: row.y; width: 60px; edited(text) => { root.edit_y(i, text); } }
@@ -69,7 +79,6 @@ export component PointManager inherits Window {
                         width: 80px;
                     }
                 }
-                TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
             }
         }
         HorizontalBox {
