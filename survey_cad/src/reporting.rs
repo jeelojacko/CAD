@@ -6,7 +6,10 @@ use umya_spreadsheet::{self, writer::xlsx, Spreadsheet};
 
 #[cfg(feature = "reporting")]
 fn write_pdf(path: &str, title: &str, rows: &[String]) -> std::io::Result<()> {
-    let font_family = genpdf::fonts::from_files("/usr/share/fonts", "LiberationSans", None)
+    // Load fonts from the crate's `assets` directory. The font files are not
+    // stored in the repository; place them in `survey_cad/assets` as needed.
+    let font_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/assets");
+    let font_family = genpdf::fonts::from_files(font_dir, "DejaVuSans", None)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
     let mut doc = Document::new(font_family);
     doc.set_title(title);
