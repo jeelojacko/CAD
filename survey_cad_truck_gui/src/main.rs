@@ -8,7 +8,9 @@ use std::rc::Rc;
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
-use survey_cad::geometry::{Arc, Line, Point, Polyline, PointSymbol, LineAnnotation, LineStyle};
+use survey_cad::geometry::{
+    Arc, Line, Point, Polyline, PointSymbol, LineAnnotation, LineStyle, LineType,
+};
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::styles::{LineLabelStyle, LineLabelPosition};
 use survey_cad::point_database::PointDatabase;
@@ -60,13 +62,18 @@ fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size
                 let py = gy as i32 + bb.min.y;
                 if px >= 0 && py >= 0 && (px as u32) < pixmap.width() && (py as u32) < pixmap.height() {
                     let idx = (py as u32 * pixmap.width() + px as u32) as usize;
-                    pixmap.pixels_mut()[idx] = tiny_skia::PremultipliedColorU8::from_rgba_unchecked(
-                        color.red(), color.green(), color.blue(), (gv * 255.0) as u8,
-                    );
+                    pixmap.pixels_mut()[idx] =
+                        tiny_skia::ColorU8::from_rgba(
+                            (color.red() * 255.0) as u8,
+                            (color.green() * 255.0) as u8,
+                            (color.blue() * 255.0) as u8,
+                            (gv * 255.0) as u8,
+                        )
+                        .premultiply();
                 }
             });
         }
-        cursor += glyph.h_metrics().advance_width;
+        cursor += glyph.unpositioned().h_metrics().advance_width;
     }
 }
 
@@ -193,7 +200,7 @@ fn render_workspace(
         }
         paint.set_color(Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255));
         let mut stroke = Stroke { width: style.weight.0, ..Stroke::default() };
-        use tiny_skia_path::StrokeDash;
+        use tiny_skia::StrokeDash;
         match style.line_type {
             LineType::Dashed => {
                 stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0);
@@ -207,6 +214,7 @@ fn render_workspace(
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
         if let Some(path) = pb.finish() {
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
 
@@ -252,6 +260,7 @@ fn render_workspace(
         }
         pb.close();
         if let Some(path) = pb.finish() {
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -267,6 +276,7 @@ fn render_workspace(
             pb.line_to(tx(p.x as f32), ty(p.y as f32));
         }
         if let Some(path) = pb.finish() {
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -286,9 +296,10 @@ fn render_workspace(
                 pb.line_to(px, py);
             }
         }
-        if let Some(path) = pb.finish() {
-            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
-        }
+                if let Some(path) = pb.finish() {
+                    let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                    pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+                }
     }
 
     paint.set_color(Color::from_rgba8(128, 128, 128, 255));
@@ -303,6 +314,7 @@ fn render_workspace(
             pb.line_to(tx(c.x as f32), ty(c.y as f32));
             pb.close();
             if let Some(path) = pb.finish() {
+                let stroke = Stroke { width: 1.0, ..Stroke::default() };
                 pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
             }
         }
@@ -317,6 +329,7 @@ fn render_workspace(
                     pb.move_to(tx(start.x as f32), ty(start.y as f32));
                     pb.line_to(tx(end.x as f32), ty(end.y as f32));
                     if let Some(path) = pb.finish() {
+                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -337,6 +350,7 @@ fn render_workspace(
                         }
                     }
                     if let Some(path) = pb.finish() {
+                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -347,6 +361,7 @@ fn render_workspace(
                     pb.move_to(tx(sp.x as f32), ty(sp.y as f32));
                     pb.line_to(tx(ep.x as f32), ty(ep.y as f32));
                     if let Some(path) = pb.finish() {
+                        let stroke = Stroke { width: 1.0, ..Stroke::default() };
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -896,7 +911,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let lines = lines.clone();
         let render_image = render_image.clone();
+        let line_style_indices = line_style_indices.clone();
         app.on_add_line(move || {
+            let line_style_indices = line_style_indices.clone();
             let dlg = AddLineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             {
@@ -904,6 +921,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let line_style_indices = line_style_indices.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -945,6 +963,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let line_style_indices = line_style_indices.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -956,6 +975,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let lines = lines.clone();
                         let render_image = render_image.clone();
                         let weak = weak.clone();
+                        let line_style_indices = line_style_indices.clone();
                         kd.on_accept(move || {
                             if let Some(dlg) = kd_weak2.upgrade() {
                                 if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
@@ -2056,7 +2076,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "las")]
                     {
-                        let pts3: Vec<survey_cad::geometry::Point3> = points
+                        let pts3: Vec<survey_cad::geometry::Point3> = point_db
                             .borrow()
                             .iter()
                             .map(|pt| survey_cad::geometry::Point3::new(pt.x, pt.y, 0.0))
@@ -2092,7 +2112,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "e57")]
                     {
-                        let pts3: Vec<survey_cad::geometry::Point3> = points
+                        let pts3: Vec<survey_cad::geometry::Point3> = point_db
                             .borrow()
                             .iter()
                             .map(|pt| survey_cad::geometry::Point3::new(pt.x, pt.y, 0.0))
