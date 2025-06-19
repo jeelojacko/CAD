@@ -2,6 +2,7 @@
 
 use slint::platform::PointerEventButton;
 use slint::{Image, SharedString, VecModel, Model};
+use i_slint_common::sharedfontdb;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -511,6 +512,8 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 
 fn main() -> Result<(), slint::PlatformError> {
     let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
+    // Register bundled font before creating the window
+    sharedfontdb::register_font_from_memory(FONT_DATA).unwrap();
     let app = MainWindow::new()?;
 
     // example data so the 2D workspace has something to draw
