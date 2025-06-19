@@ -57,12 +57,19 @@ struct DragSelect {
     active: bool,
 }
 
+#[derive(Default, Clone)]
+struct CursorFeedback {
+    pos: (f32, f32),
+    frame: u32,
+}
+
 struct RenderState<'a> {
     offset: &'a Rc<RefCell<Vec2>>,
     zoom: &'a Rc<RefCell<f32>>,
     selected: &'a Rc<RefCell<Vec<usize>>>,
     selected_lines: &'a Rc<RefCell<Vec<(Point, Point)>>>,
     drag: &'a Rc<RefCell<DragSelect>>,
+    cursor_feedback: &'a Rc<RefCell<Option<CursorFeedback>>>,
 }
 
 struct RenderStyles<'a> {
@@ -536,6 +543,19 @@ fn render_workspace(
             pixmap.stroke_path(&path, &paint, &rect_stroke, Transform::identity(), None);
         }
     }
+
+    if let Some(cf) = state.cursor_feedback.borrow().as_ref() {
+        let t = (cf.frame % 30) as f32 / 30.0;
+        paint.set_color(Color::from_rgba8((255.0 * t) as u8, (255.0 * (1.0 - t)) as u8, 0, 255));
+        let mut pb = PathBuilder::new();
+        pb.move_to(cf.pos.0 - 5.0, cf.pos.1);
+        pb.line_to(cf.pos.0 + 5.0, cf.pos.1);
+        pb.move_to(cf.pos.0, cf.pos.1 - 5.0);
+        pb.line_to(cf.pos.0, cf.pos.1 + 5.0);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+        }
+    }
     let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
         pixmap.data(),
         width,
@@ -627,6 +647,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let selected_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let selected_lines = Rc::new(RefCell::new(Vec::<(Point, Point)>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
+    let cursor_feedback = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_styles = survey_cad::styles::default_point_styles();
     let point_style_names: Vec<SharedString> = point_styles
@@ -681,6 +702,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_styles = point_style_values.clone();
         let line_styles_vals = line_style_values.clone();
         let line_style_indices = line_style_indices.clone();
+        let cursor_feedback = cursor_feedback.clone();
         let label_style = line_label_styles[0].1.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
@@ -700,6 +722,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     selected: &selected_indices,
                     selected_lines: &selected_lines,
                     drag: &drag_select,
+                    cursor_feedback: &cursor_feedback,
                 },
                 &RenderStyles {
                     point_styles: &point_styles,
@@ -835,11 +858,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset = offset.clone();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
+        let cursor_feedback = cursor_feedback.clone();
         let weak = app.as_weak();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
             *pan_2d_flag.borrow_mut() = false;
+            *cursor_feedback.borrow_mut() = None;
 
             let mut update = false;
             {
@@ -909,6 +934,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let zoom = zoom.clone();
         let render_image = render_image.clone();
         let drag_select = drag_select.clone();
+        let cursor_feedback = cursor_feedback.clone();
         let weak = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
@@ -917,8 +943,14 @@ fn main() -> Result<(), slint::PlatformError> {
             *last = (x as f64, y as f64);
             if *rotate_flag.borrow() {
                 backend.borrow_mut().rotate(dx, dy);
+                if let Some(app) = weak.upgrade() {
+                    app.window().request_redraw();
+                }
             } else if *pan_flag.borrow() {
                 backend.borrow_mut().pan(dx, dy);
+                if let Some(app) = weak.upgrade() {
+                    app.window().request_redraw();
+                }
             }
 
             let mut last2 = last_pos_2d.borrow_mut();
@@ -946,6 +978,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
             }
+
+            *cursor_feedback.borrow_mut() = Some(CursorFeedback { pos: (x, y), frame: 0 });
         });
     }
 
@@ -958,6 +992,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_mode() == 1 {
                     backend.borrow_mut().zoom(dy as f64);
+                    app.window().request_redraw();
                 } else {
                     let new_zoom = {
                         let mut z = zoom.borrow_mut();
@@ -2733,6 +2768,23 @@ fn main() -> Result<(), slint::PlatformError> {
             }
         })
         .unwrap();
+
+    {
+        let cursor_feedback = cursor_feedback.clone();
+        let weak = app.as_weak();
+        app.window().set_animation_frame_callback(move || {
+            if let Some(app) = weak.upgrade() {
+                if let Some(ref mut cf) = *cursor_feedback.borrow_mut() {
+                    cf.frame = cf.frame.wrapping_add(1);
+                    if cf.frame < 60 {
+                        app.window().request_redraw();
+                    } else {
+                        *cursor_feedback.borrow_mut() = None;
+                    }
+                }
+            }
+        });
+    }
 
     app.window().request_redraw();
 
