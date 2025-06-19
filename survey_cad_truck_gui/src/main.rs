@@ -104,11 +104,11 @@ fn screen_to_workspace(
     y: f32,
     offset: &Rc<RefCell<Vec2>>,
     zoom: &Rc<RefCell<f32>>,
+    width: f32,
+    height: f32,
 ) -> Point {
-    const WIDTH: f32 = 600.0;
-    const HEIGHT: f32 = 400.0;
-    let origin_x = WIDTH / 2.0;
-    let origin_y = HEIGHT / 2.0;
+    let origin_x = width / 2.0;
+    let origin_y = height / 2.0;
     let z = *zoom.borrow();
     let off = offset.borrow();
     let wx = (x - origin_x) / z - off.x;
@@ -120,10 +120,10 @@ fn render_workspace(
     data: &WorkspaceRenderData,
     state: &RenderState,
     styles: &RenderStyles,
+    width: u32,
+    height: u32,
 ) -> Image {
-    const WIDTH: u32 = 600;
-    const HEIGHT: u32 = 400;
-    let mut pixmap = Pixmap::new(WIDTH, HEIGHT).unwrap();
+    let mut pixmap = Pixmap::new(width, height).unwrap();
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(60, 60, 60, 255));
@@ -132,8 +132,8 @@ fn render_workspace(
         width: 1.0,
         ..Stroke::default()
     };
-    let origin_x = WIDTH as f32 / 2.0;
-    let origin_y = HEIGHT as f32 / 2.0;
+    let origin_x = width as f32 / 2.0;
+    let origin_y = height as f32 / 2.0;
     let zoom_val = *state.zoom.borrow();
     let off = state.offset.borrow();
     let off_x = off.x;
@@ -143,10 +143,10 @@ fn render_workspace(
     let ty = |y: f32| origin_y - (y + off_y) * zoom_val;
     let step = 50.0 * zoom_val;
     let mut x = origin_x;
-    while x < WIDTH as f32 {
+    while x < width as f32 {
         let mut pb = PathBuilder::new();
         pb.move_to(x, 0.0);
-        pb.line_to(x, HEIGHT as f32);
+        pb.line_to(x, height as f32);
         if let Some(p) = pb.finish() {
             pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
         }
@@ -156,17 +156,17 @@ fn render_workspace(
     while x >= 0.0 {
         let mut pb = PathBuilder::new();
         pb.move_to(x, 0.0);
-        pb.line_to(x, HEIGHT as f32);
+        pb.line_to(x, height as f32);
         if let Some(p) = pb.finish() {
             pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
         }
         x -= step;
     }
     let mut y = origin_y;
-    while y < HEIGHT as f32 {
+    while y < height as f32 {
         let mut pb = PathBuilder::new();
         pb.move_to(0.0, y);
-        pb.line_to(WIDTH as f32, y);
+        pb.line_to(width as f32, y);
         if let Some(p) = pb.finish() {
             pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
         }
@@ -176,7 +176,7 @@ fn render_workspace(
     while y >= 0.0 {
         let mut pb = PathBuilder::new();
         pb.move_to(0.0, y);
-        pb.line_to(WIDTH as f32, y);
+        pb.line_to(width as f32, y);
         if let Some(p) = pb.finish() {
             pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
         }
@@ -185,13 +185,13 @@ fn render_workspace(
     paint.set_color(Color::from_rgba8(90, 90, 90, 255));
     let mut pb = PathBuilder::new();
     pb.move_to(origin_x, 0.0);
-    pb.line_to(origin_x, HEIGHT as f32);
+    pb.line_to(origin_x, height as f32);
     if let Some(path) = pb.finish() {
         pixmap.stroke_path(&path, &paint, &grid_stroke, Transform::identity(), None);
     }
     let mut pb = PathBuilder::new();
     pb.move_to(0.0, origin_y);
-    pb.line_to(WIDTH as f32, origin_y);
+    pb.line_to(width as f32, origin_y);
     if let Some(path) = pb.finish() {
         pixmap.stroke_path(&path, &paint, &grid_stroke, Transform::identity(), None);
     }
@@ -451,8 +451,8 @@ fn render_workspace(
     }
     let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
         pixmap.data(),
-        WIDTH,
-        HEIGHT,
+        width,
+        height,
     );
     Image::from_rgba8_premultiplied(buffer)
 }
@@ -551,6 +551,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_style_values: Vec<LineStyle> = line_styles.iter().map(|(_, s)| *s).collect();
 
     let render_image = {
+        let app_weak = app.as_weak();
         let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();
@@ -569,6 +570,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let label_style = line_label_styles[0].1.clone();
         move || {
+            let size = app_weak
+                .upgrade()
+                .map(|a| a.window().inner_size())
+                .unwrap();
             render_workspace(
                 &WorkspaceRenderData {
                     points: &point_db.borrow(),
@@ -594,6 +599,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     show_labels: true,
                     label_style: &label_style,
                 },
+                size.width,
+                size.height,
             )
         }
     };
@@ -728,28 +735,45 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let mut ds = drag_select.borrow_mut();
                 if ds.active {
-                    let p1 = screen_to_workspace(ds.start.0, ds.start.1, &offset, &zoom);
-                    let p2 = screen_to_workspace(ds.end.0, ds.end.1, &offset, &zoom);
-                    let min_x = p1.x.min(p2.x);
-                    let max_x = p1.x.max(p2.x);
-                    let min_y = p1.y.min(p2.y);
-                    let max_y = p1.y.max(p2.y);
-                    selected_indices.borrow_mut().clear();
-                    selected_lines.borrow_mut().clear();
-                    for (i, pt) in point_db.borrow().iter().enumerate() {
-                        if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
-                            selected_indices.borrow_mut().push(i);
+                    if let Some(app) = weak.upgrade() {
+                        let size = app.window().inner_size();
+                        let p1 = screen_to_workspace(
+                            ds.start.0,
+                            ds.start.1,
+                            &offset,
+                            &zoom,
+                            size.width as f32,
+                            size.height as f32,
+                        );
+                        let p2 = screen_to_workspace(
+                            ds.end.0,
+                            ds.end.1,
+                            &offset,
+                            &zoom,
+                            size.width as f32,
+                            size.height as f32,
+                        );
+                        let min_x = p1.x.min(p2.x);
+                        let max_x = p1.x.max(p2.x);
+                        let min_y = p1.y.min(p2.y);
+                        let max_y = p1.y.max(p2.y);
+                        selected_indices.borrow_mut().clear();
+                        selected_lines.borrow_mut().clear();
+                        for (i, pt) in point_db.borrow().iter().enumerate() {
+                            if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
+                                selected_indices.borrow_mut().push(i);
+                            }
                         }
-                    }
-                    for (s, e) in lines_ref.borrow().iter() {
-                        if (s.x >= min_x && s.x <= max_x && s.y >= min_y && s.y <= max_y)
-                            && (e.x >= min_x && e.x <= max_x && e.y >= min_y && e.y <= max_y)
-                        {
-                            selected_lines.borrow_mut().push((*s, *e));
+                        for (s, e) in lines_ref.borrow().iter() {
+                            if (s.x >= min_x && s.x <= max_x && s.y >= min_y && s.y <= max_y)
+                                && (e.x >= min_x && e.x <= max_x && e.y >= min_y && e.y <= max_y)
+                            {
+                                selected_lines.borrow_mut().push((*s, *e));
+                            }
                         }
+                        ds.active = false;
+                        update = true;
                     }
-                    ds.active = false;
-                    update = true;
                 }
             }
 
