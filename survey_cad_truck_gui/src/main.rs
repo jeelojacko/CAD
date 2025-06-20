@@ -886,11 +886,11 @@ fn main() -> Result<(), slint::PlatformError> {
             if ev.button == PointerEventButton::Middle {
                 *pan_2d_flag.borrow_mut() = true;
             } else if ev.button == PointerEventButton::Left {
-                let pos = *last_pos_2d.borrow();
                 let mut ds = drag_select.borrow_mut();
-                ds.start = (pos.0 as f32, pos.1 as f32);
+                ds.start = (ev.x as f32, ev.y as f32);
                 ds.end = ds.start;
                 ds.active = true;
+                *last_pos_2d.borrow_mut() = (ev.x as f64, ev.y as f64);
             }
         });
     }
