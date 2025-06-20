@@ -743,7 +743,17 @@ impl Scene {
         let (device, queue) = (self.device(), self.queue());
 
         let (width, height) = self.scene_desc.render_texture.canvas_size;
-        let size = (width * height * 4) as u64;
+
+        // wgpu requires the bytes per row during texture copies to be aligned to
+        // `COPY_BYTES_PER_ROW_ALIGNMENT`. The render target width may not satisfy
+        // this constraint, so compute a padded row size and remove the padding
+        // after the copy has completed.
+        let bytes_per_pixel = 4u32;
+        let unpadded_bytes_per_row = width * bytes_per_pixel;
+        let align = COPY_BYTES_PER_ROW_ALIGNMENT;
+        let padded_bytes_per_row = ((unpadded_bytes_per_row + align - 1) / align) * align;
+
+        let size = padded_bytes_per_row as u64 * height as u64;
         let buffer = device.create_buffer(&BufferDescriptor {
             label: None,
             mapped_at_creation: false,
@@ -762,7 +772,7 @@ impl Scene {
                 buffer: &buffer,
                 layout: TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(width * 4),
+                    bytes_per_row: Some(padded_bytes_per_row),
                     rows_per_image: Some(height),
                 },
             },
@@ -778,7 +788,18 @@ impl Scene {
         buffer_slice.map_async(MapMode::Read, move |v| sender.send(v).unwrap());
         device.poll(PollType::Wait).unwrap();
         match receiver.receive().await {
-            Some(Ok(_)) => buffer_slice.get_mapped_range().iter().copied().collect(),
+            Some(Ok(_)) => {
+                let data = buffer_slice.get_mapped_range();
+                let mut result = vec![0u8; (unpadded_bytes_per_row * height) as usize];
+                for y in 0..height as usize {
+                    let src_start = y * padded_bytes_per_row as usize;
+                    let src_end = src_start + unpadded_bytes_per_row as usize;
+                    let dst_start = y * unpadded_bytes_per_row as usize;
+                    let dst_end = dst_start + unpadded_bytes_per_row as usize;
+                    result[dst_start..dst_end].copy_from_slice(&data[src_start..src_end]);
+                }
+                result
+            }
             Some(Err(e)) => panic!("{}", e),
             None => panic!("Asynchronous processing fails"),
         }
