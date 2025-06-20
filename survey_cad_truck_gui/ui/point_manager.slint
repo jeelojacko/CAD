@@ -87,7 +87,6 @@ export component PointManager inherits Window {
         }
         ListView {
             vertical-stretch: 1;
-            vertical-alignment: start;
             for row[i] in root.points_model : Rectangle {
                 property <bool> selected: root.selected_index == i;
                 background: selected ? #404040 : transparent;
