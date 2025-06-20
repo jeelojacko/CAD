@@ -444,18 +444,78 @@ export component MainWindow inherits Window {
             width: 100%;
             height: 30px;
             spacing: 6px;
-            Button { text: "New"; clicked => { root.new_project(); } }
-            Button { text: "Open"; clicked => { root.open_project(); } }
-            Button { text: "Save"; clicked => { root.save_project(); } }
-            Button { text: "Add Point"; clicked => { root.add_point(); } }
-            Button { text: "Add Line"; clicked => { root.add_line(); } }
-        Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
-        Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
-        Button { text: "Add Arc"; clicked => { root.add_arc(); } }
-        Button { text: "Load LandXML Surface"; clicked => { root.import_landxml_surface(); } }
-        Button { text: "Load LandXML Alignment"; clicked => { root.import_landxml_alignment(); } }
-        Button { text: "Corridor Volume"; clicked => { root.corridor_volume(); } }
-        Button { text: "Clear"; clicked => { root.clear_workspace(); } }
+            Button {
+                text: "New";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.new_project(); }
+            }
+            Button {
+                text: "Open";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.open_project(); }
+            }
+            Button {
+                text: "Save";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.save_project(); }
+            }
+            Button {
+                text: "Add Point";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.add_point(); }
+            }
+            Button {
+                text: "Add Line";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.add_line(); }
+            }
+        Button {
+                text: "Add Polygon";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.add_polygon(); }
+            }
+        Button {
+                text: "Add Polyline";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.add_polyline(); }
+            }
+        Button {
+                text: "Add Arc";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.add_arc(); }
+            }
+        Button {
+                text: "Load LandXML Surface";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.import_landxml_surface(); }
+            }
+        Button {
+                text: "Load LandXML Alignment";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.import_landxml_alignment(); }
+            }
+        Button {
+                text: "Corridor Volume";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.corridor_volume(); }
+            }
+        Button {
+                text: "Clear";
+                label.color: #ffffff;
+                label.font-family: "DejaVu Sans";
+                clicked => { root.clear_workspace(); }
+            }
         Text { text: "View:"; }
         ComboBox {
             model: ["2D", "3D"];
