@@ -546,14 +546,28 @@ fn render_workspace(
 
     if let Some(cf) = state.cursor_feedback.borrow().as_ref() {
         let t = (cf.frame % 30) as f32 / 30.0;
-        paint.set_color(Color::from_rgba8((255.0 * t) as u8, (255.0 * (1.0 - t)) as u8, 0, 255));
+        paint.set_color(Color::from_rgba8(
+            (255.0 * t) as u8,
+            (255.0 * (1.0 - t)) as u8,
+            0,
+            255,
+        ));
         let mut pb = PathBuilder::new();
         pb.move_to(cf.pos.0 - 5.0, cf.pos.1);
         pb.line_to(cf.pos.0 + 5.0, cf.pos.1);
         pb.move_to(cf.pos.0, cf.pos.1 - 5.0);
         pb.line_to(cf.pos.0, cf.pos.1 + 5.0);
         if let Some(path) = pb.finish() {
-            pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+            pixmap.stroke_path(
+                &path,
+                &paint,
+                &Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                },
+                Transform::identity(),
+                None,
+            );
         }
     }
     let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
@@ -979,7 +993,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             }
 
-            *cursor_feedback.borrow_mut() = Some(CursorFeedback { pos: (x, y), frame: 0 });
+            *cursor_feedback.borrow_mut() = Some(CursorFeedback {
+                pos: (x, y),
+                frame: 0,
+            });
         });
     }
 
@@ -1199,11 +1216,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
-                                        line_style_indices.borrow_mut().push(0);
-                                        refresh_line_style_dialogs();
-                                        if let Some(app) = weak.upgrade() {
-                                            app.set_status(SharedString::from(format!(
-                                                "Total lines: {}",
+                                    line_style_indices.borrow_mut().push(0);
+                                    refresh_line_style_dialogs();
+                                    if let Some(app) = weak.upgrade() {
+                                        app.set_status(SharedString::from(format!(
+                                            "Total lines: {}",
                                             lines.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
@@ -2776,20 +2793,34 @@ fn main() -> Result<(), slint::PlatformError> {
         .unwrap();
 
     {
+        use slint::{Timer, TimerMode};
+        use std::rc::Rc;
+
         let cursor_feedback = cursor_feedback.clone();
         let weak = app.as_weak();
-        app.window().set_animation_frame_callback(move || {
-            if let Some(app) = weak.upgrade() {
-                if let Some(ref mut cf) = *cursor_feedback.borrow_mut() {
-                    cf.frame = cf.frame.wrapping_add(1);
-                    if cf.frame < 60 {
-                        app.window().request_redraw();
+        let timer = Rc::new(Timer::default());
+        let timer_handle = timer.clone();
+        timer.start(
+            TimerMode::Repeated,
+            core::time::Duration::from_millis(16),
+            move || {
+                if let Some(app) = weak.upgrade() {
+                    if let Some(ref mut cf) = *cursor_feedback.borrow_mut() {
+                        cf.frame = cf.frame.wrapping_add(1);
+                        if cf.frame < 60 {
+                            app.window().request_redraw();
+                        } else {
+                            *cursor_feedback.borrow_mut() = None;
+                            timer_handle.stop();
+                        }
                     } else {
-                        *cursor_feedback.borrow_mut() = None;
+                        timer_handle.stop();
                     }
+                } else {
+                    timer_handle.stop();
                 }
-            }
-        });
+            },
+        );
     }
 
     app.window().request_redraw();
