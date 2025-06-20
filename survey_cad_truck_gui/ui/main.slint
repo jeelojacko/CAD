@@ -6,7 +6,7 @@ component Workspace2D inherits Rectangle {
     in-out property <bool> click_mode;
     callback clicked(length, length);
     callback mouse_moved(length, length);
-    callback pointer_pressed(PointerEvent);
+    callback pointer_pressed(length, length, PointerEvent);
     callback pointer_released();
     callback scrolled(length, length);
     background: #202020;
@@ -26,7 +26,7 @@ component Workspace2D inherits Rectangle {
         }
         pointer-event(event) => {
             if event.kind == PointerEventKind.down {
-                root.pointer_pressed(event);
+                root.pointer_pressed(self.mouse-x, self.mouse-y, event);
             } else if event.kind == PointerEventKind.up {
                 root.pointer_released();
             } else if event.kind == PointerEventKind.move {
@@ -413,7 +413,7 @@ export component MainWindow inherits Window {
     callback zoom_out();
     callback workspace_left_pressed(length, length);
     callback workspace_right_pressed(length, length);
-    callback workspace_pointer_pressed(PointerEvent);
+    callback workspace_pointer_pressed(length, length, PointerEvent);
     callback workspace_pointer_released();
     callback workspace_scrolled(length, length);
 
@@ -603,7 +603,7 @@ export component MainWindow inherits Window {
                 click_mode <=> root.workspace_click_mode;
                 clicked(x, y) => { root.workspace_clicked(x, y); }
                 mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
-                pointer_pressed(ev) => { root.workspace_pointer_pressed(ev); }
+                pointer_pressed(x, y, ev) => { root.workspace_pointer_pressed(x, y, ev); }
                 pointer_released() => { root.workspace_pointer_released(); }
                 scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }

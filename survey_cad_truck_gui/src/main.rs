@@ -64,7 +64,7 @@ struct CursorFeedback {
     frame: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum DrawingMode {
     None,
     Line { start: Option<Point> },
@@ -983,12 +983,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs_ref = arcs.clone();
         let render_image = render_image.clone();
         let weak = app.as_weak();
-        app.on_workspace_pointer_pressed(move |ev| {
+        app.on_workspace_pointer_pressed(move |x, y, ev| {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if ev.button == PointerEventButton::Left {
                     if let Some(app) = weak.upgrade() {
                         let size = app.window().size();
-                        let p = screen_to_workspace(ev.x, ev.y, &offset, &zoom, size.width as f32, size.height as f32);
+                        let p = screen_to_workspace(x as f32, y as f32, &offset, &zoom, size.width as f32, size.height as f32);
                         match &mut *drawing_mode.borrow_mut() {
                             DrawingMode::Line { start } => {
                                 if start.is_none() {
@@ -1022,16 +1022,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                 }
-            } else {
-                if ev.button == PointerEventButton::Middle {
-                    *pan_2d_flag.borrow_mut() = true;
-                } else if ev.button == PointerEventButton::Left {
-                    let mut ds = drag_select.borrow_mut();
-                    ds.start = (ev.x as f32, ev.y as f32);
-                    ds.end = ds.start;
-                    ds.active = true;
-                    *last_pos_2d.borrow_mut() = (ev.x as f64, ev.y as f64);
-                }
+            } else if ev.button == PointerEventButton::Middle {
+                *pan_2d_flag.borrow_mut() = true;
+            } else if ev.button == PointerEventButton::Left {
+                let mut ds = drag_select.borrow_mut();
+                ds.start = (x as f32, y as f32);
+                ds.end = ds.start;
+                ds.active = true;
+                *last_pos_2d.borrow_mut() = (x as f64, y as f64);
             }
         });
     }
