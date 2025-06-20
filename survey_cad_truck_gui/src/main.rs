@@ -1024,6 +1024,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
+        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -1117,6 +1118,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let lines = lines.clone();
         let render_image = render_image.clone();
         let line_style_indices = line_style_indices.clone();
+        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         app.on_add_line(move || {
             let line_style_indices = line_style_indices.clone();
             let dlg = AddLineDialog::new().unwrap();
@@ -1127,6 +1129,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let line_style_indices = line_style_indices.clone();
+                let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -1171,6 +1174,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let line_style_indices = line_style_indices.clone();
+                let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -1183,6 +1187,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let render_image = render_image.clone();
                         let weak = weak.clone();
                         let line_style_indices = line_style_indices.clone();
+                        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                         kd.on_accept(move || {
                             if let Some(dlg) = kd_weak2.upgrade() {
                                 if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
@@ -1194,11 +1199,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
-                                    line_style_indices.borrow_mut().push(0);
-                                    refresh_line_style_dialogs();
-                                    if let Some(app) = weak.upgrade() {
-                                        app.set_status(SharedString::from(format!(
-                                            "Total lines: {}",
+                                        line_style_indices.borrow_mut().push(0);
+                                        refresh_line_style_dialogs();
+                                        if let Some(app) = weak.upgrade() {
+                                            app.set_status(SharedString::from(format!(
+                                                "Total lines: {}",
                                             lines.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
@@ -2725,6 +2730,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
+        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         app.on_clear_workspace(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
