@@ -157,6 +157,12 @@ fn render_workspace(
     width: u32,
     height: u32,
 ) -> Image {
+    if width == 0 || height == 0 {
+        // When the window has not been laid out yet slint reports a size of
+        // zero. Returning an empty image avoids panicking until a real size is
+        // available.
+        return Image::default();
+    }
     let mut pixmap = Pixmap::new(width, height).unwrap();
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
