@@ -64,22 +64,21 @@ struct CursorFeedback {
     frame: u32,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 enum DrawingMode {
+    #[default]
     None,
-    Line { start: Option<Point> },
-    Polygon { vertices: Vec<Point> },
+    Line {
+        start: Option<Point>,
+    },
+    Polygon {
+        vertices: Vec<Point>,
+    },
     Arc {
         center: Option<Point>,
         radius: Option<f64>,
         start_angle: Option<f64>,
     },
-}
-
-impl Default for DrawingMode {
-    fn default() -> Self {
-        DrawingMode::None
-    }
 }
 
 struct RenderState<'a> {
@@ -558,7 +557,16 @@ fn render_workspace(
                 pb.move_to(tx(s.x as f32), ty(s.y as f32));
                 pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
                 if let Some(path) = pb.finish() {
-                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
             DrawingMode::Polygon { vertices } if !vertices.is_empty() => {
@@ -570,20 +578,46 @@ fn render_workspace(
                 }
                 pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
                 if let Some(path) = pb.finish() {
-                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
-            DrawingMode::Arc { center: Some(c), radius: Some(r), start_angle: Some(sa) } => {
+            DrawingMode::Arc {
+                center: Some(c),
+                radius: Some(r),
+                start_angle: Some(sa),
+            } => {
                 let ea = (wp.y - c.y).atan2(wp.x - c.x);
                 let mut pb = PathBuilder::new();
                 for i in 0..=32 {
                     let t = sa + (ea - sa) * (i as f64 / 32.0);
                     let x = c.x + r * t.cos();
                     let y = c.y + r * t.sin();
-                    if i == 0 { pb.move_to(tx(x as f32), ty(y as f32)); } else { pb.line_to(tx(x as f32), ty(y as f32)); }
+                    if i == 0 {
+                        pb.move_to(tx(x as f32), ty(y as f32));
+                    } else {
+                        pb.line_to(tx(x as f32), ty(y as f32));
+                    }
                 }
                 if let Some(path) = pb.finish() {
-                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
+                        Transform::identity(),
+                        None,
+                    );
                 }
             }
             _ => {}
@@ -891,14 +925,20 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let drawing_mode = drawing_mode.clone();
         app.on_draw_polygon_mode(move || {
-            *drawing_mode.borrow_mut() = DrawingMode::Polygon { vertices: Vec::new() };
+            *drawing_mode.borrow_mut() = DrawingMode::Polygon {
+                vertices: Vec::new(),
+            };
         });
     }
 
     {
         let drawing_mode = drawing_mode.clone();
         app.on_draw_arc_mode(move || {
-            *drawing_mode.borrow_mut() = DrawingMode::Arc { center: None, radius: None, start_angle: None };
+            *drawing_mode.borrow_mut() = DrawingMode::Arc {
+                center: None,
+                radius: None,
+                start_angle: None,
+            };
         });
     }
 
@@ -988,7 +1028,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 if ev.button == PointerEventButton::Left {
                     if let Some(app) = weak.upgrade() {
                         let size = app.window().size();
-                        let p = screen_to_workspace(x as f32, y as f32, &offset, &zoom, size.width as f32, size.height as f32);
+                        let p = screen_to_workspace(
+                            x,
+                            y,
+                            &offset,
+                            &zoom,
+                            size.width as f32,
+                            size.height as f32,
+                        );
                         match &mut *drawing_mode.borrow_mut() {
                             DrawingMode::Line { start } => {
                                 if start.is_none() {
@@ -1001,14 +1048,26 @@ fn main() -> Result<(), slint::PlatformError> {
                             DrawingMode::Polygon { vertices } => {
                                 vertices.push(p);
                             }
-                            DrawingMode::Arc { center, radius, start_angle } => {
+                            DrawingMode::Arc {
+                                center,
+                                radius,
+                                start_angle,
+                            } => {
                                 if center.is_none() {
                                     *center = Some(p);
                                 } else if radius.is_none() {
-                                    if let Some(c) = *center { *radius = Some(((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt()); }
+                                    if let Some(c) = *center {
+                                        *radius = Some(
+                                            ((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt(),
+                                        );
+                                    }
                                 } else if start_angle.is_none() {
-                                    if let Some(c) = *center { *start_angle = Some((p.y - c.y).atan2(p.x - c.x)); }
-                                } else if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
+                                    if let Some(c) = *center {
+                                        *start_angle = Some((p.y - c.y).atan2(p.x - c.x));
+                                    }
+                                } else if let (Some(c), Some(r), Some(sa)) =
+                                    (*center, *radius, *start_angle)
+                                {
                                     let ea = (p.y - c.y).atan2(p.x - c.x);
                                     arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
                                     *drawing_mode.borrow_mut() = DrawingMode::None;
@@ -1026,7 +1085,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 *pan_2d_flag.borrow_mut() = true;
             } else if ev.button == PointerEventButton::Left {
                 let mut ds = drag_select.borrow_mut();
-                ds.start = (x as f32, y as f32);
+                ds.start = (x, y);
                 ds.end = ds.start;
                 ds.active = true;
                 *last_pos_2d.borrow_mut() = (x as f64, y as f64);
@@ -2857,14 +2916,20 @@ fn main() -> Result<(), slint::PlatformError> {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if let Some(app) = weak.upgrade() {
                     let size = app.window().size();
-                    let p = screen_to_workspace(x, y, &offset_ref, &zoom_ref, size.width as f32, size.height as f32);
+                    let p = screen_to_workspace(
+                        x,
+                        y,
+                        &offset_ref,
+                        &zoom_ref,
+                        size.width as f32,
+                        size.height as f32,
+                    );
                     match &mut *drawing_mode.borrow_mut() {
-                        DrawingMode::Line { start } => {
-                            if let Some(s) = *start {
-                                lines_ref.borrow_mut().push((s, p));
-                                *drawing_mode.borrow_mut() = DrawingMode::None;
-                            }
+                        DrawingMode::Line { start: Some(s) } => {
+                            lines_ref.borrow_mut().push((*s, p));
+                            *drawing_mode.borrow_mut() = DrawingMode::None;
                         }
+                        DrawingMode::Line { start: None } => {}
                         DrawingMode::Polygon { vertices } => {
                             let now = Instant::now();
                             let double = last_click
@@ -2878,7 +2943,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 *drawing_mode.borrow_mut() = DrawingMode::None;
                             }
                         }
-                        DrawingMode::Arc { center, radius, start_angle } => {
+                        DrawingMode::Arc {
+                            center,
+                            radius,
+                            start_angle,
+                        } => {
                             if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
                                 let ea = (p.y - c.y).atan2(p.x - c.x);
                                 arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
