@@ -774,6 +774,41 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_workspace_image(render_image());
     app.window().request_redraw();
 
+    {
+        use slint::{Timer, TimerMode};
+        use std::rc::Rc;
+
+        let weak = app.as_weak();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        let timer = Rc::new(Timer::default());
+        let timer_handle = timer.clone();
+        timer.start(
+            TimerMode::Repeated,
+            core::time::Duration::from_millis(16),
+            move || {
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    } else {
+                        let image = backend_render.borrow_mut().render();
+                        app.set_workspace_texture(image);
+                    }
+                    app.window().request_redraw();
+                } else {
+                    timer_handle.stop();
+                }
+            },
+        );
+
+        use slint::CloseRequestResponse;
+        let timer_handle = timer.clone();
+        app.window().on_close_requested(move || {
+            timer_handle.stop();
+            CloseRequestResponse::HideWindow
+        });
+    }
+
     let weak = app.as_weak();
 
     {
