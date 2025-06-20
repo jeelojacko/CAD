@@ -488,110 +488,74 @@ export component MainWindow inherits Window {
             spacing: 6px;
             Button {
                 text: "New";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.new_project(); }
             }
             Button {
                 text: "Open";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.open_project(); }
             }
             Button {
                 text: "Save";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.save_project(); }
             }
             Button {
                 text: "Add Point";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.add_point(); }
             }
             Button {
                 text: "Point Manager...";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.point_manager(); }
             }
             Button {
                 text: "Line Styles...";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.line_style_manager(); }
             }
             Button {
                 text: "Add Line";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.add_line(); }
             }
         Button {
                 text: "Add Polygon";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.add_polygon(); }
             }
         Button {
                 text: "Add Polyline";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.add_polyline(); }
             }
         Button {
                 text: "Add Arc";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.add_arc(); }
             }
         Button {
                 text: "Line Mode";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.draw_line_mode(); }
             }
         Button {
                 text: "Polygon Mode";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.draw_polygon_mode(); }
             }
         Button {
                 text: "Arc Mode";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.draw_arc_mode(); }
             }
         Button {
                 text: "Create Polygon";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.create_polygon_from_selection(); }
             }
         Button {
                 text: "Load LandXML Surface";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.import_landxml_surface(); }
             }
         Button {
                 text: "Load LandXML Alignment";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.import_landxml_alignment(); }
             }
         Button {
                 text: "Corridor Volume";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.corridor_volume(); }
             }
         Button {
                 text: "Clear";
-                label.color: #ffffff;
-                label.font-family: "DejaVu Sans";
                 clicked => { root.clear_workspace(); }
             }
         Text { text: "View:"; }
