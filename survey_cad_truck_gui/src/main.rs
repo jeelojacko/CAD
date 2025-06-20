@@ -5,6 +5,7 @@ use slint::platform::PointerEventButton;
 use slint::{Image, Model, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Instant;
 
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::crs::list_known_crs;
@@ -61,6 +62,24 @@ struct DragSelect {
 struct CursorFeedback {
     pos: (f32, f32),
     frame: u32,
+}
+
+#[derive(Clone)]
+enum DrawingMode {
+    None,
+    Line { start: Option<Point> },
+    Polygon { vertices: Vec<Point> },
+    Arc {
+        center: Option<Point>,
+        radius: Option<f64>,
+        start_angle: Option<f64>,
+    },
+}
+
+impl Default for DrawingMode {
+    fn default() -> Self {
+        DrawingMode::None
+    }
 }
 
 struct RenderState<'a> {
@@ -135,6 +154,7 @@ fn render_workspace(
     data: &WorkspaceRenderData,
     state: &RenderState,
     styles: &RenderStyles,
+    drawing: &DrawingMode,
     width: u32,
     height: u32,
 ) -> Image {
@@ -522,6 +542,54 @@ fn render_workspace(
         }
     }
 
+    if let Some(cf) = state.cursor_feedback.borrow().as_ref() {
+        let wp = screen_to_workspace(
+            cf.pos.0,
+            cf.pos.1,
+            state.offset,
+            state.zoom,
+            width as f32,
+            height as f32,
+        );
+        paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+        match drawing {
+            DrawingMode::Line { start: Some(s) } => {
+                let mut pb = PathBuilder::new();
+                pb.move_to(tx(s.x as f32), ty(s.y as f32));
+                pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                }
+            }
+            DrawingMode::Polygon { vertices } if !vertices.is_empty() => {
+                let mut pb = PathBuilder::new();
+                let first = vertices.first().unwrap();
+                pb.move_to(tx(first.x as f32), ty(first.y as f32));
+                for p in &vertices[1..] {
+                    pb.line_to(tx(p.x as f32), ty(p.y as f32));
+                }
+                pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                }
+            }
+            DrawingMode::Arc { center: Some(c), radius: Some(r), start_angle: Some(sa) } => {
+                let ea = (wp.y - c.y).atan2(wp.x - c.x);
+                let mut pb = PathBuilder::new();
+                for i in 0..=32 {
+                    let t = sa + (ea - sa) * (i as f64 / 32.0);
+                    let x = c.x + r * t.cos();
+                    let y = c.y + r * t.sin();
+                    if i == 0 { pb.move_to(tx(x as f32), ty(y as f32)); } else { pb.line_to(tx(x as f32), ty(y as f32)); }
+                }
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+                }
+            }
+            _ => {}
+        }
+    }
+
     if state.drag.borrow().active {
         let ds = state.drag.borrow();
         let x1 = ds.start.0.min(ds.end.0);
@@ -662,6 +730,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let selected_lines = Rc::new(RefCell::new(Vec::<(Point, Point)>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
     let cursor_feedback = Rc::new(RefCell::new(None));
+    let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
+    let last_click = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_styles = survey_cad::styles::default_point_styles();
     let point_style_names: Vec<SharedString> = point_styles
@@ -717,6 +787,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_styles_vals = line_style_values.clone();
         let line_style_indices = line_style_indices.clone();
         let cursor_feedback = cursor_feedback.clone();
+        let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
@@ -746,6 +817,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     show_labels: true,
                     label_style: &label_style,
                 },
+                &drawing_mode.borrow(),
                 size.width,
                 size.height,
             )
@@ -806,6 +878,27 @@ fn main() -> Result<(), slint::PlatformError> {
         app.window().on_close_requested(move || {
             timer_handle.stop();
             CloseRequestResponse::HideWindow
+        });
+    }
+
+    {
+        let drawing_mode = drawing_mode.clone();
+        app.on_draw_line_mode(move || {
+            *drawing_mode.borrow_mut() = DrawingMode::Line { start: None };
+        });
+    }
+
+    {
+        let drawing_mode = drawing_mode.clone();
+        app.on_draw_polygon_mode(move || {
+            *drawing_mode.borrow_mut() = DrawingMode::Polygon { vertices: Vec::new() };
+        });
+    }
+
+    {
+        let drawing_mode = drawing_mode.clone();
+        app.on_draw_arc_mode(move || {
+            *drawing_mode.borrow_mut() = DrawingMode::Arc { center: None, radius: None, start_angle: None };
         });
     }
 
@@ -882,15 +975,63 @@ fn main() -> Result<(), slint::PlatformError> {
         let pan_2d_flag = pan_2d_flag.clone();
         let drag_select = drag_select.clone();
         let last_pos_2d = last_pos_2d.clone();
+        let drawing_mode = drawing_mode.clone();
+        let offset = offset.clone();
+        let zoom = zoom.clone();
+        let lines_ref = lines.clone();
+        let polygons_ref = polygons.clone();
+        let arcs_ref = arcs.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
         app.on_workspace_pointer_pressed(move |ev| {
-            if ev.button == PointerEventButton::Middle {
-                *pan_2d_flag.borrow_mut() = true;
-            } else if ev.button == PointerEventButton::Left {
-                let mut ds = drag_select.borrow_mut();
-                ds.start = (ev.x as f32, ev.y as f32);
-                ds.end = ds.start;
-                ds.active = true;
-                *last_pos_2d.borrow_mut() = (ev.x as f64, ev.y as f64);
+            if *drawing_mode.borrow() != DrawingMode::None {
+                if ev.button == PointerEventButton::Left {
+                    if let Some(app) = weak.upgrade() {
+                        let size = app.window().size();
+                        let p = screen_to_workspace(ev.x, ev.y, &offset, &zoom, size.width as f32, size.height as f32);
+                        match &mut *drawing_mode.borrow_mut() {
+                            DrawingMode::Line { start } => {
+                                if start.is_none() {
+                                    *start = Some(p);
+                                } else if let Some(s) = *start {
+                                    lines_ref.borrow_mut().push((s, p));
+                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                }
+                            }
+                            DrawingMode::Polygon { vertices } => {
+                                vertices.push(p);
+                            }
+                            DrawingMode::Arc { center, radius, start_angle } => {
+                                if center.is_none() {
+                                    *center = Some(p);
+                                } else if radius.is_none() {
+                                    if let Some(c) = *center { *radius = Some(((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt()); }
+                                } else if start_angle.is_none() {
+                                    if let Some(c) = *center { *start_angle = Some((p.y - c.y).atan2(p.x - c.x)); }
+                                } else if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
+                                    let ea = (p.y - c.y).atan2(p.x - c.x);
+                                    arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
+                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                }
+                            }
+                            _ => {}
+                        }
+                        if app.get_workspace_mode() == 0 {
+                            app.set_workspace_image(render_image());
+                            app.window().request_redraw();
+                        }
+                    }
+                }
+            } else {
+                if ev.button == PointerEventButton::Middle {
+                    *pan_2d_flag.borrow_mut() = true;
+                } else if ev.button == PointerEventButton::Left {
+                    let mut ds = drag_select.borrow_mut();
+                    ds.start = (ev.x as f32, ev.y as f32);
+                    ds.end = ds.start;
+                    ds.active = true;
+                    *last_pos_2d.borrow_mut() = (ev.x as f64, ev.y as f64);
+                }
             }
         });
     }
@@ -2707,8 +2848,53 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs = arcs.clone();
         let render_image = render_image.clone();
         let point_style_indices = point_style_indices.clone();
+        let drawing_mode = drawing_mode.clone();
+        let offset_ref = offset.clone();
+        let zoom_ref = zoom.clone();
+        let lines_ref = lines.clone();
+        let polygons_ref = polygons.clone();
+        let arcs_ref = arcs.clone();
+        let last_click = last_click.clone();
         app.on_workspace_clicked(move |x, y| {
-            if let Some(app) = weak.upgrade() {
+            if *drawing_mode.borrow() != DrawingMode::None {
+                if let Some(app) = weak.upgrade() {
+                    let size = app.window().size();
+                    let p = screen_to_workspace(x, y, &offset_ref, &zoom_ref, size.width as f32, size.height as f32);
+                    match &mut *drawing_mode.borrow_mut() {
+                        DrawingMode::Line { start } => {
+                            if let Some(s) = *start {
+                                lines_ref.borrow_mut().push((s, p));
+                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                            }
+                        }
+                        DrawingMode::Polygon { vertices } => {
+                            let now = Instant::now();
+                            let double = last_click
+                                .borrow()
+                                .map(|t| now.duration_since(t).as_millis() < 500)
+                                .unwrap_or(false);
+                            *last_click.borrow_mut() = Some(now);
+                            vertices.push(p);
+                            if double && vertices.len() > 2 {
+                                polygons_ref.borrow_mut().push(vertices.clone());
+                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                            }
+                        }
+                        DrawingMode::Arc { center, radius, start_angle } => {
+                            if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
+                                let ea = (p.y - c.y).atan2(p.x - c.x);
+                                arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
+                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                            }
+                        }
+                        _ => {}
+                    }
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
+                    }
+                }
+            } else if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
                     const WIDTH: f64 = 600.0;
                     const HEIGHT: f64 = 400.0;

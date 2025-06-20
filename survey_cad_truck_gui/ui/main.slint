@@ -367,6 +367,10 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_to_entities;
     in-out property <float> zoom_level;
 
+    callback draw_line_mode();
+    callback draw_polygon_mode();
+    callback draw_arc_mode();
+
     callback workspace_clicked(length, length);
     callback workspace_mouse_moved(length, length);
     callback workspace_mouse_exited();
@@ -447,6 +451,9 @@ export component MainWindow inherits Window {
             MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }
             MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
             MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
+            MenuItem { title: "Line Mode"; activated => { root.draw_line_mode(); } }
+            MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); } }
+            MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); } }
             MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); } }
@@ -489,6 +496,9 @@ export component MainWindow inherits Window {
         Button { text: "Add Polygon"; clicked => { root.add_polygon(); } }
         Button { text: "Add Polyline"; clicked => { root.add_polyline(); } }
         Button { text: "Add Arc"; clicked => { root.add_arc(); } }
+        Button { text: "Line Mode"; clicked => { root.draw_line_mode(); } }
+        Button { text: "Polygon Mode"; clicked => { root.draw_polygon_mode(); } }
+        Button { text: "Arc Mode"; clicked => { root.draw_arc_mode(); } }
         Button { text: "Create Polygon"; clicked => { root.create_polygon_from_selection(); } }
         Button { text: "Load LandXML Surface"; clicked => { root.import_landxml_surface(); } }
         Button { text: "Load LandXML Alignment"; clicked => { root.import_landxml_alignment(); } }
