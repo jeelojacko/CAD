@@ -183,11 +183,19 @@ fn arc_from_three_points(p1: Point, p2: Point, p3: Point) -> Option<Arc> {
     let mut ea = (p3.y - cy).atan2(p3.x - cx);
     let cross = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
     if cross >= 0.0 {
-        while ma < sa { ma += 2.0 * std::f64::consts::PI; }
-        while ea < ma { ea += 2.0 * std::f64::consts::PI; }
+        while ma < sa {
+            ma += 2.0 * std::f64::consts::PI;
+        }
+        while ea < ma {
+            ea += 2.0 * std::f64::consts::PI;
+        }
     } else {
-        while ma > sa { ma -= 2.0 * std::f64::consts::PI; }
-        while ea > ma { ea -= 2.0 * std::f64::consts::PI; }
+        while ma > sa {
+            ma -= 2.0 * std::f64::consts::PI;
+        }
+        while ea > ma {
+            ea -= 2.0 * std::f64::consts::PI;
+        }
     }
     Some(Arc::new(center, r, sa, ea))
 }
@@ -698,13 +706,19 @@ fn render_workspace(
                     pixmap.stroke_path(
                         &path,
                         &paint,
-                        &Stroke { width: 1.0, ..Stroke::default() },
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
                         Transform::identity(),
                         None,
                     );
                 }
             }
-            DrawingMode::ArcThreePoint { p1: Some(p1), p2: None } => {
+            DrawingMode::ArcThreePoint {
+                p1: Some(p1),
+                p2: None,
+            } => {
                 let mut pb = PathBuilder::new();
                 pb.move_to(tx(p1.x as f32), ty(p1.y as f32));
                 pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
@@ -712,18 +726,24 @@ fn render_workspace(
                     pixmap.stroke_path(
                         &path,
                         &paint,
-                        &Stroke { width: 1.0, ..Stroke::default() },
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
                         Transform::identity(),
                         None,
                     );
                 }
             }
-            DrawingMode::ArcThreePoint { p1: Some(p1), p2: Some(p2) } => {
+            DrawingMode::ArcThreePoint {
+                p1: Some(p1),
+                p2: Some(p2),
+            } => {
                 if let Some(arc) = arc_from_three_points(*p1, *p2, wp) {
                     let mut pb = PathBuilder::new();
                     for i in 0..=32 {
-                        let t = arc.start_angle +
-                            (arc.end_angle - arc.start_angle) * (i as f64 / 32.0);
+                        let t =
+                            arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / 32.0);
                         let x = arc.center.x + arc.radius * t.cos();
                         let y = arc.center.y + arc.radius * t.sin();
                         if i == 0 {
@@ -736,7 +756,10 @@ fn render_workspace(
                         pixmap.stroke_path(
                             &path,
                             &paint,
-                            &Stroke { width: 1.0, ..Stroke::default() },
+                            &Stroke {
+                                width: 1.0,
+                                ..Stroke::default()
+                            },
                             Transform::identity(),
                             None,
                         );
@@ -755,7 +778,10 @@ fn render_workspace(
                     pixmap.stroke_path(
                         &path,
                         &paint,
-                        &Stroke { width: 1.0, ..Stroke::default() },
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
                         Transform::identity(),
                         None,
                     );
@@ -770,8 +796,8 @@ fn render_workspace(
                 if let Some(arc) = arc_from_start_end_radius(*s, *e, r, wp) {
                     let mut pb = PathBuilder::new();
                     for i in 0..=32 {
-                        let t = arc.start_angle +
-                            (arc.end_angle - arc.start_angle) * (i as f64 / 32.0);
+                        let t =
+                            arc.start_angle + (arc.end_angle - arc.start_angle) * (i as f64 / 32.0);
                         let x = arc.center.x + arc.radius * t.cos();
                         let y = arc.center.y + arc.radius * t.sin();
                         if i == 0 {
@@ -784,7 +810,10 @@ fn render_workspace(
                         pixmap.stroke_path(
                             &path,
                             &paint,
-                            &Stroke { width: 1.0, ..Stroke::default() },
+                            &Stroke {
+                                width: 1.0,
+                                ..Stroke::default()
+                            },
                             Transform::identity(),
                             None,
                         );
@@ -1128,7 +1157,6 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
-
     {
         let drawing_mode = drawing_mode.clone();
         app.on_draw_line_mode(move || {
@@ -1154,8 +1182,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 let dm = drawing_mode.clone();
                 let dlg_weak = dlg_weak.clone();
                 dlg.on_center_start_end(move || {
-                    *dm.borrow_mut() = DrawingMode::ArcCenter { center: None, radius: None, start_angle: None };
-                    if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                    *dm.borrow_mut() = DrawingMode::ArcCenter {
+                        center: None,
+                        radius: None,
+                        start_angle: None,
+                    };
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
                 });
             }
             {
@@ -1163,15 +1197,23 @@ fn main() -> Result<(), slint::PlatformError> {
                 let dlg_weak = dlg_weak.clone();
                 dlg.on_three_point(move || {
                     *dm.borrow_mut() = DrawingMode::ArcThreePoint { p1: None, p2: None };
-                    if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
                 });
             }
             {
                 let dm = drawing_mode.clone();
                 let dlg_weak = dlg_weak.clone();
                 dlg.on_start_end_radius(move || {
-                    *dm.borrow_mut() = DrawingMode::ArcStartEndRadius { start: None, end: None, radius: None };
-                    if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                    *dm.borrow_mut() = DrawingMode::ArcStartEndRadius {
+                        start: None,
+                        end: None,
+                        radius: None,
+                    };
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let _ = d.hide();
+                    }
                 });
             }
             dlg.show().unwrap();
@@ -1328,19 +1370,34 @@ fn main() -> Result<(), slint::PlatformError> {
                         if app.get_snap_to_entities() {
                             let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
                             for pt in point_db.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Point { point: *pt, layer: None });
+                                ents.push(survey_cad::io::DxfEntity::Point {
+                                    point: *pt,
+                                    layer: None,
+                                });
                             }
                             for (s, e) in lines_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                                ents.push(survey_cad::io::DxfEntity::Line {
+                                    line: Line::new(*s, *e),
+                                    layer: None,
+                                });
                             }
                             for poly in polygons_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                                ents.push(survey_cad::io::DxfEntity::Polyline {
+                                    polyline: Polyline::new(poly.clone()),
+                                    layer: None,
+                                });
                             }
                             for pl in polylines.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                                ents.push(survey_cad::io::DxfEntity::Polyline {
+                                    polyline: pl.clone(),
+                                    layer: None,
+                                });
                             }
                             for arc in arcs_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Arc { arc: *arc, layer: None });
+                                ents.push(survey_cad::io::DxfEntity::Arc {
+                                    arc: *arc,
+                                    layer: None,
+                                });
                             }
                             if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0) {
                                 p = sp;
@@ -1350,20 +1407,21 @@ fn main() -> Result<(), slint::PlatformError> {
                             p.x = p.x.round();
                             p.y = p.y.round();
                         }
-                        match &mut *drawing_mode.borrow_mut() {
+                        let mut mode = drawing_mode.borrow_mut();
+                        match &mut *mode {
                             DrawingMode::Line { start } => {
                                 if start.is_none() {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
                                     lines_ref.borrow_mut().push((s, p));
-                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    *mode = DrawingMode::None;
                                 } else {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(
                                             "No start point, line cancelled",
                                         ));
                                     }
-                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    *mode = DrawingMode::None;
                                     return;
                                 }
                             }
@@ -1378,7 +1436,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 if double && vertices.len() > 2 {
                                     vertices.push(vertices[0]);
                                     polygons_ref.borrow_mut().push(vertices.clone());
-                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    *mode = DrawingMode::None;
                                 }
                             }
                             DrawingMode::ArcCenter {
@@ -1390,16 +1448,20 @@ fn main() -> Result<(), slint::PlatformError> {
                                     *center = Some(p);
                                 } else if radius.is_none() {
                                     if let Some(c) = *center {
-                                        *radius = Some(((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt());
+                                        *radius = Some(
+                                            ((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt(),
+                                        );
                                     }
                                 } else if start_angle.is_none() {
                                     if let Some(c) = *center {
                                         *start_angle = Some((p.y - c.y).atan2(p.x - c.x));
                                     }
-                                } else if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
+                                } else if let (Some(c), Some(r), Some(sa)) =
+                                    (*center, *radius, *start_angle)
+                                {
                                     let ea = (p.y - c.y).atan2(p.x - c.x);
                                     arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
-                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    *mode = DrawingMode::None;
                                 }
                             }
                             DrawingMode::ArcThreePoint { p1, p2 } => {
@@ -1411,7 +1473,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     if let Some(arc) = arc_from_three_points(a, b, p) {
                                         arcs_ref.borrow_mut().push(arc);
                                     }
-                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    *mode = DrawingMode::None;
                                 }
                             }
                             DrawingMode::ArcStartEndRadius { start, end, radius } => {
@@ -1425,7 +1487,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         if let Some(arc) = arc_from_start_end_radius(s, e, r, p) {
                                             arcs_ref.borrow_mut().push(arc);
                                         }
-                                        *drawing_mode.borrow_mut() = DrawingMode::None;
+                                        *mode = DrawingMode::None;
                                     }
                                 }
                             }
@@ -3305,10 +3367,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         size.width as f32,
                         size.height as f32,
                     );
-                    match &mut *drawing_mode.borrow_mut() {
+                    let mut mode = drawing_mode.borrow_mut();
+                    match &mut *mode {
                         DrawingMode::Line { start: Some(s) } => {
                             lines_ref.borrow_mut().push((*s, p));
-                            *drawing_mode.borrow_mut() = DrawingMode::None;
+                            *mode = DrawingMode::None;
                         }
                         DrawingMode::Line { start: None } => {}
                         DrawingMode::Polygon { vertices } => {
@@ -3321,14 +3384,18 @@ fn main() -> Result<(), slint::PlatformError> {
                             vertices.push(p);
                             if double && vertices.len() > 2 {
                                 polygons_ref.borrow_mut().push(vertices.clone());
-                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                                *mode = DrawingMode::None;
                             }
                         }
-                        DrawingMode::ArcCenter { center, radius, start_angle } => {
+                        DrawingMode::ArcCenter {
+                            center,
+                            radius,
+                            start_angle,
+                        } => {
                             if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
                                 let ea = (p.y - c.y).atan2(p.x - c.x);
                                 arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
-                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                                *mode = DrawingMode::None;
                             }
                         }
                         DrawingMode::ArcThreePoint { p1, p2 } => {
@@ -3336,16 +3403,18 @@ fn main() -> Result<(), slint::PlatformError> {
                                 if let Some(arc) = arc_from_three_points(a, b, p) {
                                     arcs_ref.borrow_mut().push(arc);
                                 }
-                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                                *mode = DrawingMode::None;
                             }
                         }
                         DrawingMode::ArcStartEndRadius { start, end, radius } => {
                             if let (Some(s), Some(e)) = (*start, *end) {
-                                let r = radius.unwrap_or_else(|| ((p.x - s.x).powi(2) + (p.y - s.y).powi(2)).sqrt());
+                                let r = radius.unwrap_or_else(|| {
+                                    ((p.x - s.x).powi(2) + (p.y - s.y).powi(2)).sqrt()
+                                });
                                 if let Some(arc) = arc_from_start_end_radius(s, e, r, p) {
                                     arcs_ref.borrow_mut().push(arc);
                                 }
-                                *drawing_mode.borrow_mut() = DrawingMode::None;
+                                *mode = DrawingMode::None;
                             }
                         }
                         _ => {}
