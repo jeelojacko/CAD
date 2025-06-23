@@ -1262,9 +1262,9 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_view_changed(move |mode| {
             if let Some(app) = weak.upgrade() {
                 app.set_workspace_mode(mode);
+                app.set_zoom_level(*zoom.borrow());
                 if mode == 0 {
                     app.set_workspace_image(render_image());
-                    app.set_zoom_level(*zoom.borrow());
                 } else {
                     let image = backend_render.borrow_mut().render();
                     app.set_workspace_texture(image);
@@ -1690,6 +1690,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
@@ -1708,8 +1709,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_status(SharedString::from("New project created"));
                 if app.get_workspace_mode() == 0 {
                     app.set_workspace_image(render_image());
-                    app.window().request_redraw();
+                } else {
+                    let image = backend_render.borrow_mut().render();
+                    app.set_workspace_texture(image);
                 }
+                app.window().request_redraw();
             }
         });
     }
@@ -1718,6 +1722,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("CSV", &["csv"])
@@ -1740,8 +1745,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2612,6 +2620,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
@@ -2633,8 +2642,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2655,6 +2667,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_kml(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("KML", &["kml", "kmz"])
@@ -2677,8 +2690,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2703,6 +2719,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_dxf(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DXF", &["dxf"])
@@ -2727,8 +2744,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2749,6 +2769,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -2771,8 +2792,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2797,6 +2821,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -2819,8 +2844,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -2845,6 +2873,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -2867,8 +2896,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -3273,6 +3305,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_landxml_surface(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -3286,8 +3319,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 app.set_status(SharedString::from("Imported surface"));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
@@ -3308,6 +3344,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let alignments = alignments.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_landxml_alignment(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -3321,8 +3358,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                 app.set_status(SharedString::from("Imported alignment"));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
-                                    app.window().request_redraw();
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
                                 }
+                                app.window().request_redraw();
                             }
                         }
                         Err(e) => {
