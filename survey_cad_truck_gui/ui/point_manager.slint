@@ -68,6 +68,7 @@ export component PointManager inherits Window {
         Rectangle {
             width: 100%;
             height: 20px;
+            preferred-height: 20px;
             border-width: 1px;
             border-color: #808080;
             HorizontalLayout {
@@ -87,6 +88,7 @@ export component PointManager inherits Window {
         }
         ListView {
             vertical-stretch: 1;
+            preferred-height: 0px;
             for row[i] in root.points_model : Rectangle {
                 property <bool> selected: root.selected_index == i;
                 background: selected ? #404040 : transparent;
