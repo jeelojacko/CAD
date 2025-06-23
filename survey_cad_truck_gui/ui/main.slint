@@ -350,6 +350,19 @@ export component ArcKeyInDialog inherits Window {
     }
 }
 
+export component ArcModeDialog inherits Window {
+    callback center_start_end();
+    callback three_point();
+    callback start_end_radius();
+    title: "Arc Mode";
+    VerticalBox {
+        spacing: 6px;
+        Button { text: "Center-Start-End"; clicked => { root.center_start_end(); } }
+        Button { text: "Three Point"; clicked => { root.three_point(); } }
+        Button { text: "Start-End-Radius"; clicked => { root.start_end_radius(); } }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
