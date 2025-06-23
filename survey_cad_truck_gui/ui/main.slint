@@ -81,11 +81,7 @@ component Workspace3D inherits Rectangle {
     }
 }
 
-import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox } from "std-widgets.slint";
-
-export global AppStyle {
-    Text { color: #FFFFFF; }
-}
+import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox, Palette } from "std-widgets.slint";
 
 export component AddPointDialog inherits Window {
     callback from_file();
@@ -109,11 +105,11 @@ export component KeyInDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "X:"; }
+            Text { color: #FFFFFF; text: "X:"; }
             LineEdit { text <=> root.x_value; }
         }
         HorizontalBox {
-            Text { text: "Y:"; }
+            Text { color: #FFFFFF; text: "Y:"; }
             LineEdit { text <=> root.y_value; }
         }
         HorizontalBox {
@@ -135,19 +131,19 @@ export component StationDistanceDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "X1:"; }
+            Text { color: #FFFFFF; text: "X1:"; }
             LineEdit { text <=> root.x1; }
         }
         HorizontalBox {
-            Text { text: "Y1:"; }
+            Text { color: #FFFFFF; text: "Y1:"; }
             LineEdit { text <=> root.y1; }
         }
         HorizontalBox {
-            Text { text: "X2:"; }
+            Text { color: #FFFFFF; text: "X2:"; }
             LineEdit { text <=> root.x2; }
         }
         HorizontalBox {
-            Text { text: "Y2:"; }
+            Text { color: #FFFFFF; text: "Y2:"; }
             LineEdit { text <=> root.y2; }
         }
         HorizontalBox {
@@ -168,15 +164,15 @@ export component LevelElevationDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "Start Elev:"; }
+            Text { color: #FFFFFF; text: "Start Elev:"; }
             LineEdit { text <=> root.start_elev; }
         }
         HorizontalBox {
-            Text { text: "Backsight:"; }
+            Text { color: #FFFFFF; text: "Backsight:"; }
             LineEdit { text <=> root.backsight; }
         }
         HorizontalBox {
-            Text { text: "Foresight:"; }
+            Text { color: #FFFFFF; text: "Foresight:"; }
             LineEdit { text <=> root.foresight; }
         }
         HorizontalBox {
@@ -197,15 +193,15 @@ export component CorridorVolumeDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "Width:"; }
+            Text { color: #FFFFFF; text: "Width:"; }
             LineEdit { text <=> root.width_value; }
         }
         HorizontalBox {
-            Text { text: "Interval:"; }
+            Text { color: #FFFFFF; text: "Interval:"; }
             LineEdit { text <=> root.interval_value; }
         }
         HorizontalBox {
-            Text { text: "Offset Step:"; }
+            Text { color: #FFFFFF; text: "Offset Step:"; }
             LineEdit { text <=> root.offset_step_value; }
         }
         HorizontalBox {
@@ -238,15 +234,15 @@ export component LineKeyInDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "X1:"; }
+            Text { color: #FFFFFF; text: "X1:"; }
             LineEdit { text <=> root.x1; }
-            Text { text: "Y1:"; }
+            Text { color: #FFFFFF; text: "Y1:"; }
             LineEdit { text <=> root.y1; }
         }
         HorizontalBox {
-            Text { text: "X2:"; }
+            Text { color: #FFFFFF; text: "X2:"; }
             LineEdit { text <=> root.x2; }
-            Text { text: "Y2:"; }
+            Text { color: #FFFFFF; text: "Y2:"; }
             LineEdit { text <=> root.y2; }
         }
         HorizontalBox {
@@ -290,14 +286,14 @@ export component PointsDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "X:"; }
+            Text { color: #FFFFFF; text: "X:"; }
             LineEdit { text <=> root.x_value; }
-            Text { text: "Y:"; }
+            Text { color: #FFFFFF; text: "Y:"; }
             LineEdit { text <=> root.y_value; }
             Button { text: "Add"; clicked => { root.add_point(); } }
         }
         ListView {
-            for p in root.points_model : Text { text: p; }
+            for p in root.points_model : Text { color: #FFFFFF; text: p; }
             height: 100px;
         }
         HorizontalBox {
@@ -331,19 +327,19 @@ export component ArcKeyInDialog inherits Window {
     VerticalBox {
         spacing: 6px;
         HorizontalBox {
-            Text { text: "Cx:"; }
+            Text { color: #FFFFFF; text: "Cx:"; }
             LineEdit { text <=> root.cx; }
-            Text { text: "Cy:"; }
+            Text { color: #FFFFFF; text: "Cy:"; }
             LineEdit { text <=> root.cy; }
         }
         HorizontalBox {
-            Text { text: "Radius:"; }
+            Text { color: #FFFFFF; text: "Radius:"; }
             LineEdit { text <=> root.radius; }
         }
         HorizontalBox {
-            Text { text: "Start:"; }
+            Text { color: #FFFFFF; text: "Start:"; }
             LineEdit { text <=> root.start_angle; }
-            Text { text: "End:"; }
+            Text { color: #FFFFFF; text: "End:"; }
             LineEdit { text <=> root.end_angle; }
         }
         HorizontalBox {
@@ -582,13 +578,13 @@ export component MainWindow inherits Window {
                 text: "Clear";
                 clicked => { root.clear_workspace(); }
             }
-        Text { text: "View:"; }
+        Text { color: #FFFFFF; text: "View:"; }
         ComboBox {
             model: ["2D", "3D"];
             current-index <=> root.workspace_mode;
             selected => { root.view_changed(root.workspace_mode); }
         }
-        Text { text: "Cogo:"; }
+        Text { color: #FFFFFF; text: "Cogo:"; }
         ComboBox {
             model: root.cogo_list;
             current-index <=> root.cogo_index;
@@ -600,7 +596,7 @@ export component MainWindow inherits Window {
             width: 100%;
             height: 30px;
             spacing: 6px;
-        Text { text: "CRS:"; }
+        Text { color: #FFFFFF; text: "CRS:"; }
         ComboBox {
             model: root.crs_list;
             current-index <=> root.crs_index;

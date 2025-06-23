@@ -24,9 +24,9 @@ export component LineStyleManager inherits Window {
             border-color: #808080;
             HorizontalBox {
                 spacing: 8px;
-                Text { text: "Start"; width: 140px; }
-                Text { text: "End"; width: 140px; }
-                Text { text: "Style"; width: 80px; }
+                Text { color: #FFFFFF; text: "Start"; width: 140px; }
+                Text { color: #FFFFFF; text: "End"; width: 140px; }
+                Text { color: #FFFFFF; text: "Style"; width: 80px; }
             }
         }
         ListView {
@@ -37,8 +37,8 @@ export component LineStyleManager inherits Window {
                 height: 24px;
                 HorizontalBox {
                     spacing: 8px;
-                    Text { text: row.start; width: 140px; }
-                    Text { text: row.end; width: 140px; }
+                    Text { color: #FFFFFF; text: row.start; width: 140px; }
+                    Text { color: #FFFFFF; text: row.end; width: 140px; }
                     ComboBox {
                         model: root.styles_model;
                         current-index: row.style_index;
