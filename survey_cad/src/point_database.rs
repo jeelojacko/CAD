@@ -87,6 +87,16 @@ impl PointDatabase {
         self.groups.len() - 1
     }
 
+    /// Renames a group. Returns `true` if the group existed.
+    pub fn rename_group<S: Into<String>>(&mut self, id: usize, name: S) -> bool {
+        if let Some(g) = self.groups.get_mut(id) {
+            g.name = name.into();
+            true
+        } else {
+            false
+        }
+    }
+
     /// Removes a group.
     pub fn remove_group(&mut self, id: usize) -> Option<PointGroup> {
         if id >= self.groups.len() {
