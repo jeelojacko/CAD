@@ -1022,7 +1022,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ));
     app.set_crs_list(crs_model.into());
     app.set_crs_index(0);
-    app.set_workspace_mode(1); // start with 3D mode to show truck rendering
+    app.set_workspace_mode(0); // start with 2D mode
 
     // show length of example line in the status bar so Line import is used
     app.set_status(SharedString::from(format!(
@@ -1156,15 +1156,19 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         let zoom = zoom.clone();
         app.on_view_changed(move |mode| {
             if let Some(app) = weak.upgrade() {
                 app.set_workspace_mode(mode);
                 if mode == 0 {
                     app.set_workspace_image(render_image());
-                    app.window().request_redraw();
                     app.set_zoom_level(*zoom.borrow());
+                } else {
+                    let image = backend_render.borrow_mut().render();
+                    app.set_workspace_texture(image);
                 }
+                app.window().request_redraw();
             }
         });
     }
