@@ -15,7 +15,7 @@ use survey_cad::geometry::{
     Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
 };
 use survey_cad::point_database::PointDatabase;
-use survey_cad::styles::{LineLabelPosition, LineLabelStyle, PointLabelStyle};
+use survey_cad::styles::{format_dms, LineLabelPosition, LineLabelStyle, PointLabelStyle};
 
 mod truck_backend;
 use truck_backend::TruckBackend;
@@ -369,7 +369,7 @@ fn render_workspace(
             if angle < 0.0 {
                 angle += 360.0;
             }
-            let text = format!("{:.2} m\n{:.1}\u{00B0}", ann.distance, angle);
+            let text = format!("{:.2} m\n{}", ann.distance, format_dms(angle));
             let mid = line.midpoint();
             let dx = e.x - s.x;
             let dy = e.y - s.y;

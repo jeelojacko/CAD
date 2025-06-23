@@ -111,6 +111,27 @@ impl LineLabelStyle {
     }
 }
 
+/// Formats a decimal degree value as a degrees-minutes-seconds string.
+pub fn format_dms(angle_deg: f64) -> String {
+    let sign = if angle_deg < 0.0 { "-" } else { "" };
+    let mut angle = angle_deg.abs();
+    let mut deg = angle.floor() as i64;
+    angle = (angle - deg as f64) * 60.0;
+    let mut min = angle.floor() as i64;
+    let mut sec = ((angle - min as f64) * 60.0).round() as i64;
+
+    if sec == 60 {
+        sec = 0;
+        min += 1;
+    }
+    if min == 60 {
+        min = 0;
+        deg += 1;
+    }
+
+    format!("{}{}\u{00B0}{}'{}\"", sign, deg, min, sec)
+}
+
 /// Returns a basic set of default point styles.
 pub fn default_point_styles() -> Vec<(String, PointStyle)> {
     vec![
@@ -134,11 +155,19 @@ pub fn default_point_label_styles() -> Vec<(String, PointLabelStyle)> {
     vec![
         (
             "Small White".to_string(),
-            PointLabelStyle::new(TextStyle::new("small", "Arial", 2.5), [255, 255, 255], [5.0, 5.0]),
+            PointLabelStyle::new(
+                TextStyle::new("small", "Arial", 10.0),
+                [255, 255, 255],
+                [5.0, 5.0],
+            ),
         ),
         (
             "Large Yellow".to_string(),
-            PointLabelStyle::new(TextStyle::new("large", "Arial", 5.0), [255, 255, 0], [5.0, 5.0]),
+            PointLabelStyle::new(
+                TextStyle::new("large", "Arial", 10.0),
+                [255, 255, 0],
+                [5.0, 5.0],
+            ),
         ),
     ]
 }
@@ -168,7 +197,7 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
         (
             "Above Small".to_string(),
             LineLabelStyle::new(
-                TextStyle::new("small", "Arial", 8.0),
+                TextStyle::new("small", "Arial", 10.0),
                 [255, 255, 255],
                 LineLabelPosition::Above,
             ),
@@ -176,7 +205,7 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
         (
             "Below Small".to_string(),
             LineLabelStyle::new(
-                TextStyle::new("small", "Arial", 8.0),
+                TextStyle::new("small", "Arial", 10.0),
                 [255, 255, 0],
                 LineLabelPosition::Below,
             ),
