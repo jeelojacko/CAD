@@ -72,17 +72,17 @@ export component PointManager inherits Window {
             border-color: #808080;
             HorizontalLayout {
                 spacing: 0px;
-                Text { text: "#"; width: root.number_width; }
+                Text { color: #FFFFFF; text: "#"; width: root.number_width; }
                 ColumnSeparator { column_width <=> root.number_width; }
-                Text { text: "Name"; width: root.name_width; }
+                Text { color: #FFFFFF; text: "Name"; width: root.name_width; }
                 ColumnSeparator { column_width <=> root.name_width; }
-                Text { text: "X"; width: root.x_width; }
+                Text { color: #FFFFFF; text: "X"; width: root.x_width; }
                 ColumnSeparator { column_width <=> root.x_width; }
-                Text { text: "Y"; width: root.y_width; }
+                Text { color: #FFFFFF; text: "Y"; width: root.y_width; }
                 ColumnSeparator { column_width <=> root.y_width; }
-                Text { text: "Group"; width: root.group_width; }
+                Text { color: #FFFFFF; text: "Group"; width: root.group_width; }
                 ColumnSeparator { column_width <=> root.group_width; }
-                Text { text: "Style"; width: root.style_width; }
+                Text { color: #FFFFFF; text: "Style"; width: root.style_width; }
             }
         }
         ListView {
@@ -94,6 +94,7 @@ export component PointManager inherits Window {
                 HorizontalLayout {
                     spacing: 8px;
                     Text {
+    color: #FFFFFF;
                         text: row.number;
                         width: root.number_width;
                         TouchArea {
