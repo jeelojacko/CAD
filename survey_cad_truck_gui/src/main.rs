@@ -928,8 +928,8 @@ fn main() -> Result<(), slint::PlatformError> {
         .collect();
     let point_style_values: Vec<PointStyle> = point_styles.iter().map(|(_, s)| *s).collect();
 
-    let line_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let line_styles = survey_cad::styles::default_line_styles();
+    let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
     let line_label_styles = survey_cad::styles::default_line_label_styles();
     let line_style_names: Rc<Vec<SharedString>> = Rc::new(
         line_styles
@@ -942,11 +942,43 @@ fn main() -> Result<(), slint::PlatformError> {
     let refresh_line_style_dialogs: Rc<dyn Fn()> = {
         let dialogs = open_line_style_managers.clone();
         let style_names = line_style_names.clone();
+        let lines = lines.clone();
+        let indices = line_style_indices.clone();
         Rc::new(move || {
-            let model = Rc::new(VecModel::from((*style_names).clone()));
+            let needed = style_names.len();
+            {
+                let mut idx = indices.borrow_mut();
+                if idx.len() < needed {
+                    idx.resize(needed, 0);
+                }
+            }
+            let style_model = Rc::new(VecModel::from((*style_names).clone()));
+            let current_indices = indices.borrow().clone();
+            let current_lines = lines.borrow().clone();
+            let rows = current_indices
+                .iter()
+                .enumerate()
+                .map(|(i, s_idx)| {
+                    if let Some((s, e)) = current_lines.get(i) {
+                        LineRow {
+                            start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
+                            end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
+                            style_index: *s_idx as i32,
+                        }
+                    } else {
+                        LineRow {
+                            start: SharedString::from(""),
+                            end: SharedString::from(""),
+                            style_index: *s_idx as i32,
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            let line_model = Rc::new(VecModel::from(rows));
             dialogs.borrow_mut().retain(|d| {
                 if let Some(dlg) = d.upgrade() {
-                    dlg.set_styles_model(model.clone().into());
+                    dlg.set_styles_model(style_model.clone().into());
+                    dlg.set_lines_model(line_model.clone().into());
                     true
                 } else {
                     false
@@ -1673,7 +1705,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             match read_line_csv(p) {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
-                                    line_style_indices.borrow_mut().push(0);
+                                    let count = lines.borrow().len();
+                                    let mut idx = line_style_indices.borrow_mut();
+                                    if idx.len() < count {
+                                        idx.resize(count, 0);
+                                    }
                                     refresh_line_style_dialogs();
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
@@ -1733,7 +1769,11 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
-                                    line_style_indices.borrow_mut().push(0);
+                                    let count = lines.borrow().len();
+                                    let mut idx = line_style_indices.borrow_mut();
+                                    if idx.len() < count {
+                                        idx.resize(count, 0);
+                                    }
                                     refresh_line_style_dialogs();
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
@@ -3062,23 +3102,36 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_line_style_manager(move || {
             let dlg = LineStyleManager::new().unwrap();
             dialogs.borrow_mut().push(dlg.as_weak());
-            let model = Rc::new(VecModel::<LineRow>::from(
-                lines
-                    .borrow()
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (s, e))| {
-                        if line_style_indices.borrow().len() <= i {
-                            line_style_indices.borrow_mut().push(0);
-                        }
+
+            let needed = line_style_names.len();
+            {
+                let mut idx = line_style_indices.borrow_mut();
+                if idx.len() < needed {
+                    idx.resize(needed, 0);
+                }
+            }
+            let current_indices = line_style_indices.borrow().clone();
+            let current_lines = lines.borrow().clone();
+            let rows = current_indices
+                .iter()
+                .enumerate()
+                .map(|(i, s_idx)| {
+                    if let Some((s, e)) = current_lines.get(i) {
                         LineRow {
                             start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
                             end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
-                            style_index: line_style_indices.borrow()[i] as i32,
+                            style_index: *s_idx as i32,
                         }
-                    })
-                    .collect::<Vec<_>>(),
-            ));
+                    } else {
+                        LineRow {
+                            start: SharedString::from(""),
+                            end: SharedString::from(""),
+                            style_index: *s_idx as i32,
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            let model = Rc::new(VecModel::<LineRow>::from(rows));
             dlg.set_lines_model(model.clone().into());
             dlg.set_styles_model(Rc::new(VecModel::from((*line_style_names).clone())).into());
             dlg.set_selected_index(-1);
@@ -3093,8 +3146,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         let mut r = row.clone();
                         r.style_index = style_idx;
                         model.set_row_data(idx as usize, r);
-                        if indices.borrow().len() > idx as usize {
-                            indices.borrow_mut()[idx as usize] = style_idx as usize;
+                        {
+                            let mut iref = indices.borrow_mut();
+                            if iref.len() <= idx as usize {
+                                iref.resize(idx as usize + 1, 0);
+                            }
+                            iref[idx as usize] = style_idx as usize;
                         }
                         if let Some(app) = weak.upgrade() {
                             if app.get_workspace_mode() == 0 {
@@ -3340,7 +3397,6 @@ fn main() -> Result<(), slint::PlatformError> {
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
             point_style_indices.borrow_mut().clear();
-            line_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
