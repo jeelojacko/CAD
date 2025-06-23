@@ -57,6 +57,10 @@ component Workspace3D inherits Rectangle {
 
 import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox } from "std-widgets.slint";
 
+export global AppStyle {
+    Text { color: #FFFFFF; }
+}
+
 export component AddPointDialog inherits Window {
     callback from_file();
     callback manual_keyin();
