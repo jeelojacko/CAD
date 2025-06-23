@@ -176,7 +176,7 @@ fn arc_from_three_points(p1: Point, p2: Point, p3: Point) -> Option<Arc> {
     let cy = (a * f - c * e) / g;
     let center = Point::new(cx, cy);
     let r = ((center.x - p1.x).powi(2) + (center.y - p1.y).powi(2)).sqrt();
-    let mut sa = (p1.y - cy).atan2(p1.x - cx);
+    let sa = (p1.y - cy).atan2(p1.x - cx);
     let mut ma = (p2.y - cy).atan2(p2.x - cx);
     let mut ea = (p3.y - cy).atan2(p3.x - cx);
     let cross = (p2.x - p1.x) * (p3.y - p2.y) - (p2.y - p1.y) * (p3.x - p2.x);
