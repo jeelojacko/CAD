@@ -15,7 +15,7 @@ use survey_cad::geometry::{
     Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
 };
 use survey_cad::point_database::PointDatabase;
-use survey_cad::styles::{LineLabelPosition, LineLabelStyle};
+use survey_cad::styles::{LineLabelPosition, LineLabelStyle, PointLabelStyle};
 
 mod truck_backend;
 use truck_backend::TruckBackend;
@@ -109,6 +109,8 @@ struct RenderStyles<'a> {
     line_style_indices: &'a Rc<RefCell<Vec<usize>>>,
     show_labels: bool,
     label_style: &'a LineLabelStyle,
+    point_label_style: &'a PointLabelStyle,
+    show_point_numbers: bool,
 }
 
 fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size: f32) {
@@ -609,6 +611,21 @@ fn render_workspace(
                 }
             }
         }
+        if styles.show_point_numbers {
+            draw_text(
+                &mut pixmap,
+                &(idx + 1).to_string(),
+                tx(p.x as f32 + styles.point_label_style.offset[0]),
+                ty(p.y as f32 + styles.point_label_style.offset[1]),
+                Color::from_rgba8(
+                    styles.point_label_style.color[0],
+                    styles.point_label_style.color[1],
+                    styles.point_label_style.color[2],
+                    255,
+                ),
+                styles.point_label_style.text_style.height as f32,
+            );
+        }
     }
 
     if let Some(cf) = state.cursor_feedback.borrow().as_ref() {
@@ -931,6 +948,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_styles = survey_cad::styles::default_line_styles();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
     let line_label_styles = survey_cad::styles::default_line_label_styles();
+    let point_label_styles = survey_cad::styles::default_point_label_styles();
+    let point_label_style = point_label_styles[0].1.clone();
     let line_style_names: Rc<Vec<SharedString>> = Rc::new(
         line_styles
             .iter()
@@ -1009,8 +1028,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let cursor_feedback = cursor_feedback.clone();
         let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
+        let point_label_style = point_label_style.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
+            let show_numbers = app_weak
+                .upgrade()
+                .map(|a| a.get_show_point_numbers())
+                .unwrap_or(true);
             render_workspace(
                 &WorkspaceRenderData {
                     points: &point_db.borrow(),
@@ -1036,6 +1060,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     line_style_indices: &line_style_indices,
                     show_labels: true,
                     label_style: &label_style,
+                    point_label_style: &point_label_style,
+                    show_point_numbers: show_numbers,
                 },
                 &drawing_mode.borrow(),
                 size.width,
@@ -1055,6 +1081,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_crs_list(crs_model.into());
     app.set_crs_index(0);
     app.set_workspace_mode(0); // start with 2D mode
+    app.set_show_point_numbers(true);
 
     // show length of example line in the status bar so Line import is used
     app.set_status(SharedString::from(format!(
@@ -1201,6 +1228,19 @@ fn main() -> Result<(), slint::PlatformError> {
                     app.set_workspace_texture(image);
                 }
                 app.window().request_redraw();
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let render_image = render_image.clone();
+        app.on_point_numbers_changed(move |_| {
+            if let Some(app) = weak.upgrade() {
+                if app.get_workspace_mode() == 0 {
+                    app.set_workspace_image(render_image());
+                    app.window().request_redraw();
+                }
             }
         });
     }
