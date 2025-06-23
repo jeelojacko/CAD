@@ -939,6 +939,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // we fall back to the system fonts so the application remains usable.
     if let Err(err) = sharedfontdb::register_font_from_memory(FONT_DATA) {
         eprintln!("Failed to register bundled font: {err}. Falling back to system fonts");
+        sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
     }
     let app = MainWindow::new()?;
     let window_size = Rc::new(RefCell::new(app.window().size()));
