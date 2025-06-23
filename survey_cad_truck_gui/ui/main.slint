@@ -367,6 +367,11 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_to_entities;
     in-out property <float> zoom_level;
 
+    callback key_pressed(string);
+    FocusScope {
+        key-pressed(event) => { root.key_pressed(event.text); return EventResult.accept; }
+    }
+
     callback draw_line_mode();
     callback draw_polygon_mode();
     callback draw_arc_mode();
