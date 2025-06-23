@@ -3125,18 +3125,25 @@ fn main() -> Result<(), slint::PlatformError> {
                     .collect::<Vec<_>>(),
             ));
             dlg.set_points_model(model.clone().into());
-            dlg.set_groups_model(
-                Rc::new(VecModel::<SharedString>::from(
-                    point_db
-                        .borrow()
-                        .iter_groups()
-                        .map(|(_, g)| SharedString::from(g.name.clone()))
-                        .collect::<Vec<_>>(),
-                ))
-                .into(),
-            );
+            let groups_model = Rc::new(VecModel::<SharedString>::from(
+                point_db
+                    .borrow()
+                    .iter_groups()
+                    .map(|(_, g)| SharedString::from(g.name.clone()))
+                    .collect::<Vec<_>>(),
+            ));
+            dlg.set_groups_model(groups_model.clone().into());
             dlg.set_styles_model(Rc::new(VecModel::from(point_style_names.clone())).into());
             dlg.set_selected_index(-1);
+
+            let rename_in_model: Rc<dyn Fn(usize, SharedString)> = {
+                let groups_model = groups_model.clone();
+                Rc::new(move |idx: usize, name: SharedString| {
+                    if idx < groups_model.row_count() {
+                        groups_model.set_row_data(idx, name.clone());
+                    }
+                })
+            };
 
             {
                 let model = model.clone();
@@ -3219,6 +3226,48 @@ fn main() -> Result<(), slint::PlatformError> {
                                 app.window().request_redraw();
                             }
                         }
+                    }
+                });
+            }
+            {
+                let groups_model = groups_model.clone();
+                let point_db = point_db.clone();
+                dlg.on_create_group(move || {
+                    let name = format!("Group {}", groups_model.row_count() + 1);
+                    point_db.borrow_mut().add_group(name.clone());
+                    groups_model.push(SharedString::from(name));
+                });
+            }
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                let rename_in_model = rename_in_model.clone();
+                let dlg_weak = dlg_weak.clone();
+                dlg.on_rename_group(move || {
+                    if let Some(d) = dlg_weak.upgrade() {
+                        let row = d.get_selected_index();
+                        if row >= 0 {
+                            if let Some(r) = model.row_data(row as usize) {
+                                let g_idx = r.group_index as usize;
+                                let new_name = format!("Group {}", g_idx + 1);
+                                if point_db.borrow_mut().rename_group(g_idx, new_name.clone()) {
+                                    rename_in_model(g_idx, SharedString::from(new_name));
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let point_db = point_db.clone();
+                dlg.on_group_changed(move |p_idx, g_idx| {
+                    if let Some(row) = model.row_data(p_idx as usize) {
+                        point_db.borrow_mut().remove_point_from_group(p_idx as usize, row.group_index as usize);
+                        point_db.borrow_mut().assign_point(p_idx as usize, g_idx as usize);
+                        let mut r = row.clone();
+                        r.group_index = g_idx;
+                        model.set_row_data(p_idx as usize, r);
                     }
                 });
             }
