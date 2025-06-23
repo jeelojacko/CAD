@@ -378,6 +378,7 @@ export component MainWindow inherits Window {
     in-out property <bool> workspace_click_mode;
     in-out property <bool> snap_to_grid;
     in-out property <bool> snap_to_entities;
+    in-out property <bool> show_point_numbers;
     in-out property <float> zoom_level;
 
     callback key_pressed(string);
@@ -411,6 +412,7 @@ export component MainWindow inherits Window {
     callback traverse_area();
     callback level_elevation_tool();
     callback corridor_volume();
+    callback point_numbers_changed(bool);
     callback point_manager();
     callback line_style_manager();
     callback import_geojson();
@@ -608,6 +610,11 @@ export component MainWindow inherits Window {
             spacing: 6px;
             CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; }
             CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; }
+            CheckBox {
+                text: "Point Numbers";
+                checked <=> root.show_point_numbers;
+                toggled => { root.point_numbers_changed(root.show_point_numbers); }
+            }
         }
 
         Rectangle {

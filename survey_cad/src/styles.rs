@@ -168,7 +168,7 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
         (
             "Above Small".to_string(),
             LineLabelStyle::new(
-                TextStyle::new("small", "Arial", 3.0),
+                TextStyle::new("small", "Arial", 8.0),
                 [255, 255, 255],
                 LineLabelPosition::Above,
             ),
@@ -176,7 +176,7 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
         (
             "Below Small".to_string(),
             LineLabelStyle::new(
-                TextStyle::new("small", "Arial", 3.0),
+                TextStyle::new("small", "Arial", 8.0),
                 [255, 255, 0],
                 LineLabelPosition::Below,
             ),
