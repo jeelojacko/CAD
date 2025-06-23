@@ -1046,9 +1046,17 @@ fn main() -> Result<(), slint::PlatformError> {
                             DrawingMode::Line { start } => {
                                 if start.is_none() {
                                     *start = Some(p);
-                                } else if let Some(s) = *start {
+                                } else if let Some(s) = start.take() {
                                     lines_ref.borrow_mut().push((s, p));
                                     *drawing_mode.borrow_mut() = DrawingMode::None;
+                                } else {
+                                    if let Some(app) = weak.upgrade() {
+                                        app.set_status(SharedString::from(
+                                            "No start point, line cancelled",
+                                        ));
+                                    }
+                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                    return;
                                 }
                             }
                             DrawingMode::Polygon { vertices } => {
