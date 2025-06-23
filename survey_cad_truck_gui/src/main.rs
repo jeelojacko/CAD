@@ -921,6 +921,7 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
+
     {
         let drawing_mode = drawing_mode.clone();
         app.on_draw_line_mode(move || {
@@ -998,6 +999,39 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
+    {
+        let drawing_mode = drawing_mode.clone();
+        let polygons = polygons.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
+        app.on_key_pressed(move |key| {
+            if key.as_str() == "\u{001b}" {
+                *drawing_mode.borrow_mut() = DrawingMode::None;
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
+                    }
+                }
+            } else if key.as_str() == "\u{000a}" {
+                let mut dm = drawing_mode.borrow_mut();
+                if let DrawingMode::Polygon { vertices } = &mut *dm {
+                    if vertices.len() > 2 {
+                        vertices.push(vertices[0]);
+                        polygons.borrow_mut().push(vertices.clone());
+                        *dm = DrawingMode::None;
+                        if let Some(app) = weak.upgrade() {
+                            if app.get_workspace_mode() == 0 {
+                                app.set_workspace_image(render_image());
+                                app.window().request_redraw();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     // camera interaction callbacks for the 3D workspace
     {
         let rotate_flag = rotate_flag.clone();
@@ -1026,7 +1060,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let zoom = zoom.clone();
         let lines_ref = lines.clone();
         let polygons_ref = polygons.clone();
+        let polylines = polylines.clone();
+        let point_db = point_db.clone();
         let arcs_ref = arcs.clone();
+        let last_click = last_click.clone();
         let render_image = render_image.clone();
         let weak = app.as_weak();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
@@ -1034,7 +1071,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if ev.button == PointerEventButton::Left {
                     if let Some(app) = weak.upgrade() {
                         let size = app.window().size();
-                        let p = screen_to_workspace(
+                        let mut p = screen_to_workspace(
                             x,
                             y,
                             &offset,
@@ -1042,6 +1079,31 @@ fn main() -> Result<(), slint::PlatformError> {
                             size.width as f32,
                             size.height as f32,
                         );
+                        if app.get_snap_to_entities() {
+                            let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
+                            for pt in point_db.borrow().iter() {
+                                ents.push(survey_cad::io::DxfEntity::Point { point: *pt, layer: None });
+                            }
+                            for (s, e) in lines_ref.borrow().iter() {
+                                ents.push(survey_cad::io::DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+                            }
+                            for poly in polygons_ref.borrow().iter() {
+                                ents.push(survey_cad::io::DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+                            }
+                            for pl in polylines.borrow().iter() {
+                                ents.push(survey_cad::io::DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+                            }
+                            for arc in arcs_ref.borrow().iter() {
+                                ents.push(survey_cad::io::DxfEntity::Arc { arc: *arc, layer: None });
+                            }
+                            if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0) {
+                                p = sp;
+                            }
+                        }
+                        if app.get_snap_to_grid() {
+                            p.x = p.x.round();
+                            p.y = p.y.round();
+                        }
                         match &mut *drawing_mode.borrow_mut() {
                             DrawingMode::Line { start } => {
                                 if start.is_none() {
@@ -1060,7 +1122,18 @@ fn main() -> Result<(), slint::PlatformError> {
                                 }
                             }
                             DrawingMode::Polygon { vertices } => {
+                                let now = Instant::now();
+                                let double = last_click
+                                    .borrow()
+                                    .map(|t| now.duration_since(t).as_millis() < 500)
+                                    .unwrap_or(false);
+                                *last_click.borrow_mut() = Some(now);
                                 vertices.push(p);
+                                if double && vertices.len() > 2 {
+                                    vertices.push(vertices[0]);
+                                    polygons_ref.borrow_mut().push(vertices.clone());
+                                    *drawing_mode.borrow_mut() = DrawingMode::None;
+                                }
                             }
                             DrawingMode::Arc {
                                 center,
