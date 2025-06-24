@@ -1370,6 +1370,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs_ref = arcs.clone();
         let last_click = last_click.clone();
         let render_image = render_image.clone();
+        let backend_render = backend.clone();
         let weak = app.as_weak();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
             if *drawing_mode.borrow() != DrawingMode::None {
@@ -1434,6 +1435,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
                                     lines_ref.borrow_mut().push((s, p));
+                                    backend_render.borrow_mut().add_line(
+                                        [s.x, s.y, 0.0],
+                                        [p.x, p.y, 0.0],
+                                    );
                                     *mode = DrawingMode::None;
                                 } else {
                                     if let Some(app) = weak.upgrade() {
@@ -1518,6 +1523,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         if app.get_workspace_mode() == 0 {
                             app.set_workspace_image(render_image());
                             app.window().request_redraw();
+                        }
+                        if let Some(app) = weak.upgrade() {
+                            refresh_workspace(&app, &render_image, &backend_render);
                         }
                     }
                 }
@@ -1878,6 +1886,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let line_style_indices = line_style_indices.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
+        let backend_render = backend.clone();
         app.on_add_line(move || {
             let line_style_indices = line_style_indices.clone();
             let dlg = AddLineDialog::new().unwrap();
@@ -1898,6 +1907,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             match read_line_csv(p) {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
+                                    backend_render.borrow_mut().add_line(
+                                        [l.start.x, l.start.y, 0.0],
+                                        [l.end.x, l.end.y, 0.0],
+                                    );
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -1913,6 +1926,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                             app.set_workspace_image(render_image());
                                             app.window().request_redraw();
                                         }
+                                        refresh_workspace(&app, &render_image, &backend_render);
+                                        refresh_workspace(&app, &render_image, &backend_render);
                                     }
                                 }
                                 Err(e) => {
@@ -1962,6 +1977,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
+                                    backend_render.borrow_mut().add_line(
+                                        [x1, y1, 0.0],
+                                        [x2, y2, 0.0],
+                                    );
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -1977,6 +1996,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             app.set_workspace_image(render_image());
                                             app.window().request_redraw();
                                         }
+                                        refresh_workspace(&app, &render_image, &backend_render);
                                     }
                                 }
                             }
@@ -2005,6 +2025,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let point_style_indices = point_style_indices.clone();
+        let backend_render = backend.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -2085,6 +2106,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 ) {
                                     point_db.borrow_mut().push(Point::new(x, y));
                                     psi.borrow_mut().push(0);
+                                    backend_render.borrow_mut().add_point(x, y, 0.0);
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total points: {}",
@@ -3658,6 +3680,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     point_db.borrow_mut().push(p);
                     point_style_indices.borrow_mut().push(0);
+                    backend_render.borrow_mut().add_point(p.x, p.y, 0.0);
                     app.set_workspace_click_mode(false);
                     app.set_status(SharedString::from(format!(
                         "Total points: {}",
@@ -3667,6 +3690,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         app.set_workspace_image(render_image());
                         app.window().request_redraw();
                     }
+                    refresh_workspace(&app, &render_image, &backend_render);
                 }
             }
         });
