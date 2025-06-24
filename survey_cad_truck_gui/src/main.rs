@@ -1384,6 +1384,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             size.width as f32,
                             size.height as f32,
                         );
+                        let zoom_factor = *zoom.borrow();
                         if app.get_snap_to_entities() {
                             let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
                             for pt in point_db.borrow().iter() {
@@ -1416,7 +1417,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     layer: None,
                                 });
                             }
-                            if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0) {
+                            if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64)) {
                                 p = sp;
                             }
                         }
@@ -3528,13 +3529,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             } else if let Some(app) = weak.upgrade() {
                 if app.get_workspace_click_mode() {
-                    const WIDTH: f64 = 600.0;
-                    const HEIGHT: f64 = 400.0;
-                    let mut p = Point::new(x as f64 - WIDTH / 2.0, HEIGHT / 2.0 - y as f64);
-                    if app.get_snap_to_grid() {
-                        p.x = p.x.round();
-                        p.y = p.y.round();
-                    }
+                    let size = app.window().size();
+                    let mut p = screen_to_workspace(
+                        x,
+                        y,
+                        &offset_ref,
+                        &zoom_ref,
+                        size.width as f32,
+                        size.height as f32,
+                    );
+                    let zoom_factor = *zoom_ref.borrow();
                     if app.get_snap_to_entities() {
                         let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
                         for pt in point_db.borrow().iter() {
@@ -3567,9 +3571,13 @@ fn main() -> Result<(), slint::PlatformError> {
                                 layer: None,
                             });
                         }
-                        if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0) {
+                        if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64)) {
                             p = sp;
                         }
+                    }
+                    if app.get_snap_to_grid() {
+                        p.x = p.x.round();
+                        p.y = p.y.round();
                     }
                     point_db.borrow_mut().push(p);
                     point_style_indices.borrow_mut().push(0);
