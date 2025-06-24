@@ -1461,7 +1461,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                     (*center, *radius, *start_angle)
                                 {
                                     let ea = (p.y - c.y).atan2(p.x - c.x);
-                                    arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
+                                    let arc = Arc::new(c, r, sa, ea);
+                                    arcs_ref.borrow_mut().push(arc);
                                     *mode = DrawingMode::None;
                                 }
                             }
@@ -3263,8 +3264,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 let point_db = point_db.clone();
                 dlg.on_group_changed(move |p_idx, g_idx| {
                     if let Some(row) = model.row_data(p_idx as usize) {
-                        point_db.borrow_mut().remove_point_from_group(p_idx as usize, row.group_index as usize);
-                        point_db.borrow_mut().assign_point(p_idx as usize, g_idx as usize);
+                        point_db
+                            .borrow_mut()
+                            .remove_point_from_group(p_idx as usize, row.group_index as usize);
+                        point_db
+                            .borrow_mut()
+                            .assign_point(p_idx as usize, g_idx as usize);
                         let mut r = row.clone();
                         r.group_index = g_idx;
                         model.set_row_data(p_idx as usize, r);
@@ -3484,7 +3489,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         } => {
                             if let (Some(c), Some(r), Some(sa)) = (*center, *radius, *start_angle) {
                                 let ea = (p.y - c.y).atan2(p.x - c.x);
-                                arcs_ref.borrow_mut().push(Arc::new(c, r, sa, ea));
+                                let arc = Arc::new(c, r, sa, ea);
+                                arcs_ref.borrow_mut().push(arc);
                                 *mode = DrawingMode::None;
                             }
                         }
