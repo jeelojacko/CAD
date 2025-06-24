@@ -935,12 +935,13 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 
 fn main() -> Result<(), slint::PlatformError> {
     let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
-    // Register bundled font before creating the window. If registration fails
-    // we fall back to the system fonts so the application remains usable.
-    if let Err(err) = sharedfontdb::register_font_from_memory(FONT_DATA) {
-        eprintln!("Failed to register bundled font: {err}. Falling back to system fonts");
-        sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
-    }
+    // Always populate the font database with the system fonts first so that the
+    // embedded font can complement, rather than replace, them. This ensures
+    // that built-in controls can resolve their default fonts while we still
+    // provide our bundled DejaVuSans.
+    sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
+    sharedfontdb::register_font_from_memory(FONT_DATA)
+        .expect("failed to register embedded font");
     let app = MainWindow::new()?;
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
