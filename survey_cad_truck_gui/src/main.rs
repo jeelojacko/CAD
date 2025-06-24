@@ -933,6 +933,20 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
     Ok(Arc::new(Point::new(cx, cy), r, sa, ea))
 }
 
+fn refresh_workspace(
+    app: &MainWindow,
+    render_image: &dyn Fn() -> Image,
+    backend_render: &Rc<RefCell<TruckBackend>>,
+) {
+    if app.get_workspace_mode() == 0 {
+        app.set_workspace_image(render_image());
+    } else {
+        let image = backend_render.borrow_mut().render();
+        app.set_workspace_texture(image);
+    }
+    app.window().request_redraw();
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
     // Always populate the font database with the system fonts first so that the
@@ -1710,16 +1724,10 @@ fn main() -> Result<(), slint::PlatformError> {
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
             refresh_line_style_dialogs();
-            if let Some(app) = weak.upgrade() {
-                app.set_status(SharedString::from("New project created"));
-                if app.get_workspace_mode() == 0 {
-                    app.set_workspace_image(render_image());
-                } else {
-                    let image = backend_render.borrow_mut().render();
-                    app.set_workspace_texture(image);
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("New project created"));
+                    refresh_workspace(&app, &render_image, &backend_render);
                 }
-                app.window().request_redraw();
-            }
         });
     }
 
@@ -1748,13 +1756,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Loaded {} points",
                                     len
                                 )));
-                                if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
-                                } else {
-                                    let image = backend_render.borrow_mut().render();
-                                    app.set_workspace_texture(image);
-                                }
-                                app.window().request_redraw();
+                                refresh_workspace(&app, &render_image, &backend_render);
                             }
                         }
                         Err(e) => {
