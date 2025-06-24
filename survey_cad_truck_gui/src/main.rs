@@ -981,6 +981,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let cursor_feedback = Rc::new(RefCell::new(None));
     let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
     let last_click = Rc::new(RefCell::new(None));
+    let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_styles = survey_cad::styles::default_point_styles();
     let point_style_names: Vec<SharedString> = point_styles
@@ -1621,6 +1622,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let drag_select = drag_select.clone();
         let cursor_feedback = cursor_feedback.clone();
+        let drawing_mode = drawing_mode.clone();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let polygons_ref = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs_ref = arcs.clone();
+        let current_line = current_line.clone();
         let weak = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
@@ -1658,6 +1666,72 @@ fn main() -> Result<(), slint::PlatformError> {
             if drag_select.borrow().active {
                 drag_select.borrow_mut().end = (x, y);
                 if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
+                    }
+                }
+            }
+
+            if matches!(*drawing_mode.borrow(), DrawingMode::Line { .. }) {
+                if let Some(app) = weak.upgrade() {
+                    let size = app.window().size();
+                    let mut p = screen_to_workspace(
+                        x,
+                        y,
+                        &offset,
+                        &zoom,
+                        size.width as f32,
+                        size.height as f32,
+                    );
+                    let zoom_factor = *zoom.borrow();
+                    if app.get_snap_to_entities() {
+                        let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
+                        for pt in point_db.borrow().iter() {
+                            ents.push(survey_cad::io::DxfEntity::Point {
+                                point: *pt,
+                                layer: None,
+                            });
+                        }
+                        for (s, e) in lines_ref.borrow().iter() {
+                            ents.push(survey_cad::io::DxfEntity::Line {
+                                line: Line::new(*s, *e),
+                                layer: None,
+                            });
+                        }
+                        for poly in polygons_ref.borrow().iter() {
+                            ents.push(survey_cad::io::DxfEntity::Polyline {
+                                polyline: Polyline::new(poly.clone()),
+                                layer: None,
+                            });
+                        }
+                        for pl in polylines.borrow().iter() {
+                            ents.push(survey_cad::io::DxfEntity::Polyline {
+                                polyline: pl.clone(),
+                                layer: None,
+                            });
+                        }
+                        for arc in arcs_ref.borrow().iter() {
+                            ents.push(survey_cad::io::DxfEntity::Arc {
+                                arc: *arc,
+                                layer: None,
+                            });
+                        }
+                        if let Some(sp) =
+                            survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
+                        {
+                            p = sp;
+                        }
+                    }
+                    if app.get_snap_to_grid() {
+                        p.x = p.x.round();
+                        p.y = p.y.round();
+                    }
+                    if let Some(cl) = current_line.borrow_mut().as_mut() {
+                        if let Some(last) = cl.vertices.last_mut() {
+                            *last = p;
+                        }
+                    }
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
                         app.window().request_redraw();
