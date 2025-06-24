@@ -62,6 +62,8 @@ export component PointManager inherits Window {
     title: "Point Manager";
     width: 600px;
     height: 400px;
+    resizable: true;
+    minimum-size: { width: 400px; height: 200px; }
 
     VerticalBox {
         spacing: 0px;
@@ -86,7 +88,6 @@ export component PointManager inherits Window {
             }
         }
         ListView {
-            vertical-stretch: 1;
             for row[i] in root.points_model : Rectangle {
                 property <bool> selected: root.selected_index == i;
                 background: selected ? #404040 : transparent;
