@@ -11,6 +11,7 @@ survey_cad = { path = "../survey_cad" }
 rfd = "0.15"
 tiny-skia = "0.11"
 truck_cad_engine = { path = "../truck_cad_engine" }
+truck-modeling = { path = "../truck-master/truck-modeling" }
 once_cell = "1"
 rusttype = "0.9"
 

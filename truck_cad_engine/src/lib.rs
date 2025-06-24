@@ -10,6 +10,9 @@ pub struct TruckCadEngine {
     scene: Scene,
     creator: InstanceCreator,
     instances: Vec<PolygonInstance>,
+    point_markers: Vec<Option<PolygonInstance>>,
+    lines: Vec<Option<WireFrameInstance>>,
+    surfaces: Vec<Option<PolygonInstance>>,
 }
 
 impl TruckCadEngine {
@@ -29,6 +32,9 @@ impl TruckCadEngine {
             scene,
             creator,
             instances: Vec::new(),
+            point_markers: Vec::new(),
+            lines: Vec::new(),
+            surfaces: Vec::new(),
         }
     }
 
@@ -49,6 +55,142 @@ impl TruckCadEngine {
         let f = builder::tsweep(&e, truck::base::Vector3::unit_y());
         let cube = builder::tsweep(&f, truck::base::Vector3::unit_z());
         self.add_solid(cube);
+    }
+
+    /// Add a small cube to visualize a point.
+    pub fn add_point_marker(&mut self, p: truck::base::Point3) -> usize {
+        let v = builder::vertex(truck::base::Point3::new(-0.05, -0.05, -0.05));
+        let e = builder::tsweep(&v, truck::base::Vector3::unit_x() * 0.1);
+        let f = builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
+        let cube = builder::tsweep(&f, truck::base::Vector3::unit_z() * 0.1);
+        let mut state = PolygonState::default();
+        state.matrix = Matrix4::from_translation(p.to_vec());
+        let mesh = cube.triangulation(0.01).to_polygon();
+        let instance = self.creator.create_instance(&mesh, &state);
+        self.scene.add_object(&instance);
+        self.point_markers.push(Some(instance));
+        self.point_markers.len() - 1
+    }
+
+    /// Update the location of a point marker.
+    pub fn update_point_marker(&mut self, id: usize, p: truck::base::Point3) {
+        if let Some(Some(inst)) = self.point_markers.get_mut(id) {
+            inst.instance_state_mut().matrix = Matrix4::from_translation(p.to_vec());
+        }
+    }
+
+    /// Remove a point marker by id.
+    pub fn remove_point_marker(&mut self, id: usize) {
+        if let Some(slot) = self.point_markers.get_mut(id) {
+            if let Some(inst) = slot.take() {
+                self.scene.remove_object(&inst);
+            }
+        }
+    }
+
+    /// Add a line as a wireframe instance.
+    pub fn add_line(&mut self, a: truck::base::Point3, b: truck::base::Point3) -> usize {
+        let poly = PolylineCurve(vec![a, b]);
+        let instance = self
+            .creator
+            .create_instance(&poly, &WireFrameState::default());
+        self.scene.add_object(&instance);
+        self.lines.push(Some(instance));
+        self.lines.len() - 1
+    }
+
+    /// Update an existing line.
+    pub fn update_line(&mut self, id: usize, a: truck::base::Point3, b: truck::base::Point3) {
+        if let Some(Some(inst)) = self.lines.get_mut(id) {
+            self.scene.remove_object(inst);
+            let poly = PolylineCurve(vec![a, b]);
+            let new_inst = self
+                .creator
+                .create_instance(&poly, &WireFrameState::default());
+            self.scene.add_object(&new_inst);
+            *inst = new_inst;
+        }
+    }
+
+    /// Remove a line by id.
+    pub fn remove_line(&mut self, id: usize) {
+        if let Some(slot) = self.lines.get_mut(id) {
+            if let Some(inst) = slot.take() {
+                self.scene.remove_object(&inst);
+            }
+        }
+    }
+
+    /// Add a triangulated surface to the scene.
+    pub fn add_surface(
+        &mut self,
+        vertices: &[truck::base::Point3],
+        triangles: &[[usize; 3]],
+    ) -> usize {
+        let attrs = StandardAttributes {
+            positions: vertices.to_vec(),
+            ..Default::default()
+        };
+        let tri_faces: Vec<[StandardVertex; 3]> = triangles
+            .iter()
+            .map(|t| {
+                [
+                    StandardVertex { pos: t[0], uv: None, nor: None },
+                    StandardVertex { pos: t[1], uv: None, nor: None },
+                    StandardVertex { pos: t[2], uv: None, nor: None },
+                ]
+            })
+            .collect();
+        let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
+        let mesh = PolygonMesh::new(attrs, faces);
+        let instance = self
+            .creator
+            .create_instance(&mesh, &PolygonState::default());
+        self.scene.add_object(&instance);
+        self.surfaces.push(Some(instance));
+        self.surfaces.len() - 1
+    }
+
+    /// Update an existing surface.
+    pub fn update_surface(
+        &mut self,
+        id: usize,
+        vertices: &[truck::base::Point3],
+        triangles: &[[usize; 3]],
+    ) {
+        if let Some(Some(inst)) = self.surfaces.get_mut(id) {
+            self.scene.remove_object(inst);
+            let attrs = StandardAttributes {
+                positions: vertices.to_vec(),
+                ..Default::default()
+            };
+            let tri_faces: Vec<[StandardVertex; 3]> = triangles
+                .iter()
+                .map(|t| {
+                    [
+                        StandardVertex { pos: t[0], uv: None, nor: None },
+                        StandardVertex { pos: t[1], uv: None, nor: None },
+                        StandardVertex { pos: t[2], uv: None, nor: None },
+                    ]
+                })
+                .collect();
+            let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
+            let mesh = PolygonMesh::new(attrs, faces);
+            let new_inst = self
+                .creator
+                .create_instance(&mesh, &PolygonState::default());
+            self.scene.add_object(&new_inst);
+            *inst = new_inst;
+        }
+    }
+
+    /// Remove a surface by id.
+    pub fn remove_surface(&mut self, id: usize) {
+        if let Some(slot) = self.surfaces.get_mut(id) {
+            if let Some(inst) = slot.take() {
+                self.scene.remove_object(&inst);
+            }
+        }
     }
 
     /// Render the scene into a [`slint::Image`].
