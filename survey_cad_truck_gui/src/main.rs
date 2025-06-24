@@ -954,8 +954,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // that built-in controls can resolve their default fonts while we still
     // provide our bundled DejaVuSans.
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
-    sharedfontdb::register_font_from_memory(FONT_DATA)
-        .expect("failed to register embedded font");
+    sharedfontdb::register_font_from_memory(FONT_DATA).expect("failed to register embedded font");
     let app = MainWindow::new()?;
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
@@ -1134,7 +1133,7 @@ fn main() -> Result<(), slint::PlatformError> {
         example_line.length()
     )));
 
-    // prepare initial 2D workspace image
+    // prepare initial 2D workspace image and schedule continuous redraws
     app.set_workspace_image(render_image());
     app.window().request_redraw();
 
@@ -1147,18 +1146,18 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let timer = Rc::new(Timer::default());
         let timer_handle = timer.clone();
+
+        // Perform an initial refresh immediately
+        if let Some(app) = weak.upgrade() {
+            refresh_workspace(&app, &render_image, &backend_render);
+        }
+
         timer.start(
             TimerMode::Repeated,
             core::time::Duration::from_millis(16),
             move || {
                 if let Some(app) = weak.upgrade() {
-                    if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
-                    } else {
-                        let image = backend_render.borrow_mut().render();
-                        app.set_workspace_texture(image);
-                    }
-                    app.window().request_redraw();
+                    refresh_workspace(&app, &render_image, &backend_render);
                 } else {
                     timer_handle.stop();
                 }
@@ -1417,7 +1416,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     layer: None,
                                 });
                             }
-                            if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64)) {
+                            if let Some(sp) =
+                                survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
+                            {
                                 p = sp;
                             }
                         }
@@ -1725,10 +1726,10 @@ fn main() -> Result<(), slint::PlatformError> {
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
             refresh_line_style_dialogs();
-                if let Some(app) = weak.upgrade() {
-                    app.set_status(SharedString::from("New project created"));
-                    refresh_workspace(&app, &render_image, &backend_render);
-                }
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("New project created"));
+                refresh_workspace(&app, &render_image, &backend_render);
+            }
         });
     }
 
@@ -3571,7 +3572,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                 layer: None,
                             });
                         }
-                        if let Some(sp) = survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64)) {
+                        if let Some(sp) =
+                            survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
+                        {
                             p = sp;
                         }
                     }
