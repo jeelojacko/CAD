@@ -1309,12 +1309,13 @@ fn main() -> Result<(), slint::PlatformError> {
                         vertices.push(vertices[0]);
                         polygons.borrow_mut().push(vertices.clone());
                         *dm = DrawingMode::None;
-                        if let Some(app) = weak.upgrade() {
-                            if app.get_workspace_mode() == 0 {
-                                app.set_workspace_image(render_image());
-                                app.window().request_redraw();
-                            }
-                        }
+                    }
+                }
+                drop(dm);
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
                     }
                 }
             }
@@ -1495,6 +1496,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                             _ => {}
                         }
+                        drop(mode);
                         if app.get_workspace_mode() == 0 {
                             app.set_workspace_image(render_image());
                             app.window().request_redraw();
@@ -3515,6 +3517,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         _ => {}
                     }
+                    drop(mode);
                     if app.get_workspace_mode() == 0 {
                         app.set_workspace_image(render_image());
                         app.window().request_redraw();
