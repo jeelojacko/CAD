@@ -59,10 +59,14 @@ impl TruckCadEngine {
 
     /// Add a small cube to visualize a point.
     pub fn add_point_marker(&mut self, p: truck::base::Point3) -> usize {
-        let v = builder::vertex(truck::base::Point3::new(-0.05, -0.05, -0.05));
-        let e = builder::tsweep(&v, truck::base::Vector3::unit_x() * 0.1);
-        let f = builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
-        let cube = builder::tsweep(&f, truck::base::Vector3::unit_z() * 0.1);
+        let v: truck::topology::Vertex =
+            builder::vertex(truck::base::Point3::new(-0.05, -0.05, -0.05));
+        let e: truck::topology::Edge =
+            builder::tsweep(&v, truck::base::Vector3::unit_x() * 0.1);
+        let f: truck::topology::Face =
+            builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
+        let cube: truck::topology::Solid =
+            builder::tsweep(&f, truck::base::Vector3::unit_z() * 0.1);
         let mut state = PolygonState::default();
         state.matrix = Matrix4::from_translation(p.to_vec());
         let mesh = cube.triangulation(0.01).to_polygon();
