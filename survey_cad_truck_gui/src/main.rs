@@ -14,8 +14,11 @@ use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
     Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
 };
+use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
-use survey_cad::styles::{format_dms, LineLabelPosition, LineLabelStyle, PointLabelStyle};
+use survey_cad::styles::{
+    format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle, TextStyle as ScTextStyle,
+};
 
 mod truck_backend;
 use truck_backend::TruckBackend;
@@ -967,6 +970,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
     let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
+    let layers = Rc::new(RefCell::new(ScLayerManager::new()));
+    let layer_names = Rc::new(RefCell::new(Vec::<String>::new()));
+    {
+        let mut mgr = layers.borrow_mut();
+        let default = Layer::new("DEFAULT");
+        mgr.add_layer(default);
+        layer_names.borrow_mut().push("DEFAULT".to_string());
+    }
 
     let zoom = Rc::new(RefCell::new(1.0_f32));
     let offset = Rc::new(RefCell::new(Vec2::default()));
@@ -992,6 +1003,11 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let line_styles = survey_cad::styles::default_line_styles();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
+    let line_type_names = Rc::new(VecModel::from(vec![
+        SharedString::from("Solid"),
+        SharedString::from("Dashed"),
+        SharedString::from("Dotted"),
+    ]));
     let line_label_styles = survey_cad::styles::default_line_label_styles();
     let point_label_styles = survey_cad::styles::default_point_label_styles();
     let point_label_style = point_label_styles[0].1.clone();
@@ -3506,6 +3522,150 @@ fn main() -> Result<(), slint::PlatformError> {
                                 app.set_workspace_image(render_image());
                                 app.window().request_redraw();
                             }
+                        }
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let layers_ref = layers.clone();
+        let layer_names_ref = layer_names.clone();
+        let line_type_model = line_type_names.clone();
+        app.on_layer_manager(move || {
+            let dlg = LayerManager::new().unwrap();
+            dlg.set_line_types_model(line_type_model.clone().into());
+            let rows = {
+                let mgr = layers_ref.borrow();
+                let names = layer_names_ref.borrow();
+                names
+                    .iter()
+                    .map(|n| {
+                        let layer = mgr.layer(n).unwrap();
+                        LayerRow {
+                            name: SharedString::from(n.clone()),
+                            on: layer.is_on,
+                            locked: layer.is_locked,
+                            line_type_index: match layer.line_type.unwrap_or(LineType::Solid) {
+                                LineType::Solid => 0,
+                                LineType::Dashed => 1,
+                                LineType::Dotted => 2,
+                            },
+                            weight: SharedString::from(
+                                layer
+                                    .line_weight
+                                    .map(|w| format!("{:.2}", w.0))
+                                    .unwrap_or_default(),
+                            ),
+                            text_style: SharedString::from(
+                                layer
+                                    .text_style
+                                    .as_ref()
+                                    .map(|t| t.name.clone())
+                                    .unwrap_or_default(),
+                            ),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let model = Rc::new(VecModel::<LayerRow>::from(rows));
+            dlg.set_layers_model(model.clone().into());
+            dlg.set_selected_index(-1);
+
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                dlg.on_toggle_on(move |idx, val| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        layers.borrow_mut().set_layer_state(&name, val);
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.on = val;
+                            model.set_row_data(idx as usize, r);
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                dlg.on_toggle_lock(move |idx, val| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
+                            layer.is_locked = val;
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.locked = val;
+                            model.set_row_data(idx as usize, r);
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                dlg.on_line_type_changed(move |idx, val| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
+                            layer.line_type = Some(match val {
+                                0 => LineType::Solid,
+                                1 => LineType::Dashed,
+                                _ => LineType::Dotted,
+                            });
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.line_type_index = val;
+                            model.set_row_data(idx as usize, r);
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                dlg.on_weight_changed(move |idx, text| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
+                            if let Ok(v) = text.parse::<f32>() {
+                                layer.line_weight = Some(LineWeight(v));
+                            } else {
+                                layer.line_weight = None;
+                            }
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.weight = text.clone();
+                            model.set_row_data(idx as usize, r);
+                        }
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                dlg.on_text_style_changed(move |idx, text| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
+                            if text.is_empty() {
+                                layer.text_style = None;
+                            } else {
+                                layer.text_style = Some(ScTextStyle::new(&text, "Arial", 1.0));
+                            }
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.text_style = text.clone();
+                            model.set_row_data(idx as usize, r);
                         }
                     }
                 });

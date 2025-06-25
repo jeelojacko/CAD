@@ -1,5 +1,6 @@
 export { PointManager } from "point_manager.slint";
 export { LineStyleManager } from "line_style_manager.slint";
+export { LayerManager } from "layer_manager.slint";
 
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
@@ -415,6 +416,7 @@ export component MainWindow inherits Window {
     callback point_numbers_changed(bool);
     callback point_manager();
     callback line_style_manager();
+    callback layer_manager();
     callback import_geojson();
     callback import_kml();
     callback import_dxf();
@@ -477,6 +479,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); } }
+            MenuItem { title: "Layer Manager..."; activated => { root.layer_manager(); } }
             MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
         }
         Menu {
@@ -529,6 +532,10 @@ export component MainWindow inherits Window {
             Button {
                 text: "Line Styles...";
                 clicked => { root.line_style_manager(); }
+            }
+            Button {
+                text: "Layer Manager...";
+                clicked => { root.layer_manager(); }
             }
             Button {
                 text: "Add Line";

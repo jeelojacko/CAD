@@ -1,0 +1,61 @@
+export struct LayerRow {
+    name: string,
+    on: bool,
+    locked: bool,
+    line_type_index: int,
+    weight: string,
+    text_style: string,
+}
+
+import { VerticalBox, HorizontalBox, ComboBox, ListView, CheckBox, LineEdit } from "std-widgets.slint";
+
+export component LayerManager inherits Window {
+    in-out property <[LayerRow]> layers_model;
+    in-out property <[string]> line_types_model;
+    in-out property <int> selected_index;
+    callback toggle_on(int, bool);
+    callback toggle_lock(int, bool);
+    callback line_type_changed(int, int);
+    callback weight_changed(int, string);
+    callback text_style_changed(int, string);
+    title: "Layer Manager";
+    width: 600px;
+    height: 300px;
+
+    VerticalBox {
+        spacing: 4px;
+        Rectangle {
+            width: 100%;
+            height: 20px;
+            border-width: 1px;
+            border-color: #808080;
+            HorizontalBox {
+                spacing: 8px;
+                Text { color: #FFFFFF; text: "Name"; width: 120px; }
+                Text { color: #FFFFFF; text: "On"; width: 40px; }
+                Text { color: #FFFFFF; text: "Lock"; width: 40px; }
+                Text { color: #FFFFFF; text: "Type"; width: 80px; }
+                Text { color: #FFFFFF; text: "Weight"; width: 60px; }
+                Text { color: #FFFFFF; text: "Text Style"; width: 100px; }
+            }
+        }
+        ListView {
+            vertical-stretch: 1;
+            for row[i] in root.layers_model : Rectangle {
+                property <bool> selected: root.selected_index == i;
+                background: selected ? #404040 : transparent;
+                height: 24px;
+                HorizontalBox {
+                    spacing: 8px;
+                    Text { color: #FFFFFF; text: row.name; width: 120px; }
+                    CheckBox { checked: row.on; toggled => { root.toggle_on(i, self.checked); } width: 40px; }
+                    CheckBox { checked: row.locked; toggled => { root.toggle_lock(i, self.checked); } width: 40px; }
+                    ComboBox { model: root.line_types_model; current-index: row.line_type_index; selected => { root.line_type_changed(i, self.current-index); } width: 80px; }
+                    LineEdit { text: row.weight; edited(text) => { root.weight_changed(i, text); } width: 60px; }
+                    LineEdit { text: row.text_style; edited(text) => { root.text_style_changed(i, text); } width: 100px; }
+                }
+                TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
+            }
+        }
+    }
+}
