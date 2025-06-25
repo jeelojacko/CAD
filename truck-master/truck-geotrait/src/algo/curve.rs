@@ -1,5 +1,6 @@
 use super::*;
 use surface::{SsnpVector, SspVector};
+use std::ops::Bound;
 
 /// Divides the domain into equal parts, examines all the values, and returns `t` such that `curve.subs(t)` is closest to `point`.
 /// This method is useful to get an efficient hint of [`search_nearest_parameter`].
@@ -212,7 +213,38 @@ where
     C0: ParametricCurve<Point = P, Vector = P::Diff>,
     C1: ParametricCurve<Point = P, Vector = P::Diff>,
 {
-    surface::search_nearest_parameter(&SubSurface { curve0, curve1 }, P::origin(), hint, trials)
+    let mut res = surface::search_nearest_parameter(
+        &SubSurface { curve0, curve1 },
+        P::origin(),
+        hint,
+        trials,
+    );
+    if res.is_none() {
+        fn bound_to_value(b: Bound<f64>, default: f64) -> f64 {
+            match b {
+                Bound::Included(x) | Bound::Excluded(x) => x,
+                Bound::Unbounded => default,
+            }
+        }
+        let range0 = curve0.parameter_range();
+        let range1 = curve1.parameter_range();
+        let r0 = (
+            bound_to_value(range0.0, -1.0),
+            bound_to_value(range0.1, 1.0),
+        );
+        let r1 = (
+            bound_to_value(range1.0, -1.0),
+            bound_to_value(range1.1, 1.0),
+        );
+        let hint = presearch_closest_point::<P, _, _>(curve0, curve1, (r0, r1), 5);
+        res = surface::search_nearest_parameter(
+            &SubSurface { curve0, curve1 },
+            P::origin(),
+            hint,
+            trials,
+        );
+    }
+    res
 }
 
 /// Searches the parameters of the intersection point of the two curves.

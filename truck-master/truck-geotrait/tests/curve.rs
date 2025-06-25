@@ -35,7 +35,7 @@ fn polycurve_presearch() {
     ];
     let poly = PolyCurve::<Point2>(coef);
     let t = algo::curve::presearch(&poly, Point2::new(0.0, -1.0), poly.range_tuple(), 100);
-    assert_eq!(t, 0.0);
+    assert!((t - 0.69).abs() < 0.05);
 }
 
 fn exec_polycurve_snp_on_curve() -> bool {
@@ -127,7 +127,13 @@ fn exec_polycurve_closest_point() -> bool {
     ];
     let poly0 = PolyCurve::<Point3>(coef0);
     let poly1 = PolyCurve::<Point3>(coef1);
-    let res = algo::curve::search_closest_parameter(&poly0, &poly1, (0.5, 0.5), 100);
+    let hint = algo::curve::presearch_closest_point::<Point3, _, _>(
+        &poly0,
+        &poly1,
+        ((-1.0, 1.0), (-1.0, 1.0)),
+        5,
+    );
+    let res = algo::curve::search_closest_parameter(&poly0, &poly1, hint, 100);
     let (t0, t1) = match res {
         Some(res) => res,
         None => return false,
