@@ -20,6 +20,8 @@ use survey_cad::styles::{
     format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
     TextStyle as ScTextStyle,
 };
+use survey_cad::subassembly;
+use survey_cad::corridor;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -2737,6 +2739,81 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_status(SharedString::from(format!("Volume: {:.3}", vol)));
                         } else {
                             app.set_status(SharedString::from("Invalid input or missing data"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let alignments = alignments.clone();
+        let backend = backend.clone();
+        app.on_design_cross_sections(move || {
+            let dlg = DesignSectionDialog::new().unwrap();
+            dlg.set_start_station("0".into());
+            dlg.set_end_station("100".into());
+            dlg.set_interval("10".into());
+            dlg.set_lane_width("3.5".into());
+            dlg.set_lane_slope("-0.02".into());
+            dlg.set_shoulder_width("1.0".into());
+            dlg.set_shoulder_slope("-0.04".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let aligns = alignments.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let start = d.get_start_station().parse::<f64>().ok()?;
+                        let end = d.get_end_station().parse::<f64>().ok()?;
+                        let interval = d.get_interval().parse::<f64>().ok()?;
+                        let lane_w = d.get_lane_width().parse::<f64>().ok()?;
+                        let lane_s = d.get_lane_slope().parse::<f64>().ok()?;
+                        let sh_w = d.get_shoulder_width().parse::<f64>().ok()?;
+                        let sh_s = d.get_shoulder_slope().parse::<f64>().ok()?;
+                        let aligns = aligns.borrow();
+                        if aligns.is_empty() {
+                            return None;
+                        }
+                        let hal = &aligns[0];
+                        let len = hal.length();
+                        let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+                        let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+                        let lane = subassembly::lane(lane_w, lane_s);
+                        let shoulder = subassembly::shoulder(sh_w, sh_s);
+                        let sections = subassembly::symmetric_section(&[lane, shoulder]);
+                        let mut cs = corridor::extract_design_cross_sections(&al, &sections, None, interval);
+                        cs.retain(|c| c.station >= start && c.station <= end);
+                        for section in cs {
+                            for pair in section.points.windows(2) {
+                                backend_inner.borrow_mut().add_line(
+                                    [pair[0].x, pair[0].y, pair[0].z],
+                                    [pair[1].x, pair[1].y, pair[1].z],
+                                );
+                            }
+                        }
+                        Some(())
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if app.get_workspace_mode() == 1 {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                        if res.is_some() {
+                            app.set_status(SharedString::from("Sections generated"));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input or missing alignment"));
                         }
                     }
                     let _ = d.hide();

@@ -213,6 +213,34 @@ export component CorridorVolumeDialog inherits Window {
     }
 }
 
+export component DesignSectionDialog inherits Window {
+    in-out property <string> start_station;
+    in-out property <string> end_station;
+    in-out property <string> interval;
+    in-out property <string> lane_width;
+    in-out property <string> lane_slope;
+    in-out property <string> shoulder_width;
+    in-out property <string> shoulder_slope;
+    callback accept();
+    callback cancel();
+    title: "Design Sections";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Start Station:"; } LineEdit { text <=> root.start_station; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "End Station:"; } LineEdit { text <=> root.end_station; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Interval:"; } LineEdit { text <=> root.interval; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Lane Width:"; } LineEdit { text <=> root.lane_width; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Lane Slope:"; } LineEdit { text <=> root.lane_slope; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Shoulder Width:"; } LineEdit { text <=> root.shoulder_width; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Shoulder Slope:"; } LineEdit { text <=> root.shoulder_slope; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component TinVertexDialog inherits Window {
     in-out property <string> surface_index;
     in-out property <string> vertex_index;
@@ -461,6 +489,7 @@ export component MainWindow inherits Window {
     callback traverse_area();
     callback level_elevation_tool();
     callback corridor_volume();
+    callback design_cross_sections();
     callback point_numbers_changed(bool);
     callback point_manager();
     callback line_style_manager();
@@ -541,6 +570,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
+            MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); } }
         }
         Menu {
             title: "TIN";
@@ -641,6 +671,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Corridor Volume";
                 clicked => { root.corridor_volume(); }
+            }
+        Button {
+                text: "Design Sections";
+                clicked => { root.design_cross_sections(); }
             }
         Button {
                 text: "Clear";
