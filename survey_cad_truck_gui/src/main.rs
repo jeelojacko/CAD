@@ -887,6 +887,79 @@ fn render_workspace(
     Image::from_rgba8_premultiplied(buffer)
 }
 
+fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u32) -> Image {
+    if width == 0 || height == 0 {
+        return Image::default();
+    }
+    let mut pixmap = Pixmap::new(width, height).unwrap();
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(0, 255, 0, 255));
+    paint.anti_alias = true;
+
+    if section.points.len() >= 2 {
+        let first = section.points.first().unwrap();
+        let last = section.points.last().unwrap();
+        let dx = last.x - first.x;
+        let dy = last.y - first.y;
+        let len = (dx * dx + dy * dy).sqrt();
+        let dir = if len.abs() < f64::EPSILON {
+            (1.0, 0.0)
+        } else {
+            (dx / len, dy / len)
+        };
+        let center = section.points[section.points.len() / 2];
+        let mut pts = Vec::new();
+        let mut min_x = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        for p in &section.points {
+            let off = ((p.x - center.x) * dir.0 + (p.y - center.y) * dir.1) as f32;
+            let elev = (p.z - center.z) as f32;
+            pts.push((off, elev));
+            min_x = min_x.min(off);
+            max_x = max_x.max(off);
+            min_y = min_y.min(elev);
+            max_y = max_y.max(elev);
+        }
+        if (max_x - min_x).abs() < f32::EPSILON {
+            max_x += 1.0;
+        }
+        if (max_y - min_y).abs() < f32::EPSILON {
+            max_y += 1.0;
+        }
+        let scale = ((width as f32 * 0.8) / (max_x - min_x))
+            .min((height as f32 * 0.8) / (max_y - min_y));
+        let ox = width as f32 / 2.0 - scale * (min_x + max_x) / 2.0;
+        let oy = height as f32 / 2.0 + scale * (min_y + max_y) / 2.0;
+        let mut pb = PathBuilder::new();
+        for (i, (x, y)) in pts.iter().enumerate() {
+            let px = ox + *x * scale;
+            let py = oy - *y * scale;
+            if i == 0 {
+                pb.move_to(px, py);
+            } else {
+                pb.line_to(px, py);
+            }
+        }
+        if let Some(path) = pb.finish() {
+            let stroke = Stroke {
+                width: 2.0,
+                ..Stroke::default()
+            };
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        pixmap.data(),
+        width,
+        height,
+    );
+    Image::from_rgba8_premultiplied(buffer)
+}
+
 fn read_line_csv(path: &str) -> std::io::Result<(Point, Point)> {
     let pts = survey_cad::io::read_points_csv(path, None, None)?;
     if pts.len() != 2 {
@@ -2826,6 +2899,70 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
+        app.on_view_cross_sections(move || {
+            let surfs = surfaces.borrow();
+            let aligns = alignments.borrow();
+            if surfs.is_empty() || aligns.is_empty() {
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("Need surface and alignment"));
+                }
+                return;
+            }
+            let hal = &aligns[0];
+            let len = hal.length();
+            let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+            let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+            let sections = corridor::extract_cross_sections(&surfs[0], &al, 10.0, 10.0, 1.0);
+            if sections.is_empty() {
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("No cross sections"));
+                }
+                return;
+            }
+            let viewer = CrossSectionViewer::new().unwrap();
+            let current = Rc::new(RefCell::new(0usize));
+            viewer.set_station_label(SharedString::from(format!("Station: {:.2}", sections[0].station)));
+            viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
+            let viewer_weak = viewer.as_weak();
+            let secs = Rc::new(sections);
+            {
+                let current = current.clone();
+                let secs = secs.clone();
+                let viewer_weak = viewer_weak.clone();
+                viewer.on_prev(move || {
+                    if *current.borrow() > 0 {
+                        *current.borrow_mut() -= 1;
+                        let i = *current.borrow();
+                        if let Some(v) = viewer_weak.upgrade() {
+                            v.set_station_label(SharedString::from(format!("Station: {:.2}", secs[i].station)));
+                            v.set_section_image(render_cross_section(&secs[i], 600, 300));
+                        }
+                    }
+                });
+            }
+            {
+                let current = current.clone();
+                let secs = secs.clone();
+                let viewer_weak = viewer_weak.clone();
+                viewer.on_next(move || {
+                    if *current.borrow() + 1 < secs.len() {
+                        *current.borrow_mut() += 1;
+                        let i = *current.borrow();
+                        if let Some(v) = viewer_weak.upgrade() {
+                            v.set_station_label(SharedString::from(format!("Station: {:.2}", secs[i].station)));
+                            v.set_section_image(render_cross_section(&secs[i], 600, 300));
+                        }
+                    }
+                });
+            }
+            viewer.show().unwrap();
         });
     }
 
