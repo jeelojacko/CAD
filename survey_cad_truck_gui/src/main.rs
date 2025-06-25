@@ -1807,6 +1807,7 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
@@ -1831,6 +1832,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         let res =
                             survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None);
                         let len = db_ref.len();
+                        backend_render.borrow_mut().clear();
+                        for pt in db_ref.iter() {
+                            backend_render.borrow_mut().add_point(pt.x, pt.y, 0.0);
+                        }
                         (res, len)
                     };
                     match result {
@@ -2056,6 +2061,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                         point_style_indices
                                             .borrow_mut()
                                             .extend(std::iter::repeat_n(0, db.len()));
+                                        backend_render.borrow_mut().clear();
+                                        for p in db.iter() {
+                                            backend_render.borrow_mut().add_point(p.x, p.y, 0.0);
+                                        }
                                         db.len()
                                     };
                                     if let Some(app) = weak.upgrade() {
@@ -2745,6 +2754,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                 let mut db = point_db.borrow_mut();
                                 db.clear();
                                 db.extend(pts);
+                                backend_render.borrow_mut().clear();
+                                for pt in db.iter() {
+                                    backend_render.borrow_mut().add_point(pt.x, pt.y, 0.0);
+                                }
                                 db.len()
                             };
                             if let Some(app) = weak.upgrade() {
@@ -3211,6 +3224,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let point_style_names = point_style_names.clone();
         let render_image_pm = render_image.clone();
+        let backend_render = backend.clone();
         app.on_point_manager(move || {
             let render_image = render_image_pm.clone();
             let dlg = PointManager::new().unwrap();
@@ -3259,6 +3273,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let model = model.clone();
                 let point_db = point_db.clone();
+                let backend_render = backend_render.clone();
                 dlg.on_edit_x(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
                         if let Some(p) = point_db.borrow_mut().get_mut(idx as usize) {
@@ -3268,6 +3283,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                 r.x = SharedString::from(format!("{:.3}", v));
                                 model.set_row_data(idx as usize, r);
                             }
+                            backend_render
+                                .borrow_mut()
+                                .update_point(idx as usize, p.x, p.y, 0.0);
                         }
                     }
                 });
@@ -3275,6 +3293,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let model = model.clone();
                 let point_db = point_db.clone();
+                let backend_render = backend_render.clone();
                 dlg.on_edit_y(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
                         if let Some(p) = point_db.borrow_mut().get_mut(idx as usize) {
@@ -3284,6 +3303,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                 r.y = SharedString::from(format!("{:.3}", v));
                                 model.set_row_data(idx as usize, r);
                             }
+                            backend_render
+                                .borrow_mut()
+                                .update_point(idx as usize, p.x, p.y, 0.0);
                         }
                     }
                 });
@@ -3292,9 +3314,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 let model = model.clone();
                 let point_db = point_db.clone();
                 let psi = point_style_indices.clone();
+                let backend_render = backend_render.clone();
                 dlg.on_add_point(move || {
                     point_db.borrow_mut().push(Point::new(0.0, 0.0));
                     psi.borrow_mut().push(0);
+                    backend_render.borrow_mut().add_point(0.0, 0.0, 0.0);
                     let idx = point_db.borrow().len();
                     model.push(PointRow {
                         number: SharedString::from(format!("{}", idx)),
@@ -3310,11 +3334,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 let model = model.clone();
                 let point_db = point_db.clone();
                 let psi = point_style_indices.clone();
+                let backend_render = backend_render.clone();
                 dlg.on_remove_point(move |idx| {
                     if idx >= 0 && (idx as usize) < point_db.borrow().len() {
                         point_db.borrow_mut().remove(idx as usize);
                         psi.borrow_mut().remove(idx as usize);
                         model.remove(idx as usize);
+                        backend_render.borrow_mut().remove_point(idx as usize);
                     }
                 });
             }
@@ -3718,6 +3744,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
+        let backend_render = backend.clone();
         app.on_clear_workspace(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -3729,6 +3756,7 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Cleared workspace"));

@@ -4,13 +4,21 @@ use truck_modeling::base::Point3;
 
 pub struct TruckBackend {
     engine: TruckCadEngine,
+    point_ids: Vec<Option<usize>>,
+    line_ids: Vec<Option<usize>>,
+    surface_ids: Vec<Option<usize>>,
 }
 
 impl TruckBackend {
     pub fn new(width: u32, height: u32) -> Self {
         let mut engine = TruckCadEngine::new(width, height);
         engine.add_unit_cube();
-        Self { engine }
+        Self {
+            engine,
+            point_ids: Vec::new(),
+            line_ids: Vec::new(),
+            surface_ids: Vec::new(),
+        }
     }
 
     pub fn render(&mut self) -> Image {
@@ -34,48 +42,90 @@ impl TruckBackend {
     }
 
     pub fn add_point(&mut self, x: f64, y: f64, z: f64) -> usize {
-        self.engine.add_point_marker(Point3::new(x, y, z))
+        let id = self.engine.add_point_marker(Point3::new(x, y, z));
+        self.point_ids.push(Some(id));
+        self.point_ids.len() - 1
     }
 
-    pub fn update_point(&mut self, id: usize, x: f64, y: f64, z: f64) {
-        self.engine.update_point_marker(id, Point3::new(x, y, z));
+    pub fn update_point(&mut self, idx: usize, x: f64, y: f64, z: f64) {
+        if let Some(Some(id)) = self.point_ids.get(idx) {
+            self.engine.update_point_marker(*id, Point3::new(x, y, z));
+        }
     }
 
-    pub fn remove_point(&mut self, id: usize) {
-        self.engine.remove_point_marker(id);
+    pub fn remove_point(&mut self, idx: usize) {
+        if idx < self.point_ids.len() {
+            if let Some(id) = self.point_ids.remove(idx) {
+                self.engine.remove_point_marker(id);
+            }
+        }
     }
 
     pub fn add_line(&mut self, a: [f64; 3], b: [f64; 3]) -> usize {
-        self.engine
-            .add_line(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]))
-    }
-
-    pub fn update_line(&mut self, id: usize, a: [f64; 3], b: [f64; 3]) {
-        self.engine.update_line(
-            id,
+        let id = self.engine.add_line(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
         );
+        self.line_ids.push(Some(id));
+        self.line_ids.len() - 1
     }
 
-    pub fn remove_line(&mut self, id: usize) {
-        self.engine.remove_line(id);
+    #[allow(dead_code)]
+    pub fn update_line(&mut self, idx: usize, a: [f64; 3], b: [f64; 3]) {
+        if let Some(Some(id)) = self.line_ids.get(idx) {
+            self.engine.update_line(
+                *id,
+                Point3::new(a[0], a[1], a[2]),
+                Point3::new(b[0], b[1], b[2]),
+            );
+        }
     }
 
+    pub fn remove_line(&mut self, idx: usize) {
+        if idx < self.line_ids.len() {
+            if let Some(id) = self.line_ids.remove(idx) {
+                self.engine.remove_line(id);
+            }
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn add_surface(&mut self, vertices: &[Point3], triangles: &[[usize; 3]]) -> usize {
-        self.engine.add_surface(vertices, triangles)
+        let id = self.engine.add_surface(vertices, triangles);
+        self.surface_ids.push(Some(id));
+        self.surface_ids.len() - 1
     }
 
+    #[allow(dead_code)]
     pub fn update_surface(
         &mut self,
-        id: usize,
+        idx: usize,
         vertices: &[Point3],
         triangles: &[[usize; 3]],
     ) {
-        self.engine.update_surface(id, vertices, triangles);
+        if let Some(Some(id)) = self.surface_ids.get(idx) {
+            self.engine.update_surface(*id, vertices, triangles);
+        }
     }
 
-    pub fn remove_surface(&mut self, id: usize) {
-        self.engine.remove_surface(id);
+    #[allow(dead_code)]
+    pub fn remove_surface(&mut self, idx: usize) {
+        if idx < self.surface_ids.len() {
+            if let Some(id) = self.surface_ids.remove(idx) {
+                self.engine.remove_surface(id);
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        for _ in 0..self.point_ids.len() {
+            self.remove_point(0);
+        }
+        for _ in 0..self.line_ids.len() {
+            self.remove_line(0);
+        }
+        for _ in 0..self.surface_ids.len() {
+            self.remove_surface(0);
+        }
     }
 }
