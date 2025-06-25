@@ -62,10 +62,9 @@ impl TruckBackend {
     }
 
     pub fn add_line(&mut self, a: [f64; 3], b: [f64; 3]) -> usize {
-        let id = self.engine.add_line(
-            Point3::new(a[0], a[1], a[2]),
-            Point3::new(b[0], b[1], b[2]),
-        );
+        let id = self
+            .engine
+            .add_line(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
         self.line_ids.push(Some(id));
         self.line_ids.len() - 1
     }
@@ -89,32 +88,44 @@ impl TruckBackend {
         }
     }
 
-    #[allow(dead_code)]
     pub fn add_surface(&mut self, vertices: &[Point3], triangles: &[[usize; 3]]) -> usize {
         let id = self.engine.add_surface(vertices, triangles);
         self.surface_ids.push(Some(id));
         self.surface_ids.len() - 1
     }
 
-    #[allow(dead_code)]
-    pub fn update_surface(
-        &mut self,
-        idx: usize,
-        vertices: &[Point3],
-        triangles: &[[usize; 3]],
-    ) {
+    pub fn update_surface(&mut self, idx: usize, vertices: &[Point3], triangles: &[[usize; 3]]) {
         if let Some(Some(id)) = self.surface_ids.get(idx) {
             self.engine.update_surface(*id, vertices, triangles);
         }
     }
 
-    #[allow(dead_code)]
     pub fn remove_surface(&mut self, idx: usize) {
         if idx < self.surface_ids.len() {
             if let Some(id) = self.surface_ids.remove(idx) {
                 self.engine.remove_surface(id);
             }
         }
+    }
+
+    pub fn add_vertex(&mut self, surface: usize, p: Point3) -> Option<usize> {
+        self.engine.add_surface_vertex(surface, p)
+    }
+
+    pub fn move_vertex(&mut self, surface: usize, idx: usize, p: Point3) {
+        self.engine.move_surface_vertex(surface, idx, p);
+    }
+
+    pub fn delete_vertex(&mut self, surface: usize, idx: usize) {
+        self.engine.delete_surface_vertex(surface, idx);
+    }
+
+    pub fn add_triangle(&mut self, surface: usize, tri: [usize; 3]) {
+        self.engine.add_surface_triangle(surface, tri);
+    }
+
+    pub fn delete_triangle(&mut self, surface: usize, tri_idx: usize) {
+        self.engine.delete_surface_triangle(surface, tri_idx);
     }
 
     pub fn clear(&mut self) {

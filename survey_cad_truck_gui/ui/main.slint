@@ -213,6 +213,54 @@ export component CorridorVolumeDialog inherits Window {
     }
 }
 
+export component TinVertexDialog inherits Window {
+    in-out property <string> surface_index;
+    in-out property <string> vertex_index;
+    in-out property <string> x_val;
+    in-out property <string> y_val;
+    in-out property <string> z_val;
+    callback accept();
+    callback cancel();
+    title: "TIN Vertex";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Surface:"; } LineEdit { text <=> root.surface_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Index:"; } LineEdit { text <=> root.vertex_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X:"; } LineEdit { text <=> root.x_val; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y:"; } LineEdit { text <=> root.y_val; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Z:"; } LineEdit { text <=> root.z_val; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component TinTriangleDialog inherits Window {
+    in-out property <string> surface_index;
+    in-out property <string> tri_index;
+    in-out property <string> v1;
+    in-out property <string> v2;
+    in-out property <string> v3;
+    callback accept();
+    callback cancel();
+    title: "TIN Triangle";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Surface:"; } LineEdit { text <=> root.surface_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Index:"; } LineEdit { text <=> root.tri_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "V1:"; } LineEdit { text <=> root.v1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "V2:"; } LineEdit { text <=> root.v2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "V3:"; } LineEdit { text <=> root.v3; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component AddLineDialog inherits Window {
     callback from_file();
     callback manual();
@@ -431,6 +479,11 @@ export component MainWindow inherits Window {
     callback export_e57();
     callback import_landxml_surface();
     callback import_landxml_alignment();
+    callback tin_add_vertex();
+    callback tin_move_vertex();
+    callback tin_delete_vertex();
+    callback tin_add_triangle();
+    callback tin_delete_triangle();
     callback zoom_in();
     callback zoom_out();
     callback workspace_left_pressed(length, length);
@@ -488,6 +541,14 @@ export component MainWindow inherits Window {
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
+        }
+        Menu {
+            title: "TIN";
+            MenuItem { title: "Add Vertex"; activated => { root.tin_add_vertex(); } }
+            MenuItem { title: "Move Vertex"; activated => { root.tin_move_vertex(); } }
+            MenuItem { title: "Delete Vertex"; activated => { root.tin_delete_vertex(); } }
+            MenuItem { title: "Add Triangle"; activated => { root.tin_add_triangle(); } }
+            MenuItem { title: "Delete Triangle"; activated => { root.tin_delete_triangle(); } }
         }
         Menu {
             title: "View";

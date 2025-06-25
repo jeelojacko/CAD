@@ -12,7 +12,55 @@ pub struct TruckCadEngine {
     instances: Vec<PolygonInstance>,
     point_markers: Vec<Option<PolygonInstance>>,
     lines: Vec<Option<WireFrameInstance>>,
-    surfaces: Vec<Option<PolygonInstance>>,
+    surfaces: Vec<Option<Surface>>,
+}
+
+struct Surface {
+    instance: PolygonInstance,
+    vertices: Vec<truck::base::Point3>,
+    triangles: Vec<[usize; 3]>,
+}
+
+impl TruckCadEngine {
+    fn rebuild_surface_internal(&mut self, surface_id: usize) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            self.scene.remove_object(&surface.instance);
+            let attrs = StandardAttributes {
+                positions: surface.vertices.clone(),
+                ..Default::default()
+            };
+            let tri_faces: Vec<[StandardVertex; 3]> = surface
+                .triangles
+                .iter()
+                .map(|t| {
+                    [
+                        StandardVertex {
+                            pos: t[0],
+                            uv: None,
+                            nor: None,
+                        },
+                        StandardVertex {
+                            pos: t[1],
+                            uv: None,
+                            nor: None,
+                        },
+                        StandardVertex {
+                            pos: t[2],
+                            uv: None,
+                            nor: None,
+                        },
+                    ]
+                })
+                .collect();
+            let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
+            let mesh = PolygonMesh::new(attrs, faces);
+            let new_inst = self
+                .creator
+                .create_instance(&mesh, &PolygonState::default());
+            self.scene.add_object(&new_inst);
+            surface.instance = new_inst;
+        }
+    }
 }
 
 impl TruckCadEngine {
@@ -61,10 +109,8 @@ impl TruckCadEngine {
     pub fn add_point_marker(&mut self, p: truck::base::Point3) -> usize {
         let v: truck::topology::Vertex =
             builder::vertex(truck::base::Point3::new(-0.05, -0.05, -0.05));
-        let e: truck::topology::Edge =
-            builder::tsweep(&v, truck::base::Vector3::unit_x() * 0.1);
-        let f: truck::topology::Face =
-            builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
+        let e: truck::topology::Edge = builder::tsweep(&v, truck::base::Vector3::unit_x() * 0.1);
+        let f: truck::topology::Face = builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
         let cube: truck::topology::Solid =
             builder::tsweep(&f, truck::base::Vector3::unit_z() * 0.1);
         let state = PolygonState {
@@ -141,9 +187,21 @@ impl TruckCadEngine {
             .iter()
             .map(|t| {
                 [
-                    StandardVertex { pos: t[0], uv: None, nor: None },
-                    StandardVertex { pos: t[1], uv: None, nor: None },
-                    StandardVertex { pos: t[2], uv: None, nor: None },
+                    StandardVertex {
+                        pos: t[0],
+                        uv: None,
+                        nor: None,
+                    },
+                    StandardVertex {
+                        pos: t[1],
+                        uv: None,
+                        nor: None,
+                    },
+                    StandardVertex {
+                        pos: t[2],
+                        uv: None,
+                        nor: None,
+                    },
                 ]
             })
             .collect();
@@ -153,7 +211,11 @@ impl TruckCadEngine {
             .creator
             .create_instance(&mesh, &PolygonState::default());
         self.scene.add_object(&instance);
-        self.surfaces.push(Some(instance));
+        self.surfaces.push(Some(Surface {
+            instance,
+            vertices: vertices.to_vec(),
+            triangles: triangles.to_vec(),
+        }));
         self.surfaces.len() - 1
     }
 
@@ -164,8 +226,8 @@ impl TruckCadEngine {
         vertices: &[truck::base::Point3],
         triangles: &[[usize; 3]],
     ) {
-        if let Some(Some(inst)) = self.surfaces.get_mut(id) {
-            self.scene.remove_object(inst);
+        if let Some(Some(surface)) = self.surfaces.get_mut(id) {
+            self.scene.remove_object(&surface.instance);
             let attrs = StandardAttributes {
                 positions: vertices.to_vec(),
                 ..Default::default()
@@ -174,9 +236,21 @@ impl TruckCadEngine {
                 .iter()
                 .map(|t| {
                     [
-                        StandardVertex { pos: t[0], uv: None, nor: None },
-                        StandardVertex { pos: t[1], uv: None, nor: None },
-                        StandardVertex { pos: t[2], uv: None, nor: None },
+                        StandardVertex {
+                            pos: t[0],
+                            uv: None,
+                            nor: None,
+                        },
+                        StandardVertex {
+                            pos: t[1],
+                            uv: None,
+                            nor: None,
+                        },
+                        StandardVertex {
+                            pos: t[2],
+                            uv: None,
+                            nor: None,
+                        },
                     ]
                 })
                 .collect();
@@ -186,15 +260,86 @@ impl TruckCadEngine {
                 .creator
                 .create_instance(&mesh, &PolygonState::default());
             self.scene.add_object(&new_inst);
-            *inst = new_inst;
+            surface.instance = new_inst;
+            surface.vertices = vertices.to_vec();
+            surface.triangles = triangles.to_vec();
         }
     }
 
     /// Remove a surface by id.
     pub fn remove_surface(&mut self, id: usize) {
         if let Some(slot) = self.surfaces.get_mut(id) {
-            if let Some(inst) = slot.take() {
-                self.scene.remove_object(&inst);
+            if let Some(surface) = slot.take() {
+                self.scene.remove_object(&surface.instance);
+            }
+        }
+    }
+
+    /// Add a vertex to an existing surface and return its index.
+    pub fn add_surface_vertex(
+        &mut self,
+        surface_id: usize,
+        vertex: truck::base::Point3,
+    ) -> Option<usize> {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            surface.vertices.push(vertex);
+            let idx = surface.vertices.len() - 1;
+            self.rebuild_surface_internal(surface_id);
+            Some(idx)
+        } else {
+            None
+        }
+    }
+
+    /// Move an existing vertex of a surface.
+    pub fn move_surface_vertex(
+        &mut self,
+        surface_id: usize,
+        vertex_id: usize,
+        vertex: truck::base::Point3,
+    ) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            if vertex_id < surface.vertices.len() {
+                surface.vertices[vertex_id] = vertex;
+                self.rebuild_surface_internal(surface_id);
+            }
+        }
+    }
+
+    /// Delete a vertex from a surface.
+    pub fn delete_surface_vertex(&mut self, surface_id: usize, vertex_id: usize) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            if vertex_id < surface.vertices.len() {
+                surface.vertices.remove(vertex_id);
+                surface.triangles.retain(|t| !t.contains(&vertex_id));
+                for tri in &mut surface.triangles {
+                    for v in tri.iter_mut() {
+                        if *v > vertex_id {
+                            *v -= 1;
+                        }
+                    }
+                }
+                self.rebuild_surface_internal(surface_id);
+            }
+        }
+    }
+
+    /// Add a triangle to a surface.
+    pub fn add_surface_triangle(&mut self, surface_id: usize, tri: [usize; 3]) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            if tri.iter().all(|&i| i < surface.vertices.len()) {
+                surface.triangles.push(tri);
+                self.rebuild_surface_internal(surface_id);
+            }
+        }
+    }
+
+    /// Delete a triangle from a surface.
+    pub fn delete_surface_triangle(&mut self, surface_id: usize, tri_id: usize) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
+            if tri_id < surface.triangles.len() {
+                surface.triangles.remove(tri_id);
+                self.rebuild_surface_internal(surface_id);
             }
         }
     }

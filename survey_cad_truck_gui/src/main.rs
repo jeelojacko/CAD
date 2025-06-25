@@ -17,8 +17,10 @@ use survey_cad::geometry::{
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
-    format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle, TextStyle as ScTextStyle,
+    format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
+    TextStyle as ScTextStyle,
 };
+use truck_modeling::base::Point3;
 
 mod truck_backend;
 use truck_backend::TruckBackend;
@@ -1451,10 +1453,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
                                     lines_ref.borrow_mut().push((s, p));
-                                    backend_render.borrow_mut().add_line(
-                                        [s.x, s.y, 0.0],
-                                        [p.x, p.y, 0.0],
-                                    );
+                                    backend_render
+                                        .borrow_mut()
+                                        .add_line([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
                                     *mode = DrawingMode::None;
                                 } else {
                                     if let Some(app) = weak.upgrade() {
@@ -1930,10 +1931,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
                                     let (s, e) = l;
-                                    backend_render.borrow_mut().add_line(
-                                        [s.x, s.y, 0.0],
-                                        [e.x, e.y, 0.0],
-                                    );
+                                    backend_render
+                                        .borrow_mut()
+                                        .add_line([s.x, s.y, 0.0], [e.x, e.y, 0.0]);
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -2002,10 +2002,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
-                                    backend_render.borrow_mut().add_line(
-                                        [x1, y1, 0.0],
-                                        [x2, y2, 0.0],
-                                    );
+                                    backend_render
+                                        .borrow_mut()
+                                        .add_line([x1, y1, 0.0], [x2, y2, 0.0]);
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -2738,6 +2737,193 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_status(SharedString::from(format!("Volume: {:.3}", vol)));
                         } else {
                             app.set_status(SharedString::from("Invalid input or missing data"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_add_vertex(move || {
+            let dlg = TinVertexDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(x), Ok(y), Ok(z)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_x_val().parse::<f64>(),
+                        d.get_y_val().parse::<f64>(),
+                        d.get_z_val().parse::<f64>(),
+                    ) {
+                        backend_inner
+                            .borrow_mut()
+                            .add_vertex(surf, Point3::new(x, y, z));
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_move_vertex(move || {
+            let dlg = TinVertexDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(idx), Ok(x), Ok(y), Ok(z)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_vertex_index().parse::<usize>(),
+                        d.get_x_val().parse::<f64>(),
+                        d.get_y_val().parse::<f64>(),
+                        d.get_z_val().parse::<f64>(),
+                    ) {
+                        backend_inner
+                            .borrow_mut()
+                            .move_vertex(surf, idx, Point3::new(x, y, z));
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_delete_vertex(move || {
+            let dlg = TinVertexDialog::new().unwrap();
+            dlg.set_x_val("0".into());
+            dlg.set_y_val("0".into());
+            dlg.set_z_val("0".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(idx)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_vertex_index().parse::<usize>(),
+                    ) {
+                        backend_inner.borrow_mut().delete_vertex(surf, idx);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_add_triangle(move || {
+            let dlg = TinTriangleDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(a), Ok(b), Ok(c)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_v1().parse::<usize>(),
+                        d.get_v2().parse::<usize>(),
+                        d.get_v3().parse::<usize>(),
+                    ) {
+                        backend_inner.borrow_mut().add_triangle(surf, [a, b, c]);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_delete_triangle(move || {
+            let dlg = TinTriangleDialog::new().unwrap();
+            dlg.set_v1("0".into());
+            dlg.set_v2("0".into());
+            dlg.set_v3("0".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(idx)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_tri_index().parse::<usize>(),
+                    ) {
+                        backend_inner.borrow_mut().delete_triangle(surf, idx);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
                         }
                     }
                     let _ = d.hide();
@@ -3688,6 +3874,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_surface(p) {
                         Ok(tin) => {
+                            let verts: Vec<Point3> = tin
+                                .vertices
+                                .iter()
+                                .map(|p| Point3::new(p.x, p.y, p.z))
+                                .collect();
+                            backend_render
+                                .borrow_mut()
+                                .add_surface(&verts, &tin.triangles);
                             surfaces.borrow_mut().push(tin);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
