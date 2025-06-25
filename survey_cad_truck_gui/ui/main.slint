@@ -1,6 +1,7 @@
 export { PointManager } from "point_manager.slint";
 export { LineStyleManager } from "line_style_manager.slint";
 export { LayerManager } from "layer_manager.slint";
+export { CrossSectionViewer } from "cross_section_viewer.slint";
 
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
@@ -490,6 +491,7 @@ export component MainWindow inherits Window {
     callback level_elevation_tool();
     callback corridor_volume();
     callback design_cross_sections();
+    callback view_cross_sections();
     callback point_numbers_changed(bool);
     callback point_manager();
     callback line_style_manager();
@@ -571,6 +573,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
             MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); } }
+            MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); } }
         }
         Menu {
             title: "TIN";
@@ -675,6 +678,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Design Sections";
                 clicked => { root.design_cross_sections(); }
+            }
+        Button {
+                text: "Cross Sections";
+                clicked => { root.view_cross_sections(); }
             }
         Button {
                 text: "Clear";
