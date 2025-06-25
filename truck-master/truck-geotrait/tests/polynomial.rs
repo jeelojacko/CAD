@@ -37,7 +37,7 @@ impl<P: EuclideanSpace<Scalar = f64>> ParametricCurve for PolyCurve<P> {
             .1
     }
     fn parameter_range(&self) -> ParameterRange {
-        (Bound::Included(-100.0), Bound::Included(100.0))
+        (Bound::Included(-1.0), Bound::Included(1.0))
     }
 }
 
@@ -82,8 +82,8 @@ impl ParametricSurface for PolySurface {
     #[inline(always)]
     fn parameter_range(&self) -> (ParameterRange, ParameterRange) {
         (
-            (Bound::Included(-100.0), Bound::Included(100.0)),
-            (Bound::Included(-50.0), Bound::Included(50.0)),
+            (Bound::Included(-1.0), Bound::Included(1.0)),
+            (Bound::Included(-1.0), Bound::Included(1.0)),
         )
     }
 }
