@@ -39,6 +39,91 @@ component ColumnSeparator inherits Rectangle {
     }
 }
 
+component PointTable inherits VerticalBox {
+    in-out property <[PointRow]> points_model;
+    in-out property <[string]> groups_model;
+    in-out property <[string]> styles_model;
+    in-out property <int> selected_index;
+    in-out property <length> number_width;
+    in-out property <length> name_width;
+    in-out property <length> x_width;
+    in-out property <length> y_width;
+    in-out property <length> group_width;
+    in-out property <length> style_width;
+    in-out property <string> number_header: "#";
+    in-out property <string> name_header: "Name";
+    in-out property <string> x_header: "X";
+    in-out property <string> y_header: "Y";
+    in-out property <string> group_header: "Group";
+    in-out property <string> style_header: "Style";
+    callback edit_name(int, string);
+    callback edit_x(int, string);
+    callback edit_y(int, string);
+    callback group_changed(int, int);
+    callback style_changed(int, int);
+    callback header_changed(int, string);
+    spacing: 0px;
+
+    Rectangle {
+        width: 100%;
+        height: 24px;
+        border-width: 1px;
+        border-color: #808080;
+        HorizontalLayout {
+            spacing: 0px;
+            LineEdit { text <=> root.number_header; width: root.number_width; edited(text) => { root.header_changed(0, text); } }
+            ColumnSeparator { column_width <=> root.number_width; }
+            LineEdit { text <=> root.name_header; width: root.name_width; edited(text) => { root.header_changed(1, text); } }
+            ColumnSeparator { column_width <=> root.name_width; }
+            LineEdit { text <=> root.x_header; width: root.x_width; edited(text) => { root.header_changed(2, text); } }
+            ColumnSeparator { column_width <=> root.x_width; }
+            LineEdit { text <=> root.y_header; width: root.y_width; edited(text) => { root.header_changed(3, text); } }
+            ColumnSeparator { column_width <=> root.y_width; }
+            LineEdit { text <=> root.group_header; width: root.group_width; edited(text) => { root.header_changed(4, text); } }
+            ColumnSeparator { column_width <=> root.group_width; }
+            LineEdit { text <=> root.style_header; width: root.style_width; edited(text) => { root.header_changed(5, text); } }
+        }
+    }
+    ListView {
+        vertical-stretch: 1;
+        for row[i] in root.points_model : Rectangle {
+            property <bool> selected: root.selected_index == i;
+            background: selected ? #404040 : transparent;
+            height: 24px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    color: #FFFFFF;
+                    text: row.number;
+                    width: root.number_width;
+                    TouchArea {
+                        x: 0px;
+                        y: 0px;
+                        width: parent.width;
+                        height: parent.height;
+                        clicked => { root.selected_index = i; }
+                    }
+                }
+                LineEdit { text: row.name; width: root.name_width; edited(text) => { root.edit_name(i, text); } }
+                LineEdit { text: row.x; width: root.x_width; edited(text) => { root.edit_x(i, text); } }
+                LineEdit { text: row.y; width: root.y_width; edited(text) => { root.edit_y(i, text); } }
+                ComboBox {
+                    model: root.groups_model;
+                    current-index: row.group_index;
+                    selected => { root.group_changed(i, self.current-index); }
+                    width: root.group_width;
+                }
+                ComboBox {
+                    model: root.styles_model;
+                    current-index: row.style_index;
+                    selected => { root.style_changed(i, self.current-index); }
+                    width: root.style_width;
+                }
+            }
+        }
+    }
+}
+
 export component PointManager inherits Window {
     in-out property <[PointRow]> points_model;
     in-out property <[string]> groups_model;
@@ -53,6 +138,13 @@ export component PointManager inherits Window {
     callback edit_y(int, string);
     callback group_changed(int, int);
     callback style_changed(int, int);
+    callback header_changed(int, string);
+    in-out property <string> number_header: "#";
+    in-out property <string> name_header: "Name";
+    in-out property <string> x_header: "X";
+    in-out property <string> y_header: "Y";
+    in-out property <string> group_header: "Group";
+    in-out property <string> style_header: "Style";
     property <length> number_width: 30px;
     property <length> name_width: 250px;
     property <length> x_width: 60px;
@@ -67,63 +159,29 @@ export component PointManager inherits Window {
 
     VerticalBox {
         spacing: 0px;
-        Rectangle {
-            width: 100%;
-            height: 20px;
-            border-width: 1px;
-            border-color: #808080;
-            HorizontalLayout {
-                spacing: 0px;
-                Text { color: #FFFFFF; text: "#"; width: root.number_width; }
-                ColumnSeparator { column_width <=> root.number_width; }
-                Text { color: #FFFFFF; text: "Name"; width: root.name_width; }
-                ColumnSeparator { column_width <=> root.name_width; }
-                Text { color: #FFFFFF; text: "X"; width: root.x_width; }
-                ColumnSeparator { column_width <=> root.x_width; }
-                Text { color: #FFFFFF; text: "Y"; width: root.y_width; }
-                ColumnSeparator { column_width <=> root.y_width; }
-                Text { color: #FFFFFF; text: "Group"; width: root.group_width; }
-                ColumnSeparator { column_width <=> root.group_width; }
-                Text { color: #FFFFFF; text: "Style"; width: root.style_width; }
-            }
-        }
-        ListView {
-            vertical-stretch: 1;
-            for row[i] in root.points_model : Rectangle {
-                property <bool> selected: root.selected_index == i;
-                background: selected ? #404040 : transparent;
-                height: 24px;
-                HorizontalLayout {
-                    spacing: 8px;
-                    Text {
-    color: #FFFFFF;
-                        text: row.number;
-                        width: root.number_width;
-                        TouchArea {
-                            x: 0px;
-                            y: 0px;
-                            width: parent.width;
-                            height: parent.height;
-                            clicked => { root.selected_index = i; }
-                        }
-                    }
-                    LineEdit { text: row.name; width: root.name_width; edited(text) => { root.edit_name(i, text); } }
-                    LineEdit { text: row.x; width: root.x_width; edited(text) => { root.edit_x(i, text); } }
-                    LineEdit { text: row.y; width: root.y_width; edited(text) => { root.edit_y(i, text); } }
-                    ComboBox {
-                        model: root.groups_model;
-                        current-index: row.group_index;
-                        selected => { root.group_changed(i, self.current-index); }
-                        width: root.group_width;
-                    }
-                    ComboBox {
-                        model: root.styles_model;
-                        current-index: row.style_index;
-                        selected => { root.style_changed(i, self.current-index); }
-                        width: root.style_width;
-                    }
-                }
-            }
+        PointTable {
+            points_model <=> root.points_model;
+            groups_model <=> root.groups_model;
+            styles_model <=> root.styles_model;
+            selected_index <=> root.selected_index;
+            number_header <=> root.number_header;
+            name_header <=> root.name_header;
+            x_header <=> root.x_header;
+            y_header <=> root.y_header;
+            group_header <=> root.group_header;
+            style_header <=> root.style_header;
+            number_width <=> root.number_width;
+            name_width <=> root.name_width;
+            x_width <=> root.x_width;
+            y_width <=> root.y_width;
+            group_width <=> root.group_width;
+            style_width <=> root.style_width;
+            edit_name(index, text) => { root.edit_name(index, text); }
+            edit_x(index, text) => { root.edit_x(index, text); }
+            edit_y(index, text) => { root.edit_y(index, text); }
+            group_changed(row, g_idx) => { root.group_changed(row, g_idx); }
+            style_changed(row, s_idx) => { root.style_changed(row, s_idx); }
+            header_changed(col, text) => { root.header_changed(col, text); }
         }
         HorizontalBox {
             spacing: 6px;
