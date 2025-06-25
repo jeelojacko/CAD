@@ -94,6 +94,7 @@ impl TruckBackend {
         self.surface_ids.len() - 1
     }
 
+    #[allow(dead_code)]
     pub fn update_surface(&mut self, idx: usize, vertices: &[Point3], triangles: &[[usize; 3]]) {
         if let Some(Some(id)) = self.surface_ids.get(idx) {
             self.engine.update_surface(*id, vertices, triangles);
