@@ -67,8 +67,10 @@ impl TruckCadEngine {
             builder::tsweep(&e, truck::base::Vector3::unit_y() * 0.1);
         let cube: truck::topology::Solid =
             builder::tsweep(&f, truck::base::Vector3::unit_z() * 0.1);
-        let mut state = PolygonState::default();
-        state.matrix = Matrix4::from_translation(p.to_vec());
+        let state = PolygonState {
+            matrix: Matrix4::from_translation(p.to_vec()),
+            ..Default::default()
+        };
         let mesh = cube.triangulation(0.01).to_polygon();
         let instance = self.creator.create_instance(&mesh, &state);
         self.scene.add_object(&instance);
