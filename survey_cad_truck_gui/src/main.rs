@@ -3261,6 +3261,21 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_styles_model(Rc::new(VecModel::from(point_style_names.clone())).into());
             dlg.set_selected_index(-1);
 
+            let headers = Rc::new(RefCell::new(vec![
+                SharedString::from("#"),
+                SharedString::from("Name"),
+                SharedString::from("X"),
+                SharedString::from("Y"),
+                SharedString::from("Group"),
+                SharedString::from("Style"),
+            ]));
+            dlg.set_number_header(headers.borrow()[0].clone());
+            dlg.set_name_header(headers.borrow()[1].clone());
+            dlg.set_x_header(headers.borrow()[2].clone());
+            dlg.set_y_header(headers.borrow()[3].clone());
+            dlg.set_group_header(headers.borrow()[4].clone());
+            dlg.set_style_header(headers.borrow()[5].clone());
+
             let rename_in_model: Rc<dyn Fn(usize, SharedString)> = {
                 let groups_model = groups_model.clone();
                 Rc::new(move |idx: usize, name: SharedString| {
@@ -3409,6 +3424,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         let mut r = row.clone();
                         r.group_index = g_idx;
                         model.set_row_data(p_idx as usize, r);
+                    }
+                });
+            }
+            {
+                let headers = headers.clone();
+                dlg.on_header_changed(move |col, text| {
+                    if let Some(h) = headers.borrow_mut().get_mut(col as usize) {
+                        *h = text.clone();
                     }
                 });
             }
