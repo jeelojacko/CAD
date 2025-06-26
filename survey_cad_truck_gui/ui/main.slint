@@ -524,6 +524,8 @@ export component MainWindow inherits Window {
     callback tin_delete_vertex();
     callback tin_add_triangle();
     callback tin_delete_triangle();
+    callback undo();
+    callback redo();
     callback zoom_in();
     callback zoom_out();
     callback workspace_left_pressed(length, length);
@@ -567,6 +569,8 @@ export component MainWindow inherits Window {
         }
         Menu {
             title: "Edit";
+            MenuItem { title: "Undo"; activated => { root.undo(); } }
+            MenuItem { title: "Redo"; activated => { root.redo(); } }
             MenuItem { title: "Add Point"; activated => { root.add_point(); } }
             MenuItem { title: "Add Line"; activated => { root.add_line(); } }
             MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }

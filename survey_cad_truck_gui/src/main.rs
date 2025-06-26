@@ -103,6 +103,106 @@ enum DrawingMode {
     },
 }
 
+#[derive(Clone)]
+enum Command {
+    RemovePoint { index: usize, point: Point },
+    AddPoint { index: usize, point: Point },
+    RemoveLine { index: usize, line: (Point, Point) },
+    AddLine { index: usize, line: (Point, Point) },
+    TinDeleteVertex { surface: usize, index: usize, point: Point3 },
+    TinAddVertex { surface: usize, index: usize, point: Point3 },
+}
+
+struct CommandStack {
+    undo: Vec<Command>,
+    redo: Vec<Command>,
+}
+
+impl CommandStack {
+    fn new() -> Self {
+        Self { undo: Vec::new(), redo: Vec::new() }
+    }
+
+    fn push(&mut self, cmd: Command) {
+        self.undo.push(cmd);
+        self.redo.clear();
+    }
+
+    fn undo(&mut self, ctx: &Context) {
+        if let Some(cmd) = self.undo.pop() {
+            let inverse = apply_command(&cmd, ctx);
+            self.redo.push(inverse);
+        }
+    }
+
+    fn redo(&mut self, ctx: &Context) {
+        if let Some(cmd) = self.redo.pop() {
+            let inverse = apply_command(&cmd, ctx);
+            self.undo.push(inverse);
+        }
+    }
+}
+
+struct Context<'a> {
+    points: &'a Rc<RefCell<PointDatabase>>,
+    point_styles: &'a Rc<RefCell<Vec<usize>>>,
+    lines: &'a Rc<RefCell<Vec<(Point, Point)>>>,
+    line_styles: &'a Rc<RefCell<Vec<usize>>>,
+    backend: &'a Rc<RefCell<TruckBackend>>,
+}
+
+fn apply_command(cmd: &Command, ctx: &Context) -> Command {
+    match cmd {
+        Command::RemovePoint { index, point } => {
+            ctx.points.borrow_mut().remove(*index);
+            ctx.point_styles.borrow_mut().remove(*index);
+            ctx.backend.borrow_mut().remove_point(*index);
+            Command::AddPoint { index: *index, point: *point }
+        }
+        Command::AddPoint { index, point } => {
+            ctx.points.borrow_mut().insert(*index, *point);
+            ctx.point_styles.borrow_mut().insert(*index, 0);
+            ctx.backend
+                .borrow_mut()
+                .add_point(point.x, point.y, 0.0);
+            Command::RemovePoint { index: *index, point: *point }
+        }
+        Command::RemoveLine { index, line } => {
+            ctx.lines.borrow_mut().remove(*index);
+            ctx.line_styles.borrow_mut().remove(*index);
+            ctx.backend.borrow_mut().remove_line(*index);
+            Command::AddLine { index: *index, line: *line }
+        }
+        Command::AddLine { index, line } => {
+            ctx.lines.borrow_mut().insert(*index, *line);
+            ctx.line_styles.borrow_mut().insert(*index, 0);
+            ctx.backend.borrow_mut().add_line(
+                [line.0.x, line.0.y, 0.0],
+                [line.1.x, line.1.y, 0.0],
+            );
+            Command::RemoveLine { index: *index, line: *line }
+        }
+        Command::TinDeleteVertex { surface, index, point } => {
+            ctx.backend.borrow_mut().delete_vertex(*surface, *index);
+            Command::TinAddVertex {
+                surface: *surface,
+                index: *index,
+                point: *point,
+            }
+        }
+        Command::TinAddVertex { surface, index, point } => {
+            ctx.backend
+                .borrow_mut()
+                .add_vertex(*surface, *point);
+            Command::TinDeleteVertex {
+                surface: *surface,
+                index: *index,
+                point: *point,
+            }
+        }
+    }
+}
+
 struct RenderState<'a> {
     offset: &'a Rc<RefCell<Vec2>>,
     zoom: &'a Rc<RefCell<f32>>,
@@ -1084,6 +1184,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let line_styles = survey_cad::styles::default_line_styles();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
+    let command_stack = Rc::new(RefCell::new(CommandStack::new()));
     let line_type_names = Rc::new(VecModel::from(vec![
         SharedString::from("Solid"),
         SharedString::from("Dashed"),
@@ -1242,6 +1343,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let command_stack = command_stack.clone();
         let timer = Rc::new(Timer::default());
         let timer_handle = timer.clone();
 
@@ -1381,6 +1483,54 @@ fn main() -> Result<(), slint::PlatformError> {
     let weak = app.as_weak();
 
     {
+        let command_stack = command_stack.clone();
+        let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
+        let lines = lines.clone();
+        let line_style_indices = line_style_indices.clone();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
+        app.on_undo(move || {
+            let ctx = Context {
+                points: &point_db,
+                point_styles: &point_style_indices,
+                lines: &lines,
+                line_styles: &line_style_indices,
+                backend: &backend,
+            };
+            command_stack.borrow_mut().undo(&ctx);
+            if let Some(app) = weak.upgrade() {
+                refresh_workspace(&app, &render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let command_stack = command_stack.clone();
+        let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
+        let lines = lines.clone();
+        let line_style_indices = line_style_indices.clone();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
+        app.on_redo(move || {
+            let ctx = Context {
+                points: &point_db,
+                point_styles: &point_style_indices,
+                lines: &lines,
+                line_styles: &line_style_indices,
+                backend: &backend,
+            };
+            command_stack.borrow_mut().redo(&ctx);
+            if let Some(app) = weak.upgrade() {
+                refresh_workspace(&app, &render_image, &backend);
+            }
+        });
+    }
+
+    {
         let weak = app.as_weak();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
@@ -1450,8 +1600,38 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons = polygons.clone();
         let render_image = render_image.clone();
         let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines = lines.clone();
+        let line_style_indices = line_style_indices.clone();
+        let point_style_indices = point_style_indices.clone();
+        let backend = backend.clone();
+        let command_stack = command_stack.clone();
         app.on_key_pressed(move |key| {
-            if key.as_str() == "\u{001b}" {
+            if key.as_str() == "\u{001a}" {
+                let ctx = Context {
+                    points: &point_db,
+                    point_styles: &point_style_indices,
+                    lines: &lines,
+                    line_styles: &line_style_indices,
+                    backend: &backend,
+                };
+                command_stack.borrow_mut().undo(&ctx);
+                if let Some(app) = weak.upgrade() {
+                    refresh_workspace(&app, &render_image, &backend);
+                }
+            } else if key.as_str() == "\u{0019}" {
+                let ctx = Context {
+                    points: &point_db,
+                    point_styles: &point_style_indices,
+                    lines: &lines,
+                    line_styles: &line_style_indices,
+                    backend: &backend,
+                };
+                command_stack.borrow_mut().redo(&ctx);
+                if let Some(app) = weak.upgrade() {
+                    refresh_workspace(&app, &render_image, &backend);
+                }
+            } else if key.as_str() == "\u{001b}" {
                 *drawing_mode.borrow_mut() = DrawingMode::None;
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
@@ -1513,6 +1693,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let last_click = last_click.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let command_stack = command_stack.clone();
         let weak = app.as_weak();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
             if *drawing_mode.borrow() != DrawingMode::None {
@@ -2078,6 +2259,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         let backend_render = backend.clone();
+        let command_stack_outer = command_stack.clone();
         app.on_add_line(move || {
             let line_style_indices = line_style_indices.clone();
             let dlg = AddLineDialog::new().unwrap();
@@ -2090,6 +2272,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let line_style_indices = line_style_indices.clone();
                 let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 let backend_render = backend_render.clone();
+                let command_stack = command_stack_outer.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
@@ -2103,6 +2286,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     backend_render
                                         .borrow_mut()
                                         .add_line([s.x, s.y, 0.0], [e.x, e.y, 0.0]);
+                                    command_stack.borrow_mut().push(Command::RemoveLine {
+                                        index: lines.borrow().len() - 1,
+                                        line: (s, e),
+                                    });
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -2146,6 +2333,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let line_style_indices = line_style_indices.clone();
                 let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 let backend_render = backend_render.clone();
+                let command_stack_outer = command_stack_outer.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -2154,17 +2342,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     let kd_weak = kd.as_weak();
                     let kd_weak2 = kd.as_weak();
                     {
-                        let lines = lines.clone();
-                        let render_image = render_image.clone();
-                        let weak = weak.clone();
-                        let line_style_indices = line_style_indices.clone();
-                        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
-                        let backend_render = backend_render.clone();
-                        kd.on_accept(move || {
-                            if let Some(dlg) = kd_weak2.upgrade() {
-                                if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
-                                    dlg.get_x1().parse::<f64>(),
-                                    dlg.get_y1().parse::<f64>(),
+                let lines = lines.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                let line_style_indices = line_style_indices.clone();
+                let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
+                let backend_render = backend_render.clone();
+                let command_stack = command_stack_outer.clone();
+                kd.on_accept(move || {
+                    if let Some(dlg) = kd_weak2.upgrade() {
+                        if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                            dlg.get_x1().parse::<f64>(),
+                            dlg.get_y1().parse::<f64>(),
                                     dlg.get_x2().parse::<f64>(),
                                     dlg.get_y2().parse::<f64>(),
                                 ) {
@@ -2174,6 +2363,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     backend_render
                                         .borrow_mut()
                                         .add_line([x1, y1, 0.0], [x2, y2, 0.0]);
+                                    command_stack.borrow_mut().push(Command::RemoveLine {
+                                        index: lines.borrow().len() - 1,
+                                        line: (Point::new(x1, y1), Point::new(x2, y2)),
+                                    });
                                     let count = lines.borrow().len();
                                     let mut idx = line_style_indices.borrow_mut();
                                     if idx.len() < count {
@@ -2219,6 +2412,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let point_style_indices = point_style_indices.clone();
         let backend_render = backend.clone();
+        let command_stack_outer = command_stack.clone();
         app.on_add_point(move || {
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -2285,6 +2479,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let dlg_weak = dlg_weak.clone();
                 let point_style_indices = point_style_indices.clone();
                 let backend_render = backend_render.clone();
+                let cs_inner = command_stack_outer.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -2297,7 +2492,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         let render_image = render_image.clone();
                         let weak = weak.clone();
                         let psi = point_style_indices.clone();
-                        let backend_render = backend_render.clone();
+                let backend_render = backend_render.clone();
+                let command_stack = cs_inner.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -2307,6 +2503,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     point_db.borrow_mut().push(Point::new(x, y));
                                     psi.borrow_mut().push(0);
                                     backend_render.borrow_mut().add_point(x, y, 0.0);
+                                    command_stack.borrow_mut().push(Command::RemovePoint {
+                                        index: point_db.borrow().len() - 1,
+                                        point: Point::new(x, y),
+                                    });
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
                                             "Total points: {}",
@@ -3053,11 +3253,13 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let cs_outer = command_stack.clone();
         app.on_tin_add_vertex(move || {
             let dlg = TinVertexDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let command_stack = cs_outer.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(x), Ok(y), Ok(z)) = (
@@ -3066,9 +3268,16 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        backend_inner
+                        if let Some(idx) = backend_inner
                             .borrow_mut()
-                            .add_vertex(surf, Point3::new(x, y, z));
+                            .add_vertex(surf, Point3::new(x, y, z))
+                        {
+                            command_stack.borrow_mut().push(Command::TinDeleteVertex {
+                                surface: surf,
+                                index: idx,
+                                point: Point3::new(x, y, z),
+                            });
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -4769,6 +4978,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     point_db.borrow_mut().push(p);
                     point_style_indices.borrow_mut().push(0);
                     backend_render.borrow_mut().add_point(p.x, p.y, 0.0);
+                    command_stack.borrow_mut().push(Command::RemovePoint {
+                        index: point_db.borrow().len() - 1,
+                        point: p,
+                    });
                     app.set_workspace_click_mode(false);
                     app.set_status(SharedString::from(format!(
                         "Total points: {}",
