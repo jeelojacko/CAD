@@ -484,6 +484,7 @@ export component MainWindow inherits Window {
     callback add_polyline();
     callback add_arc();
     callback create_polygon_from_selection();
+    callback create_surface_from_selection();
     callback clear_workspace();
     callback view_changed(int);
     callback station_distance();
@@ -565,6 +566,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); } }
             MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); } }
             MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
+            MenuItem { title: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); } }
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); } }
             MenuItem { title: "Layer Manager..."; activated => { root.layer_manager(); } }
@@ -666,6 +668,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Create Polygon";
                 clicked => { root.create_polygon_from_selection(); }
+            }
+        Button {
+                text: "Create Surface";
+                clicked => { root.create_surface_from_selection(); }
             }
         Button {
                 text: "Load LandXML Surface";
