@@ -503,12 +503,16 @@ export component MainWindow inherits Window {
     callback import_kml();
     callback import_dxf();
     callback import_shp();
+    callback import_polylines_shp();
+    callback import_polygons_shp();
     callback import_las();
     callback import_e57();
     callback export_geojson();
     callback export_kml();
     callback export_dxf();
     callback export_shp();
+    callback export_polylines_shp();
+    callback export_polygons_shp();
     callback export_las();
     callback export_e57();
     callback export_landxml_surface();
@@ -540,6 +544,8 @@ export component MainWindow inherits Window {
                 MenuItem { title: "KML"; activated => { root.import_kml(); } }
                 MenuItem { title: "DXF"; activated => { root.import_dxf(); } }
                 MenuItem { title: "SHP"; activated => { root.import_shp(); } }
+                MenuItem { title: "Polyline SHP"; activated => { root.import_polylines_shp(); } }
+                MenuItem { title: "Polygon SHP"; activated => { root.import_polygons_shp(); } }
                 MenuItem { title: "LAS"; activated => { root.import_las(); } }
                 MenuItem { title: "E57"; activated => { root.import_e57(); } }
                 MenuItem { title: "LandXML Surface"; activated => { root.import_landxml_surface(); } }
@@ -551,6 +557,8 @@ export component MainWindow inherits Window {
                 MenuItem { title: "KML"; activated => { root.export_kml(); } }
                 MenuItem { title: "DXF"; activated => { root.export_dxf(); } }
                 MenuItem { title: "SHP"; activated => { root.export_shp(); } }
+                MenuItem { title: "Polyline SHP"; activated => { root.export_polylines_shp(); } }
+                MenuItem { title: "Polygon SHP"; activated => { root.export_polygons_shp(); } }
                 MenuItem { title: "LAS"; activated => { root.export_las(); } }
                 MenuItem { title: "E57"; activated => { root.export_e57(); } }
                 MenuItem { title: "LandXML Surface"; activated => { root.export_landxml_surface(); } }
