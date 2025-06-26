@@ -208,6 +208,9 @@ struct RenderState<'a> {
     zoom: &'a Rc<RefCell<f32>>,
     selected: &'a Rc<RefCell<Vec<usize>>>,
     selected_lines: &'a Rc<RefCell<Vec<(Point, Point)>>>,
+    selected_polygons: &'a Rc<RefCell<Vec<usize>>>,
+    selected_polylines: &'a Rc<RefCell<Vec<usize>>>,
+    selected_arcs: &'a Rc<RefCell<Vec<usize>>>,
     drag: &'a Rc<RefCell<DragSelect>>,
     cursor_feedback: &'a Rc<RefCell<Option<CursorFeedback>>>,
 }
@@ -511,7 +514,7 @@ fn render_workspace(
         }
     }
 
-    for poly in data.polygons {
+    for (i, poly) in data.polygons.iter().enumerate() {
         if poly.len() < 2 {
             continue;
         }
@@ -523,15 +526,19 @@ fn render_workspace(
         }
         pb.close();
         if let Some(path) = pb.finish() {
-            let stroke = Stroke {
-                width: 1.0,
-                ..Stroke::default()
-            };
+            let selected = state.selected_polygons.borrow().contains(&i);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+            }
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+            }
         }
     }
 
-    for pl in data.polylines {
+    for (i, pl) in data.polylines.iter().enumerate() {
         if pl.vertices.len() < 2 {
             continue;
         }
@@ -542,15 +549,19 @@ fn render_workspace(
             pb.line_to(tx(p.x as f32), ty(p.y as f32));
         }
         if let Some(path) = pb.finish() {
-            let stroke = Stroke {
-                width: 1.0,
-                ..Stroke::default()
-            };
+            let selected = state.selected_polylines.borrow().contains(&i);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+            }
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+            }
         }
     }
 
-    for arc in data.arcs {
+    for (i, arc) in data.arcs.iter().enumerate() {
         let steps = 32;
         let mut pb = PathBuilder::new();
         for i in 0..=steps {
@@ -566,11 +577,15 @@ fn render_workspace(
             }
         }
         if let Some(path) = pb.finish() {
-            let stroke = Stroke {
-                width: 1.0,
-                ..Stroke::default()
-            };
+            let selected = state.selected_arcs.borrow().contains(&i);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+            }
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+            if selected {
+                paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+            }
         }
     }
 
@@ -1169,6 +1184,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let last_pos = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let selected_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let selected_lines = Rc::new(RefCell::new(Vec::<(Point, Point)>::new()));
+    let selected_polygons = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let selected_polylines = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let selected_arcs = Rc::new(RefCell::new(Vec::<usize>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
     let cursor_feedback = Rc::new(RefCell::new(None));
     let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
@@ -1264,6 +1282,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_indices = selected_indices.clone();
         let drag_select = drag_select.clone();
         let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
         let style_indices = point_style_indices.clone();
         let point_styles = point_style_values.clone();
         let line_styles_vals = line_style_values.clone();
@@ -1293,6 +1314,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     zoom: &zoom,
                     selected: &selected_indices,
                     selected_lines: &selected_lines,
+                    selected_polygons: &selected_polygons,
+                    selected_polylines: &selected_polylines,
+                    selected_arcs: &selected_arcs,
                     drag: &drag_select,
                     cursor_feedback: &cursor_feedback,
                 },
@@ -1870,8 +1894,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let drag_select = drag_select.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
         let point_db = point_db.clone();
         let lines_ref = lines.clone();
+        let polygons_ref = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs_ref = arcs.clone();
         let offset = offset.clone();
         let zoom = zoom.clone();
         let render_image = render_image.clone();
@@ -1911,6 +1941,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         let max_y = p1.y.max(p2.y);
                         selected_indices.borrow_mut().clear();
                         selected_lines.borrow_mut().clear();
+                        selected_polygons.borrow_mut().clear();
+                        selected_polylines.borrow_mut().clear();
+                        selected_arcs.borrow_mut().clear();
                         for (i, pt) in point_db.borrow().iter().enumerate() {
                             if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
                                 selected_indices.borrow_mut().push(i);
@@ -1921,6 +1954,25 @@ fn main() -> Result<(), slint::PlatformError> {
                                 && (e.x >= min_x && e.x <= max_x && e.y >= min_y && e.y <= max_y)
                             {
                                 selected_lines.borrow_mut().push((*s, *e));
+                            }
+                        }
+                        for (i, poly) in polygons_ref.borrow().iter().enumerate() {
+                            if poly.iter().all(|p| p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y) {
+                                selected_polygons.borrow_mut().push(i);
+                            }
+                        }
+                        for (i, pl) in polylines.borrow().iter().enumerate() {
+                            if pl.vertices.iter().all(|p| p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y) {
+                                selected_polylines.borrow_mut().push(i);
+                            }
+                        }
+                        for (i, arc) in arcs_ref.borrow().iter().enumerate() {
+                            let min_ax = arc.center.x - arc.radius;
+                            let max_ax = arc.center.x + arc.radius;
+                            let min_ay = arc.center.y - arc.radius;
+                            let max_ay = arc.center.y + arc.radius;
+                            if min_ax >= min_x && max_ax <= max_x && min_ay >= min_y && max_ay <= max_y {
+                                selected_arcs.borrow_mut().push(i);
                             }
                         }
                         ds.active = false;
@@ -2118,6 +2170,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
@@ -2129,6 +2184,9 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            selected_polygons.borrow_mut().clear();
+            selected_polylines.borrow_mut().clear();
+            selected_arcs.borrow_mut().clear();
             backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
@@ -3082,6 +3140,216 @@ fn main() -> Result<(), slint::PlatformError> {
                         } else {
                             app.set_status(SharedString::from("Invalid input or missing data"));
                         }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        app.on_move_entity(move || {
+            let dlg = MoveEntityDialog::new().unwrap();
+            dlg.set_dx_value("0".into());
+            dlg.set_dy_value("0".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let point_db = point_db.clone();
+            let lines = lines.clone();
+            let polygons = polygons.clone();
+            let polylines = polylines.clone();
+            let arcs = arcs.clone();
+            let selected_indices = selected_indices.clone();
+            let selected_lines = selected_lines.clone();
+            let selected_polygons = selected_polygons.clone();
+            let selected_polylines = selected_polylines.clone();
+            let selected_arcs = selected_arcs.clone();
+            let backend_inner = backend_render.clone();
+            let render_image = render_image.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let dx = d.get_dx_value().parse::<f64>().unwrap_or(0.0);
+                    let dy = d.get_dy_value().parse::<f64>().unwrap_or(0.0);
+                    for &idx in selected_indices.borrow().iter() {
+                        if let Some(p) = point_db.borrow_mut().get_mut(idx) {
+                            p.x += dx;
+                            p.y += dy;
+                            backend_inner.borrow_mut().update_point(idx, p.x, p.y, 0.0);
+                        }
+                    }
+                    for (i, line) in lines.borrow_mut().iter_mut().enumerate() {
+                        if selected_lines
+                            .borrow()
+                            .iter()
+                            .any(|(s, e)| (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0))
+                        {
+                            line.0.x += dx;
+                            line.0.y += dy;
+                            line.1.x += dx;
+                            line.1.y += dy;
+                            backend_inner.borrow_mut().update_line(
+                                i,
+                                [line.0.x, line.0.y, 0.0],
+                                [line.1.x, line.1.y, 0.0],
+                            );
+                        }
+                    }
+                    for &idx in selected_polygons.borrow().iter() {
+                        if let Some(poly) = polygons.borrow_mut().get_mut(idx) {
+                            for v in poly.iter_mut() {
+                                v.x += dx;
+                                v.y += dy;
+                            }
+                        }
+                    }
+                    for &idx in selected_polylines.borrow().iter() {
+                        if let Some(pl) = polylines.borrow_mut().get_mut(idx) {
+                            for v in pl.vertices.iter_mut() {
+                                v.x += dx;
+                                v.y += dy;
+                            }
+                        }
+                    }
+                    for &idx in selected_arcs.borrow().iter() {
+                        if let Some(a) = arcs.borrow_mut().get_mut(idx) {
+                            a.center.x += dx;
+                            a.center.y += dy;
+                        }
+                    }
+                    if let Some(app) = weak2.upgrade() {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        app.on_rotate_entity(move || {
+            let dlg = RotateEntityDialog::new().unwrap();
+            dlg.set_angle_value("0".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let point_db = point_db.clone();
+            let lines = lines.clone();
+            let polygons = polygons.clone();
+            let polylines = polylines.clone();
+            let arcs = arcs.clone();
+            let selected_indices = selected_indices.clone();
+            let selected_lines = selected_lines.clone();
+            let selected_polygons = selected_polygons.clone();
+            let selected_polylines = selected_polylines.clone();
+            let selected_arcs = selected_arcs.clone();
+            let backend_inner = backend_render.clone();
+            let render_image = render_image.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let ang = d.get_angle_value().parse::<f64>().unwrap_or(0.0).to_radians();
+                    let cos_a = ang.cos();
+                    let sin_a = ang.sin();
+                    for &idx in selected_indices.borrow().iter() {
+                        if let Some(p) = point_db.borrow_mut().get_mut(idx) {
+                            let x = p.x * cos_a - p.y * sin_a;
+                            let y = p.x * sin_a + p.y * cos_a;
+                            p.x = x;
+                            p.y = y;
+                            backend_inner.borrow_mut().update_point(idx, p.x, p.y, 0.0);
+                        }
+                    }
+                    for (i, line) in lines.borrow_mut().iter_mut().enumerate() {
+                        if selected_lines
+                            .borrow()
+                            .iter()
+                            .any(|(s, e)| (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0))
+                        {
+                            for pt in [&mut line.0, &mut line.1] {
+                                let x = pt.x * cos_a - pt.y * sin_a;
+                                let y = pt.x * sin_a + pt.y * cos_a;
+                                pt.x = x;
+                                pt.y = y;
+                            }
+                            backend_inner.borrow_mut().update_line(
+                                i,
+                                [line.0.x, line.0.y, 0.0],
+                                [line.1.x, line.1.y, 0.0],
+                            );
+                        }
+                    }
+                    for &idx in selected_polygons.borrow().iter() {
+                        if let Some(poly) = polygons.borrow_mut().get_mut(idx) {
+                            for v in poly.iter_mut() {
+                                let x = v.x * cos_a - v.y * sin_a;
+                                let y = v.x * sin_a + v.y * cos_a;
+                                v.x = x;
+                                v.y = y;
+                            }
+                        }
+                    }
+                    for &idx in selected_polylines.borrow().iter() {
+                        if let Some(pl) = polylines.borrow_mut().get_mut(idx) {
+                            for v in pl.vertices.iter_mut() {
+                                let x = v.x * cos_a - v.y * sin_a;
+                                let y = v.x * sin_a + v.y * cos_a;
+                                v.x = x;
+                                v.y = y;
+                            }
+                        }
+                    }
+                    for &idx in selected_arcs.borrow().iter() {
+                        if let Some(a) = arcs.borrow_mut().get_mut(idx) {
+                            let cx = a.center.x * cos_a - a.center.y * sin_a;
+                            let cy = a.center.x * sin_a + a.center.y * cos_a;
+                            a.center.x = cx;
+                            a.center.y = cy;
+                            a.start_angle += ang;
+                            a.end_angle += ang;
+                        }
+                    }
+                    if let Some(app) = weak2.upgrade() {
+                        app.set_workspace_image(render_image());
+                        app.window().request_redraw();
                     }
                     let _ = d.hide();
                 }
@@ -5023,6 +5291,9 @@ fn main() -> Result<(), slint::PlatformError> {
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
+            selected_polygons.borrow_mut().clear();
+            selected_polylines.borrow_mut().clear();
+            selected_arcs.borrow_mut().clear();
             backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
