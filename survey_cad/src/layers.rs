@@ -4,7 +4,7 @@ use crate::geometry::LineType;
 use crate::styles::{LineWeight, TextStyle};
 
 /// Representation of a drawing layer.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Layer {
     pub name: String,
     pub is_on: bool,

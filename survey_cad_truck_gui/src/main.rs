@@ -17,6 +17,7 @@ use survey_cad::geometry::{
     convex_hull, Point3 as ScPoint3,
 };
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
+use survey_cad::io::project::{read_project_json, write_project_json, Project};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
     format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
@@ -1959,41 +1960,69 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let point_db = point_db.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let layers_ref = layers.clone();
+        let layer_names_ref = layer_names.clone();
+        let line_style_indices = line_style_indices.clone();
+        let point_style_indices = point_style_indices.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
-                .add_filter("CSV", &["csv"])
+                .add_filter("Project", &["json"])
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
-                    let (result, len) = {
-                        let mut db_ref = point_db.borrow_mut();
-                        let res =
-                            survey_cad::io::read_point_database_csv(p, &mut db_ref, None, None);
-                        let len = db_ref.len();
-                        backend_render.borrow_mut().clear();
-                        for pt in db_ref.iter() {
-                            backend_render.borrow_mut().add_point(pt.x, pt.y, 0.0);
-                        }
-                        (res, len)
-                    };
-                    match result {
-                        Ok(()) => {
+                    match read_project_json(p) {
+                        Ok(proj) => {
+                            point_db.borrow_mut().clear();
+                            point_db.borrow_mut().extend_from_slice(&proj.points);
+                            lines.borrow_mut().clear();
+                            lines.borrow_mut().extend(proj.lines.iter().map(|l| (l.start, l.end)));
+                            polygons.borrow_mut().clear();
+                            polygons.borrow_mut().extend(proj.polygons.clone());
+                            polylines.borrow_mut().clear();
+                            polylines.borrow_mut().extend(proj.polylines.clone());
+                            arcs.borrow_mut().clear();
+                            arcs.borrow_mut().extend(proj.arcs.clone());
+                            surfaces.borrow_mut().clear();
+                            surfaces.borrow_mut().extend(proj.surfaces.clone());
+                            *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
+                            *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
+
+                            let mut mgr = ScLayerManager::new();
+                            layer_names_ref.borrow_mut().clear();
+                            for l in proj.layers {
+                                layer_names_ref.borrow_mut().push(l.name.clone());
+                                mgr.add_layer(l);
+                            }
+                            *layers_ref.borrow_mut() = mgr;
+
+                            backend_render.borrow_mut().clear();
+                            for pt in point_db.borrow().iter() {
+                                backend_render.borrow_mut().add_point(pt.x, pt.y, 0.0);
+                            }
+                            for tin in surfaces.borrow().iter() {
+                                let verts: Vec<Point3> = tin
+                                    .vertices
+                                    .iter()
+                                    .map(|p| Point3::new(p.x, p.y, p.z))
+                                    .collect();
+                                backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                            }
+
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Loaded {} points",
-                                    len
-                                )));
+                                app.set_status(SharedString::from("Project loaded"));
                                 refresh_workspace(&app, &render_image, &backend_render);
                             }
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Failed to open: {}",
-                                    e
-                                )));
+                                app.set_status(SharedString::from(format!("Failed to open: {}", e)));
                             }
                         }
                     }
@@ -2005,15 +2034,32 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let point_db = point_db.clone();
+        let lines = lines.clone();
+        let polygons = polygons.clone();
+        let polylines = polylines.clone();
+        let arcs = arcs.clone();
+        let surfaces = surfaces.clone();
+        let layers_ref = layers.clone();
+        let line_style_indices = line_style_indices.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
-                .add_filter("CSV", &["csv"])
+                .add_filter("Project", &["json"])
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    if let Err(e) =
-                        survey_cad::io::write_points_csv(p, &point_db.borrow(), None, None)
-                    {
+                    let proj = Project {
+                        points: point_db.borrow().points().to_vec(),
+                        lines: lines.borrow().iter().map(|l| Line::new(l.0, l.1)).collect(),
+                        polygons: polygons.borrow().clone(),
+                        polylines: polylines.borrow().clone(),
+                        arcs: arcs.borrow().clone(),
+                        surfaces: surfaces.borrow().clone(),
+                        layers: layers_ref.borrow().iter().cloned().collect(),
+                        point_style_indices: point_style_indices.borrow().clone(),
+                        line_style_indices: line_style_indices.borrow().clone(),
+                    };
+                    if let Err(e) = write_project_json(p, &proj) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to save: {}", e)));
                         }

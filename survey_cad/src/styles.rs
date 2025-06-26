@@ -2,7 +2,7 @@ use crate::geometry::point::PointStyle;
 
 /// Basic styling structures for drawing entities.
 /// Represents the weight of a line in millimeters.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LineWeight(pub f32);
 
 impl Default for LineWeight {
@@ -12,7 +12,7 @@ impl Default for LineWeight {
 }
 
 /// Text style definition.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TextStyle {
     pub name: String,
     pub font: String,
