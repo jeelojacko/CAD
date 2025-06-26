@@ -19,6 +19,7 @@ pub mod las;
 #[cfg(feature = "shapefile")]
 pub mod shp;
 pub mod ifc;
+pub mod project;
 
 /// Reads a file to string.
 pub fn read_to_string(path: &str) -> io::Result<String> {

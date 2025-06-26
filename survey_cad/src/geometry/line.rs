@@ -4,7 +4,7 @@ use super::{distance, Point};
 use crate::styles::LineWeight;
 
 /// Available drawing styles for a line entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LineType {
     /// Continuous solid line.
     Solid,
@@ -15,7 +15,7 @@ pub enum LineType {
 }
 
 /// Style information for rendering a line.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LineStyle {
     pub line_type: LineType,
     pub color: [u8; 3],
@@ -43,7 +43,7 @@ impl Default for LineStyle {
 }
 
 /// Representation of a 2D line segment between two points.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Line {
     pub start: Point,
     pub end: Point,
