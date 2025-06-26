@@ -14,6 +14,7 @@ use survey_cad::dtm::Tin;
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
     Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
+    convex_hull, Point3 as ScPoint3,
 };
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
@@ -1263,6 +1264,51 @@ fn main() -> Result<(), slint::PlatformError> {
         app.window().on_close_requested(move || {
             timer_handle.stop();
             CloseRequestResponse::HideWindow
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let surfaces = surfaces.clone();
+        let selected_indices = selected_indices.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_create_surface_from_selection(move || {
+            let sc_pts: Vec<ScPoint3> = selected_indices
+                .borrow()
+                .iter()
+                .filter_map(|&i| point_db.borrow().get(i).copied())
+                .map(|p| ScPoint3::new(p.x, p.y, 0.0))
+                .collect();
+            if sc_pts.len() >= 3 {
+                let tin = survey_cad::dtm::Tin::from_points(sc_pts.clone());
+                let verts: Vec<Point3> = tin
+                    .vertices
+                    .iter()
+                    .map(|p| Point3::new(p.x, p.y, p.z))
+                    .collect();
+                backend_render
+                    .borrow_mut()
+                    .add_surface(&verts, &tin.triangles);
+                surfaces.borrow_mut().push(tin);
+                selected_indices.borrow_mut().clear();
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from(format!(
+                        "Total surfaces: {}",
+                        surfaces.borrow().len()
+                    )));
+                    if app.get_workspace_mode() == 0 {
+                        app.set_workspace_image(render_image());
+                    } else {
+                        let image = backend_render.borrow_mut().render();
+                        app.set_workspace_texture(image);
+                    }
+                    app.window().request_redraw();
+                }
+            } else if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Need at least 3 points"));
+            }
         });
     }
 
@@ -2621,43 +2667,18 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_lines = selected_lines.clone();
         let render_image = render_image.clone();
         app.on_create_polygon_from_selection(move || {
-            let mut verts: Vec<Point> = selected_indices
+            let mut pts: Vec<Point> = selected_indices
                 .borrow()
                 .iter()
                 .filter_map(|&i| point_db.borrow().get(i).copied())
                 .collect();
-            let mut line_chain: Vec<Line> = selected_lines
-                .borrow()
-                .iter()
-                .map(|(s, e)| Line::new(*s, *e))
-                .collect();
-            if !line_chain.is_empty() {
-                let mut chain = Vec::new();
-                let current = line_chain.pop().unwrap();
-                chain.push(current.start);
-                chain.push(current.end);
-                let mut last = current.end;
-                while !line_chain.is_empty() {
-                    if let Some(pos) = line_chain
-                        .iter()
-                        .position(|l| l.start == last || l.end == last)
-                    {
-                        let l = line_chain.remove(pos);
-                        if l.start == last {
-                            chain.push(l.end);
-                            last = l.end;
-                        } else {
-                            chain.push(l.start);
-                            last = l.start;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                verts.extend(chain);
+            for (s, e) in selected_lines.borrow().iter() {
+                pts.push(*s);
+                pts.push(*e);
             }
-            if verts.len() >= 3 {
-                polygons.borrow_mut().push(verts);
+            let hull = convex_hull(&pts);
+            if hull.len() >= 3 {
+                polygons.borrow_mut().push(hull);
                 selected_indices.borrow_mut().clear();
                 selected_lines.borrow_mut().clear();
                 if let Some(app) = weak.upgrade() {

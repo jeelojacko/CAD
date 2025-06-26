@@ -28,6 +28,51 @@ pub fn polygon_area(vertices: &[Point]) -> f64 {
     sum.abs() * 0.5
 }
 
+fn orientation(a: Point, b: Point, c: Point) -> f64 {
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+}
+
+/// Computes the convex hull of the provided points using the monotonic chain
+/// algorithm.
+pub fn convex_hull(points: &[Point]) -> Vec<Point> {
+    if points.len() <= 1 {
+        return points.to_vec();
+    }
+    let mut pts: Vec<Point> = points.to_vec();
+    pts.sort_by(|a, b| {
+        a.x
+            .partial_cmp(&b.x)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    pts.dedup();
+
+    let mut lower = Vec::new();
+    for p in &pts {
+        while lower.len() >= 2
+            && orientation(lower[lower.len() - 2], lower[lower.len() - 1], *p) <= 0.0
+        {
+            lower.pop();
+        }
+        lower.push(*p);
+    }
+
+    let mut upper = Vec::new();
+    for p in pts.iter().rev() {
+        while upper.len() >= 2
+            && orientation(upper[upper.len() - 2], upper[upper.len() - 1], *p) <= 0.0
+        {
+            upper.pop();
+        }
+        upper.push(*p);
+    }
+
+    lower.pop();
+    upper.pop();
+    lower.extend(upper);
+    lower
+}
+
 /// Calculates the Euclidean distance between two 3D points.
 pub fn distance3(a: Point3, b: Point3) -> f64 {
     ((b.x - a.x).powi(2) + (b.y - a.y).powi(2) + (b.z - a.z).powi(2)).sqrt()
