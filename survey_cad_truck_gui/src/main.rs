@@ -8,6 +8,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use survey_cad::alignment::HorizontalAlignment;
+use survey_cad::corridor;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
 use survey_cad::geometry::point::PointStyle;
@@ -21,7 +22,6 @@ use survey_cad::styles::{
     TextStyle as ScTextStyle,
 };
 use survey_cad::subassembly;
-use survey_cad::corridor;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -929,8 +929,8 @@ fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u3
         if (max_y - min_y).abs() < f32::EPSILON {
             max_y += 1.0;
         }
-        let scale = ((width as f32 * 0.8) / (max_x - min_x))
-            .min((height as f32 * 0.8) / (max_y - min_y));
+        let scale =
+            ((width as f32 * 0.8) / (max_x - min_x)).min((height as f32 * 0.8) / (max_y - min_y));
         let ox = width as f32 / 2.0 - scale * (min_x + max_x) / 2.0;
         let oy = height as f32 / 2.0 + scale * (min_y + max_y) / 2.0;
         let mut pb = PathBuilder::new();
@@ -2860,12 +2860,16 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         let hal = &aligns[0];
                         let len = hal.length();
-                        let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+                        let val = survey_cad::alignment::VerticalAlignment::new(vec![
+                            (0.0, 0.0),
+                            (len, 0.0),
+                        ]);
                         let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
                         let lane = subassembly::lane(lane_w, lane_s);
                         let shoulder = subassembly::shoulder(sh_w, sh_s);
                         let sections = subassembly::symmetric_section(&[lane, shoulder]);
-                        let mut cs = corridor::extract_design_cross_sections(&al, &sections, None, interval);
+                        let mut cs =
+                            corridor::extract_design_cross_sections(&al, &sections, None, interval);
                         cs.retain(|c| c.station >= start && c.station <= end);
                         for section in cs {
                             for pair in section.points.windows(2) {
@@ -2886,7 +2890,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         if res.is_some() {
                             app.set_status(SharedString::from("Sections generated"));
                         } else {
-                            app.set_status(SharedString::from("Invalid input or missing alignment"));
+                            app.set_status(SharedString::from(
+                                "Invalid input or missing alignment",
+                            ));
                         }
                     }
                     let _ = d.hide();
@@ -2928,7 +2934,10 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             let viewer = CrossSectionViewer::new().unwrap();
             let current = Rc::new(RefCell::new(0usize));
-            viewer.set_station_label(SharedString::from(format!("Station: {:.2}", sections[0].station)));
+            viewer.set_station_label(SharedString::from(format!(
+                "Station: {:.2}",
+                sections[0].station
+            )));
             viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(sections);
@@ -2941,7 +2950,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         *current.borrow_mut() -= 1;
                         let i = *current.borrow();
                         if let Some(v) = viewer_weak.upgrade() {
-                            v.set_station_label(SharedString::from(format!("Station: {:.2}", secs[i].station)));
+                            v.set_station_label(SharedString::from(format!(
+                                "Station: {:.2}",
+                                secs[i].station
+                            )));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -2956,7 +2968,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         *current.borrow_mut() += 1;
                         let i = *current.borrow();
                         if let Some(v) = viewer_weak.upgrade() {
-                            v.set_station_label(SharedString::from(format!("Station: {:.2}", secs[i].station)));
+                            v.set_station_label(SharedString::from(format!(
+                                "Station: {:.2}",
+                                secs[i].station
+                            )));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -3628,6 +3643,62 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(not(feature = "e57"))]
                     if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("E57 support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let surfaces = surfaces.clone();
+        app.on_export_landxml_surface(move || {
+            if surfaces.borrow().is_empty() {
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("No surface to export"));
+                }
+                return;
+            }
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    let tin = &surfaces.borrow()[0];
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let alignments = alignments.clone();
+        app.on_export_landxml_alignment(move || {
+            if alignments.borrow().is_empty() {
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("No alignment to export"));
+                }
+                return;
+            }
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    let hal = &alignments.borrow()[0];
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, hal) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
                     }
                 }
             }
