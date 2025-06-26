@@ -3444,6 +3444,117 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let lines = lines.clone();
+        let polylines_ref = polylines.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_import_polylines_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    match survey_cad::io::shp::read_polylines_shp(p) {
+                        Ok((pls, _)) => {
+                            let mut lns = lines.borrow_mut();
+                            let mut pls_vec = polylines_ref.borrow_mut();
+                            lns.clear();
+                            pls_vec.clear();
+                            for pl in pls {
+                                if pl.vertices.len() == 2 {
+                                    lns.push((pl.vertices[0], pl.vertices[1]));
+                                } else {
+                                    pls_vec.push(pl);
+                                }
+                            }
+                            let count = lns.len() + pls_vec.len();
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} polylines",
+                                    count
+                                )));
+                                if app.get_workspace_mode() == 0 {
+                                    app.set_workspace_image(render_image());
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
+                                }
+                                app.window().request_redraw();
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let polygons_ref = polygons.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_import_polygons_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    match survey_cad::io::shp::read_polygons_shp(p) {
+                        Ok((polys, _)) => {
+                            let len = {
+                                let mut pg = polygons_ref.borrow_mut();
+                                pg.clear();
+                                pg.extend(polys);
+                                pg.len()
+                            };
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {} polygons",
+                                    len
+                                )));
+                                if app.get_workspace_mode() == 0 {
+                                    app.set_workspace_image(render_image());
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
+                                }
+                                app.window().request_redraw();
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {}",
+                                    e
+                                )));
+                            }
+                        }
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
@@ -3631,6 +3742,66 @@ fn main() -> Result<(), slint::PlatformError> {
                     if let Err(e) =
                         survey_cad::io::shp::write_points_shp(p, &point_db.borrow(), None)
                     {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let lines_ref = lines.clone();
+        let polylines_ref = polylines.clone();
+        app.on_export_polylines_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    {
+                        let mut out = Vec::new();
+                        for (s, e) in lines_ref.borrow().iter() {
+                            out.push(Polyline::new(vec![*s, *e]));
+                        }
+                        out.extend(polylines_ref.borrow().iter().cloned());
+                        if let Err(e) = survey_cad::io::shp::write_polylines_shp(p, &out, None) {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            }
+                        } else if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from("Exported"));
+                        }
+                    }
+                    #[cfg(not(feature = "shapefile"))]
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("SHP support not enabled"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let polygons_ref = polygons.clone();
+        app.on_export_polygons_shp(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("SHP", &["shp"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    #[cfg(feature = "shapefile")]
+                    if let Err(e) = survey_cad::io::shp::write_polygons_shp(p, &polygons_ref.borrow(), None) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {}", e)));
                         }
