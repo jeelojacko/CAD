@@ -442,6 +442,40 @@ export component ArcModeDialog inherits Window {
     }
 }
 
+export component MoveEntityDialog inherits Window {
+    in-out property <string> dx_value;
+    in-out property <string> dy_value;
+    callback accept();
+    callback cancel();
+    title: "Move Entities";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "DX:"; } LineEdit { text <=> root.dx_value; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "DY:"; } LineEdit { text <=> root.dy_value; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component RotateEntityDialog inherits Window {
+    in-out property <string> angle_value;
+    callback accept();
+    callback cancel();
+    title: "Rotate Entities";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Angle:"; } LineEdit { text <=> root.angle_value; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
@@ -526,6 +560,8 @@ export component MainWindow inherits Window {
     callback tin_delete_triangle();
     callback undo();
     callback redo();
+    callback move_entity();
+    callback rotate_entity();
     callback zoom_in();
     callback zoom_out();
     callback workspace_left_pressed(length, length);
@@ -579,6 +615,8 @@ export component MainWindow inherits Window {
             MenuItem { title: "Line Mode"; activated => { root.draw_line_mode(); } }
             MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); } }
             MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); } }
+            MenuItem { title: "Move Entities"; activated => { root.move_entity(); } }
+            MenuItem { title: "Rotate Entities"; activated => { root.rotate_entity(); } }
             MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
             MenuItem { title: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); } }
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
@@ -679,6 +717,14 @@ export component MainWindow inherits Window {
         Button {
                 text: "Arc Mode";
                 clicked => { root.draw_arc_mode(); }
+            }
+        Button {
+                text: "Move";
+                clicked => { root.move_entity(); }
+            }
+        Button {
+                text: "Rotate";
+                clicked => { root.rotate_entity(); }
             }
         Button {
                 text: "Create Polygon";
