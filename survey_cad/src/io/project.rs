@@ -33,6 +33,12 @@ impl Project {
     }
 }
 
+impl Default for Project {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn read_project_json(path: &str) -> std::io::Result<Project> {
     let contents = crate::io::read_to_string(path)?;
     let proj: Project = serde_json::from_str(&contents)
@@ -42,6 +48,6 @@ pub fn read_project_json(path: &str) -> std::io::Result<Project> {
 
 pub fn write_project_json(path: &str, project: &Project) -> std::io::Result<()> {
     let json = serde_json::to_string_pretty(project)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     crate::io::write_string(path, &json)
 }
