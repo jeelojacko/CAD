@@ -2,6 +2,7 @@ export { PointManager } from "point_manager.slint";
 export { LineStyleManager } from "line_style_manager.slint";
 export { LayerManager } from "layer_manager.slint";
 export { CrossSectionViewer } from "cross_section_viewer.slint";
+export { SuperelevationEditor } from "superelevation_editor.slint";
 
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
@@ -493,6 +494,7 @@ export component MainWindow inherits Window {
     callback corridor_volume();
     callback design_cross_sections();
     callback view_cross_sections();
+    callback superelevation_editor();
     callback point_numbers_changed(bool);
     callback point_manager();
     callback line_style_manager();
@@ -578,6 +580,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
+            MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); } }
             MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); } }
             MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); } }
         }
@@ -692,6 +695,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Corridor Volume";
                 clicked => { root.corridor_volume(); }
+            }
+        Button {
+                text: "Superelevation...";
+                clicked => { root.superelevation_editor(); }
             }
         Button {
                 text: "Design Sections";
