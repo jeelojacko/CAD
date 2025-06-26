@@ -4967,7 +4967,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         if let Some(row) = model.row_data(idx as usize) {
                             let mut r = row.clone();
-                            r.station = SharedString::from(text.clone());
+                            r.station = text.clone();
                             model.set_row_data(idx as usize, r);
                         }
                         update_design();
@@ -4985,7 +4985,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         if let Some(row) = model.row_data(idx as usize) {
                             let mut r = row.clone();
-                            r.left = SharedString::from(text.clone());
+                            r.left = text.clone();
                             model.set_row_data(idx as usize, r);
                         }
                         update_design();
@@ -5003,7 +5003,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         if let Some(row) = model.row_data(idx as usize) {
                             let mut r = row.clone();
-                            r.right = SharedString::from(text.clone());
+                            r.right = text.clone();
                             model.set_row_data(idx as usize, r);
                         }
                         update_design();
