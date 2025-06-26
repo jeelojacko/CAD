@@ -23,6 +23,7 @@ use survey_cad::styles::{
     TextStyle as ScTextStyle,
 };
 use survey_cad::subassembly;
+use survey_cad::superelevation::SuperelevationPoint;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -1048,6 +1049,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
     let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
+    let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
     let layers = Rc::new(RefCell::new(ScLayerManager::new()));
     let layer_names = Rc::new(RefCell::new(Vec::<String>::new()));
     {
@@ -4159,6 +4161,158 @@ fn main() -> Result<(), slint::PlatformError> {
                             r.text_style = text.clone();
                             model.set_row_data(idx as usize, r);
                         }
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let sup_data = superelevation.clone();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_superelevation_editor(move || {
+            let dlg = SuperelevationEditor::new().unwrap();
+            let model = Rc::new(VecModel::<SuperelevationRow>::from(
+                sup_data
+                    .borrow()
+                    .iter()
+                    .map(|p| SuperelevationRow {
+                        station: SharedString::from(format!("{:.2}", p.station)),
+                        left: SharedString::from(format!("{:.4}", p.left_slope)),
+                        right: SharedString::from(format!("{:.4}", p.right_slope)),
+                    })
+                    .collect::<Vec<_>>(),
+            ));
+            dlg.set_rows_model(model.clone().into());
+            dlg.set_selected_index(-1);
+
+            let update_design = {
+                let sup_data = sup_data.clone();
+                let surfaces = surfaces.clone();
+                let alignments = alignments.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let backend_render = backend_render.clone();
+                move || {
+                    if alignments.borrow().is_empty() {
+                        return;
+                    }
+                    let hal = &alignments.borrow()[0];
+                    let len = hal.length();
+                    let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
+                    let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+                    let lane = subassembly::lane(3.5, -0.02);
+                    let shoulder = subassembly::shoulder(1.0, -0.04);
+                    let subs = subassembly::symmetric_section(&[lane, shoulder]);
+                    let tin = corridor::build_design_surface_dynamic(
+                        &al,
+                        &subs,
+                        Some(&sup_data.borrow()),
+                        10.0,
+                    );
+                    let verts: Vec<Point3> = tin
+                        .vertices
+                        .iter()
+                        .map(|p| Point3::new(p.x, p.y, p.z))
+                        .collect();
+                    if surfaces.borrow().is_empty() {
+                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                        surfaces.borrow_mut().push(tin);
+                    } else {
+                        backend_render.borrow_mut().update_surface(0, &verts, &tin.triangles);
+                        surfaces.borrow_mut()[0] = tin;
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        if app.get_workspace_mode() == 0 {
+                            app.set_workspace_image(render_image());
+                        } else {
+                            let image = backend_render.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                        }
+                        app.window().request_redraw();
+                    }
+                }
+            };
+
+            {
+                let model = model.clone();
+                let sup_data = sup_data.clone();
+                let update_design = update_design.clone();
+                dlg.on_add_row(move || {
+                    sup_data.borrow_mut().push(SuperelevationPoint { station: 0.0, left_slope: 0.0, right_slope: 0.0 });
+                    model.push(SuperelevationRow { station: "0.0".into(), left: "0.0000".into(), right: "0.0000".into() });
+                    update_design();
+                });
+            }
+            {
+                let model = model.clone();
+                let sup_data = sup_data.clone();
+                let update_design = update_design.clone();
+                dlg.on_remove_row(move |idx| {
+                    if idx >= 0 && (idx as usize) < sup_data.borrow().len() {
+                        sup_data.borrow_mut().remove(idx as usize);
+                        model.remove(idx as usize);
+                        update_design();
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let sup_data = sup_data.clone();
+                let update_design = update_design.clone();
+                dlg.on_edit_station(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(pt) = sup_data.borrow_mut().get_mut(idx as usize) {
+                            pt.station = v;
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.station = SharedString::from(text.clone());
+                            model.set_row_data(idx as usize, r);
+                        }
+                        update_design();
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let sup_data = sup_data.clone();
+                let update_design = update_design.clone();
+                dlg.on_edit_left(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(pt) = sup_data.borrow_mut().get_mut(idx as usize) {
+                            pt.left_slope = v;
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.left = SharedString::from(text.clone());
+                            model.set_row_data(idx as usize, r);
+                        }
+                        update_design();
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let sup_data = sup_data.clone();
+                let update_design = update_design.clone();
+                dlg.on_edit_right(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(pt) = sup_data.borrow_mut().get_mut(idx as usize) {
+                            pt.right_slope = v;
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.right = SharedString::from(text.clone());
+                            model.set_row_data(idx as usize, r);
+                        }
+                        update_design();
                     }
                 });
             }
