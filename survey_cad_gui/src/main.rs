@@ -7,6 +7,7 @@ use bevy_editor_cam::prelude::*;
 use clap::{Parser, ValueEnum};
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::Write;
 use survey_cad::geometry::{Point, Point3, Polyline};
 use survey_cad::{crs::Crs, geometry::distance};
 
@@ -237,6 +238,34 @@ struct CrsMenuState {
 #[derive(Resource)]
 struct CrsDatabase(Vec<survey_cad::crs::CrsEntry>);
 
+#[derive(Component)]
+struct MacroMenuButton;
+
+#[derive(Resource, Default)]
+struct MacroMenuState {
+    entity: Option<Entity>,
+}
+
+#[derive(Component)]
+struct MacroRecordButton;
+
+#[derive(Component)]
+struct MacroPlayButton;
+
+#[derive(Resource, Default)]
+struct MacroRecorder {
+    file: Option<std::fs::File>,
+}
+
+#[derive(Resource, Default)]
+struct MacroPlaying(bool);
+
+fn record_macro(rec: &mut MacroRecorder, line: &str) {
+    if let Some(file) = &mut rec.file {
+        let _ = writeln!(file, "{}", line);
+    }
+}
+
 #[derive(Component, Clone)]
 struct CrsOption(String);
 
@@ -434,6 +463,9 @@ fn main() {
         .insert_resource(SurfaceMenuState::default())
         .insert_resource(FileMenuState::default())
         .insert_resource(CrsMenuState::default())
+        .insert_resource(MacroMenuState::default())
+        .insert_resource(MacroRecorder::default())
+        .insert_resource(MacroPlaying::default())
         .insert_resource(CrsDatabase(survey_cad::crs::list_known_crs()))
         .add_systems(Startup, (setup, init_ui_scale))
         .add_systems(
@@ -483,6 +515,14 @@ fn main() {
                 handle_section_nav,
                 handle_section_buttons,
                 update_profile_lines,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                handle_macro_menu_button,
+                handle_macro_record_button,
+                handle_macro_play_button,
             ),
         )
         .add_systems(
@@ -749,6 +789,35 @@ fn spawn_toolbar(
                     ));
                 })
                 .insert(CrsMenuButton);
+
+            parent
+                .spawn((
+                    Button,
+                    Node {
+                        margin: UiRect::all(Val::Px(5.0)),
+                        padding: UiRect::new(
+                            Val::Px(10.0),
+                            Val::Px(10.0),
+                            Val::Px(5.0),
+                            Val::Px(5.0),
+                        ),
+                        ..default()
+                    },
+                    BackgroundColor(theme.button_bg),
+                ))
+                .with_children(|button| {
+                    button.spawn((
+                        TextLayout::default(),
+                        TextFont {
+                            font: asset_server.load("FiraMono-subset.ttf"),
+                            font_size: 14.0,
+                            ..default()
+                        },
+                        TextColor(theme.text),
+                        Text::new("Macro"),
+                    ));
+                })
+                .insert(MacroMenuButton);
 
             parent
                 .spawn((
@@ -1316,6 +1385,23 @@ fn spawn_point(commands: &mut Commands, p: Point) -> Entity {
         .id()
 }
 
+fn spawn_line(commands: &mut Commands, a: Point, b: Point) {
+    let pa = spawn_point(commands, a);
+    let pb = spawn_point(commands, b);
+    let va = Vec3::new(a.x as f32, a.y as f32, 0.0);
+    let vb = Vec3::new(b.x as f32, b.y as f32, 0.0);
+    commands.spawn((
+        Sprite {
+            color: Color::WHITE,
+            custom_size: Some(Vec2::new(va.distance(vb), 2.0)),
+            ..default()
+        },
+        Transform::from_translation((va + vb) / 2.0)
+            .with_rotation(Quat::from_rotation_z((vb - va).y.atan2((vb - va).x))),
+        CadLine { start: pa, end: pb },
+    ));
+}
+
 fn cursor_world_pos(
     windows: &Query<&Window>,
     camera_q: &Query<(&Camera, &GlobalTransform), With<Camera2d>>,
@@ -1338,6 +1424,8 @@ fn handle_mouse_clicks(
     mode: Res<SelectMode>,
     mut drag_box: ResMut<DragSelect>,
     ui_buttons: Query<&Interaction, With<Button>>,
+    mut recorder: ResMut<MacroRecorder>,
+    playing: Res<MacroPlaying>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if ui_buttons.iter().any(|i| *i != Interaction::None) {
@@ -1360,6 +1448,9 @@ fn handle_mouse_clicks(
                 }
             } else if !mode.0 {
                 let _ = spawn_point(&mut commands, Point::new(pos.x as f64, pos.y as f64));
+                if !playing.0 {
+                    record_macro(&mut recorder, &format!("point {} {}", pos.x, pos.y));
+                }
             } else {
                 drag_box.active = true;
                 drag_box.start = pos;
@@ -1638,6 +1729,8 @@ fn create_line(
     keys: Res<ButtonInput<KeyCode>>,
     points: Query<&Transform, With<CadPoint>>,
     selected: Res<SelectedPoints>,
+    mut recorder: ResMut<MacroRecorder>,
+    playing: Res<MacroPlaying>,
 ) {
     if keys.just_pressed(KeyCode::KeyL) && selected.0.len() == 2 {
         if let (Ok(a), Ok(b)) = (points.get(selected.0[0]), points.get(selected.0[1])) {
@@ -1656,6 +1749,15 @@ fn create_line(
                     end: selected.0[1],
                 },
             ));
+            if !playing.0 {
+                record_macro(
+                    &mut recorder,
+                    &format!(
+                        "line {} {} {} {}",
+                        a.x, a.y, b.x, b.y
+                    ),
+                );
+            }
         } else {
             warn!("cannot create line; missing selected points");
         }
@@ -3175,6 +3277,139 @@ fn update_lod_meshes(
         };
         if mesh.0 != *target {
             mesh.0 = target.clone();
+        }
+    }
+}
+
+fn handle_macro_menu_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<MacroMenuButton>)>,
+    mut state: ResMut<MacroMenuState>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    theme: Res<ThemeColors>,
+    ui_scale: Res<UiScale>,
+) {
+    let h = 30.0 * ui_scale.0;
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        } else {
+            let menu = commands
+                .spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(385.0 * ui_scale.0),
+                        top: Val::Px(2.0 * h),
+                        flex_direction: FlexDirection::Column,
+                        ..default()
+                    },
+                    BackgroundColor(theme.context_bg),
+                ))
+                .insert(FocusPolicy::Block)
+                .with_children(|parent| {
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Record"),
+                            ));
+                        })
+                        .insert(MacroRecordButton);
+                    parent
+                        .spawn(Button)
+                        .with_children(|b| {
+                            b.spawn((
+                                TextLayout::default(),
+                                TextFont {
+                                    font: asset_server.load("FiraMono-subset.ttf"),
+                                    font_size: 12.0,
+                                    ..default()
+                                },
+                                TextColor::WHITE,
+                                Text::new("Play"),
+                            ));
+                        })
+                        .insert(MacroPlayButton);
+                })
+                .id();
+            state.entity = Some(menu);
+        }
+    }
+}
+
+fn handle_macro_record_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<MacroRecordButton>)>,
+    mut recorder: ResMut<MacroRecorder>,
+    mut state: ResMut<MacroMenuState>,
+    mut commands: Commands,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if recorder.file.is_some() {
+            recorder.file = None;
+            println!("Macro recording stopped");
+        } else if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).save_file() {
+            match std::fs::File::create(&path) {
+                Ok(f) => {
+                    recorder.file = Some(f);
+                    println!("Recording macro to {:?}", path);
+                }
+                Err(e) => warn!("Failed to create macro file: {}", e),
+            }
+        }
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
+        }
+    }
+}
+
+fn handle_macro_play_button(
+    interaction: Query<&Interaction, (Changed<Interaction>, With<Button>, With<MacroPlayButton>)>,
+    mut commands: Commands,
+    mut playing: ResMut<MacroPlaying>,
+    mut state: ResMut<MacroMenuState>,
+    mut recorder: ResMut<MacroRecorder>,
+) {
+    if let Ok(&Interaction::Pressed) = interaction.get_single() {
+        if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).pick_file() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                playing.0 = true;
+                for line in content.lines() {
+                    let parts = shell_words::split(line).unwrap_or_default();
+                    if parts.is_empty() {
+                        continue;
+                    }
+                    match parts[0].as_str() {
+                        "point" if parts.len() >= 3 => {
+                            if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
+                                spawn_point(&mut commands, Point::new(x, y));
+                            }
+                        }
+                        "line" if parts.len() >= 5 => {
+                            if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                                parts[1].parse::<f64>(),
+                                parts[2].parse::<f64>(),
+                                parts[3].parse::<f64>(),
+                                parts[4].parse::<f64>(),
+                            ) {
+                                spawn_line(&mut commands, Point::new(x1, y1), Point::new(x2, y2));
+                            }
+                        }
+                        _ => println!("Unknown macro command: {}", line),
+                    }
+                }
+                playing.0 = false;
+                recorder.file = None;
+            }
+        }
+        if let Some(ent) = state.entity.take() {
+            commands.entity(ent).despawn_recursive();
         }
     }
 }

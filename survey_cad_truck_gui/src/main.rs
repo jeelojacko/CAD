@@ -3,9 +3,11 @@
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
 use slint::{Image, Model, SharedString, VecModel};
+use std::io::Write;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
+use shell_words;
 
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::corridor;
@@ -156,6 +158,20 @@ enum Command {
 struct CommandStack {
     undo: Vec<Command>,
     redo: Vec<Command>,
+}
+
+#[derive(Default)]
+struct MacroRecorder {
+    file: Option<std::fs::File>,
+}
+
+#[derive(Default)]
+struct MacroPlaying(bool);
+
+fn record_macro(rec: &mut MacroRecorder, line: &str) {
+    if let Some(file) = &mut rec.file {
+        let _ = writeln!(file, "{}", line);
+    }
 }
 
 impl CommandStack {
@@ -374,6 +390,33 @@ fn arc_from_start_end_radius(start: Point, end: Point, r: f64, orient: Point) ->
     let sa = (start.y - cy).atan2(start.x - cx);
     let ea = (end.y - cy).atan2(end.x - cx);
     Some(Arc::new(center, r, sa, ea))
+}
+
+fn spawn_point(
+    points: &Rc<RefCell<PointDatabase>>,
+    styles: &Rc<RefCell<Vec<usize>>>,
+    backend: &Rc<RefCell<TruckBackend>>,
+    p: Point,
+) {
+    points.borrow_mut().push(p);
+    styles.borrow_mut().push(0);
+    backend.borrow_mut().add_point(p.x, p.y, 0.0);
+}
+
+fn spawn_line(
+    points: &Rc<RefCell<PointDatabase>>,
+    lines: &Rc<RefCell<Vec<(Point, Point)>>>,
+    point_styles: &Rc<RefCell<Vec<usize>>>,
+    line_styles: &Rc<RefCell<Vec<usize>>>,
+    backend: &Rc<RefCell<TruckBackend>>,
+    a: Point,
+    b: Point,
+) {
+    spawn_point(points, point_styles, backend, a);
+    spawn_point(points, point_styles, backend, b);
+    lines.borrow_mut().push((a, b));
+    line_styles.borrow_mut().push(0);
+    backend.borrow_mut().add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0]);
 }
 
 fn render_workspace(
@@ -1253,6 +1296,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_styles = survey_cad::styles::default_line_styles();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
+    let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
+    let macro_playing = Rc::new(RefCell::new(MacroPlaying::default()));
     let line_type_names = Rc::new(VecModel::from(vec![
         SharedString::from("Solid"),
         SharedString::from("Dashed"),
@@ -1443,6 +1488,79 @@ fn main() -> Result<(), slint::PlatformError> {
         app.window().on_close_requested(move || {
             timer_handle.stop();
             CloseRequestResponse::HideWindow
+        });
+    }
+
+    {
+        let recorder = macro_recorder.clone();
+        app.on_macro_record(move || {
+            if recorder.borrow().file.is_some() {
+                recorder.borrow_mut().file = None;
+            } else if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).save_file() {
+                if let Ok(f) = std::fs::File::create(&path) {
+                    recorder.borrow_mut().file = Some(f);
+                }
+            }
+        });
+    }
+
+    {
+        let recorder = macro_recorder.clone();
+        let playing = macro_playing.clone();
+        let point_db = point_db.clone();
+        let point_styles = point_style_indices.clone();
+        let lines_ref = lines.clone();
+        let line_styles = line_style_indices.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
+        app.on_macro_play(move || {
+            if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).pick_file() {
+                if let Ok(content) = std::fs::read_to_string(&path) {
+                    playing.borrow_mut().0 = true;
+                    for line in content.lines() {
+                        let parts = shell_words::split(line).unwrap_or_default();
+                        if parts.is_empty() {
+                            continue;
+                        }
+                        match parts[0].as_str() {
+                            "point" if parts.len() >= 3 => {
+                                if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
+                                    spawn_point(&point_db, &point_styles, &backend_render, Point::new(x, y));
+                                }
+                            }
+                            "line" if parts.len() >= 5 => {
+                                if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                                    parts[1].parse::<f64>(),
+                                    parts[2].parse::<f64>(),
+                                    parts[3].parse::<f64>(),
+                                    parts[4].parse::<f64>(),
+                                ) {
+                                    spawn_line(
+                                        &point_db,
+                                        &lines_ref,
+                                        &point_styles,
+                                        &line_styles,
+                                        &backend_render,
+                                        Point::new(x1, y1),
+                                        Point::new(x2, y2),
+                                    );
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    playing.borrow_mut().0 = false;
+                    recorder.borrow_mut().file = None;
+                    if let Some(app) = weak.upgrade() {
+                        if app.get_workspace_mode() == 0 {
+                            app.set_workspace_image(render_image());
+                            app.window().request_redraw();
+                        }
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                }
+            }
         });
     }
 
@@ -1817,6 +1935,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let command_stack = command_stack.clone();
         let weak = app.as_weak();
+        let macro_playing = macro_playing.clone();
+        let macro_recorder = macro_recorder.clone();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if ev.button == PointerEventButton::Left {
@@ -1888,11 +2008,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                 if start.is_none() {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
-                                    lines_ref.borrow_mut().push((s, p));
-                                    backend_render
-                                        .borrow_mut()
-                                        .add_line([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
-                                    *mode = DrawingMode::None;
+                                lines_ref.borrow_mut().push((s, p));
+                                backend_render
+                                    .borrow_mut()
+                                    .add_line([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
+                                if !macro_playing.borrow().0 {
+                                    record_macro(
+                                        &mut macro_recorder.borrow_mut(),
+                                        &format!("line {} {} {} {}", s.x, s.y, p.x, p.y),
+                                    );
+                                }
+                                *mode = DrawingMode::None;
                                 } else {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(
@@ -2434,7 +2560,11 @@ fn main() -> Result<(), slint::PlatformError> {
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         let backend_render = backend.clone();
         let command_stack_outer = command_stack.clone();
+        let macro_playing_outer = macro_playing.clone();
+        let macro_recorder_outer = macro_recorder.clone();
         app.on_add_line(move || {
+            let macro_playing = macro_playing_outer.clone();
+            let macro_recorder = macro_recorder_outer.clone();
             let line_style_indices = line_style_indices.clone();
             let dlg = AddLineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -2508,6 +2638,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 let backend_render = backend_render.clone();
                 let command_stack_outer = command_stack_outer.clone();
+                let macro_playing = macro_playing.clone();
+                let macro_recorder = macro_recorder.clone();
                 dlg.on_manual(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -2523,6 +2655,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 let backend_render = backend_render.clone();
                 let command_stack = command_stack_outer.clone();
+                let macro_playing = macro_playing.clone();
+                let macro_recorder = macro_recorder.clone();
                 kd.on_accept(move || {
                     if let Some(dlg) = kd_weak2.upgrade() {
                         if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
@@ -2537,6 +2671,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     backend_render
                                         .borrow_mut()
                                         .add_line([x1, y1, 0.0], [x2, y2, 0.0]);
+                                    if !macro_playing.borrow().0 {
+                                        record_macro(
+                                            &mut macro_recorder.borrow_mut(),
+                                            &format!("line {} {} {} {}", x1, y1, x2, y2),
+                                        );
+                                    }
                                     command_stack.borrow_mut().push(Command::RemoveLine {
                                         index: lines.borrow().len() - 1,
                                         line: (Point::new(x1, y1), Point::new(x2, y2)),
@@ -2587,7 +2727,11 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let backend_render = backend.clone();
         let command_stack_outer = command_stack.clone();
+        let macro_playing_outer = macro_playing.clone();
+        let macro_recorder_outer = macro_recorder.clone();
         app.on_add_point(move || {
+            let macro_playing = macro_playing_outer.clone();
+            let macro_recorder = macro_recorder_outer.clone();
             let dlg = AddPointDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
             {
@@ -2654,6 +2798,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let point_style_indices = point_style_indices.clone();
                 let backend_render = backend_render.clone();
                 let cs_inner = command_stack_outer.clone();
+                let macro_playing = macro_playing.clone();
+                let macro_recorder = macro_recorder.clone();
                 dlg.on_manual_keyin(move || {
                     if let Some(d) = dlg_weak.upgrade() {
                         let _ = d.hide();
@@ -2668,6 +2814,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         let psi = point_style_indices.clone();
                 let backend_render = backend_render.clone();
                 let command_stack = cs_inner.clone();
+                let macro_playing = macro_playing.clone();
+                let macro_recorder = macro_recorder.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -2677,6 +2825,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     point_db.borrow_mut().push(Point::new(x, y));
                                     psi.borrow_mut().push(0);
                                     backend_render.borrow_mut().add_point(x, y, 0.0);
+                                    if !macro_playing.borrow().0 {
+                                        record_macro(&mut macro_recorder.borrow_mut(), &format!("point {} {}", x, y));
+                                    }
                                     command_stack.borrow_mut().push(Command::RemovePoint {
                                         index: point_db.borrow().len() - 1,
                                         point: Point::new(x, y),
@@ -5234,6 +5385,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let arcs_ref = arcs.clone();
         let last_click = last_click.clone();
         let backend_render = backend.clone();
+        let macro_playing = macro_playing.clone();
+        let macro_recorder = macro_recorder.clone();
         app.on_workspace_clicked(move |x, y| {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if let Some(app) = weak.upgrade() {
@@ -5250,6 +5403,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     match &mut *mode {
                         DrawingMode::Line { start: Some(s) } => {
                             lines_ref.borrow_mut().push((*s, p));
+                            if !macro_playing.borrow().0 {
+                                record_macro(
+                                    &mut macro_recorder.borrow_mut(),
+                                    &format!("line {} {} {} {}", s.x, s.y, p.x, p.y),
+                                );
+                            }
                             *mode = DrawingMode::None;
                         }
                         DrawingMode::Line { start: None } => {}
@@ -5371,6 +5530,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     point_db.borrow_mut().push(p);
                     point_style_indices.borrow_mut().push(0);
                     backend_render.borrow_mut().add_point(p.x, p.y, 0.0);
+                    if !macro_playing.borrow().0 {
+                        record_macro(&mut macro_recorder.borrow_mut(), &format!("point {} {}", p.x, p.y));
+                    }
                     command_stack.borrow_mut().push(Command::RemovePoint {
                         index: point_db.borrow().len() - 1,
                         point: p,

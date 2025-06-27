@@ -12,6 +12,7 @@ bevy_editor_cam = "0.5"
 bevy_gizmos = "0.15"
 log = "0.4"
 env_logger = "0.10"
+shell-words = "1.1"
 
 
 [features]

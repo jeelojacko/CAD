@@ -9543,6 +9543,7 @@ dependencies = [
  "env_logger 0.10.2",
  "log",
  "rfd",
+ "shell-words",
  "survey_cad",
 ]
 
@@ -9580,6 +9581,7 @@ dependencies = [
  "rusttype 0.9.3",
  "serde",
  "serde_json",
+ "shell-words",
  "slint",
  "slint-build",
  "survey_cad",
