@@ -31,7 +31,7 @@ impl Layer {
 }
 
 /// Manager for an arbitrary number of layers.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct LayerManager {
     layers: HashMap<String, Layer>,
 }
