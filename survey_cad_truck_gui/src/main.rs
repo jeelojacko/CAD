@@ -19,7 +19,7 @@ use survey_cad::geometry::{
     convex_hull, Point3 as ScPoint3,
 };
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
-use survey_cad::io::project::{read_project_json, write_project_json, Project};
+use survey_cad::io::project::{read_project_json, write_project_json, Project, GridSettings};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
     format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
@@ -424,6 +424,7 @@ fn render_workspace(
     state: &RenderState,
     styles: &RenderStyles,
     drawing: &DrawingMode,
+    grid: &GridSettings,
     width: u32,
     height: u32,
 ) -> Image {
@@ -436,7 +437,12 @@ fn render_workspace(
     let mut pixmap = Pixmap::new(width, height).unwrap();
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
-    paint.set_color(Color::from_rgba8(60, 60, 60, 255));
+    paint.set_color(Color::from_rgba8(
+        grid.color[0],
+        grid.color[1],
+        grid.color[2],
+        255,
+    ));
     paint.anti_alias = true;
     let grid_stroke = Stroke {
         width: 1.0,
@@ -451,46 +457,48 @@ fn render_workspace(
     drop(off);
     let tx = |x: f32| (x + off_x) * zoom_val + origin_x;
     let ty = |y: f32| origin_y - (y + off_y) * zoom_val;
-    let step = 50.0 * zoom_val;
+    let step = grid.spacing * zoom_val;
     let mut x = origin_x;
-    while x < width as f32 {
-        let mut pb = PathBuilder::new();
-        pb.move_to(x, 0.0);
-        pb.line_to(x, height as f32);
-        if let Some(p) = pb.finish() {
-            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+    if grid.visible {
+        while x < width as f32 {
+            let mut pb = PathBuilder::new();
+            pb.move_to(x, 0.0);
+            pb.line_to(x, height as f32);
+            if let Some(p) = pb.finish() {
+                pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+            }
+            x += step;
         }
-        x += step;
-    }
-    x = origin_x - step;
-    while x >= 0.0 {
-        let mut pb = PathBuilder::new();
-        pb.move_to(x, 0.0);
-        pb.line_to(x, height as f32);
-        if let Some(p) = pb.finish() {
-            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        x = origin_x - step;
+        while x >= 0.0 {
+            let mut pb = PathBuilder::new();
+            pb.move_to(x, 0.0);
+            pb.line_to(x, height as f32);
+            if let Some(p) = pb.finish() {
+                pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+            }
+            x -= step;
         }
-        x -= step;
-    }
-    let mut y = origin_y;
-    while y < height as f32 {
-        let mut pb = PathBuilder::new();
-        pb.move_to(0.0, y);
-        pb.line_to(width as f32, y);
-        if let Some(p) = pb.finish() {
-            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        let mut y = origin_y;
+        while y < height as f32 {
+            let mut pb = PathBuilder::new();
+            pb.move_to(0.0, y);
+            pb.line_to(width as f32, y);
+            if let Some(p) = pb.finish() {
+                pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+            }
+            y += step;
         }
-        y += step;
-    }
-    y = origin_y - step;
-    while y >= 0.0 {
-        let mut pb = PathBuilder::new();
-        pb.move_to(0.0, y);
-        pb.line_to(width as f32, y);
-        if let Some(p) = pb.finish() {
-            pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+        y = origin_y - step;
+        while y >= 0.0 {
+            let mut pb = PathBuilder::new();
+            pb.move_to(0.0, y);
+            pb.line_to(width as f32, y);
+            if let Some(p) = pb.finish() {
+                pixmap.stroke_path(&p, &paint, &grid_stroke, Transform::identity(), None);
+            }
+            y -= step;
         }
-        y -= step;
     }
     paint.set_color(Color::from_rgba8(90, 90, 90, 255));
     let mut pb = PathBuilder::new();
@@ -1270,6 +1278,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let zoom = Rc::new(RefCell::new(1.0_f32));
     let offset = Rc::new(RefCell::new(Vec2::default()));
+    let grid_settings = Rc::new(RefCell::new(GridSettings::default()));
     let pan_2d_flag = Rc::new(RefCell::new(false));
     let last_pos_2d = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let rotate_flag = Rc::new(RefCell::new(false));
@@ -1388,6 +1397,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
         let point_label_style = point_label_style.clone();
+        let grid_settings_ref = grid_settings.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
             let show_numbers = app_weak
@@ -1426,6 +1436,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     show_point_numbers: show_numbers,
                 },
                 &drawing_mode.borrow(),
+                &grid_settings_ref.borrow(),
                 size.width,
                 size.height,
             )
@@ -2450,6 +2461,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let layer_names_ref = layer_names.clone();
         let line_style_indices = line_style_indices.clone();
         let point_style_indices = point_style_indices.clone();
+        let grid_settings = grid_settings.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         app.on_open_project(move || {
@@ -2474,6 +2486,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
+                            *grid_settings.borrow_mut() = proj.grid.clone();
 
                             let mut mgr = ScLayerManager::new();
                             layer_names_ref.borrow_mut().clear();
@@ -2523,6 +2536,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let layers_ref = layers.clone();
         let line_style_indices = line_style_indices.clone();
         let point_style_indices = point_style_indices.clone();
+        let grid_settings = grid_settings.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Project", &["json"])
@@ -2539,6 +2553,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         layers: layers_ref.borrow().iter().cloned().collect(),
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
+                        grid: grid_settings.borrow().clone(),
                     };
                     if let Err(e) = write_project_json(p, &proj) {
                         if let Some(app) = weak.upgrade() {
@@ -5278,6 +5293,51 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
 
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let grid_settings = grid_settings.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_settings(move || {
+            let dlg = SettingsDialog::new().unwrap();
+            let gs = grid_settings.borrow();
+            dlg.set_spacing_value(SharedString::from(format!("{:.1}", gs.spacing)));
+            dlg.set_color_r(SharedString::from(format!("{}", gs.color[0])));
+            dlg.set_color_g(SharedString::from(format!("{}", gs.color[1])));
+            dlg.set_color_b(SharedString::from(format!("{}", gs.color[2])));
+            dlg.set_show_grid(gs.visible);
+            drop(gs);
+            let dlg_weak = dlg.as_weak();
+            let gs_ref = grid_settings.clone();
+            let weak_app = weak.clone();
+            let render_image = render_image.clone();
+            let backend_render = backend_render.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let Ok(v) = d.get_spacing_value().parse::<f32>() {
+                        gs_ref.borrow_mut().spacing = v;
+                    }
+                    let r = d.get_color_r().parse::<u8>().unwrap_or(60);
+                    let g = d.get_color_g().parse::<u8>().unwrap_or(60);
+                    let b = d.get_color_b().parse::<u8>().unwrap_or(60);
+                    gs_ref.borrow_mut().color = [r, g, b];
+                    gs_ref.borrow_mut().visible = d.get_show_grid();
+                    d.hide().unwrap();
+                }
+                if let Some(app) = weak_app.upgrade() {
+                    refresh_workspace(&app, &render_image, &backend_render);
+                }
+            });
+            let cancel_weak = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = cancel_weak.upgrade() {
+                    d.hide().unwrap();
+                }
+            });
             dlg.show().unwrap();
         });
     }

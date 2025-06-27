@@ -4,6 +4,23 @@ use crate::dtm::Tin;
 use crate::geometry::{Arc, Line, Point, Polyline};
 use crate::layers::Layer;
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GridSettings {
+    pub spacing: f32,
+    pub color: [u8; 3],
+    pub visible: bool,
+}
+
+impl Default for GridSettings {
+    fn default() -> Self {
+        Self {
+            spacing: 50.0,
+            color: [60, 60, 60],
+            visible: true,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub points: Vec<Point>,
@@ -15,6 +32,8 @@ pub struct Project {
     pub layers: Vec<Layer>,
     pub point_style_indices: Vec<usize>,
     pub line_style_indices: Vec<usize>,
+    #[serde(default)]
+    pub grid: GridSettings,
 }
 
 impl Project {
@@ -29,6 +48,7 @@ impl Project {
             layers: Vec::new(),
             point_style_indices: Vec::new(),
             line_style_indices: Vec::new(),
+            grid: GridSettings::default(),
         }
     }
 }
