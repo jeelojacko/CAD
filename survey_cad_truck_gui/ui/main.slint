@@ -568,6 +568,8 @@ export component MainWindow inherits Window {
     callback tin_delete_vertex();
     callback tin_add_triangle();
     callback tin_delete_triangle();
+    callback macro_record();
+    callback macro_play();
     callback undo();
     callback redo();
     callback move_entity();
@@ -658,6 +660,11 @@ export component MainWindow inherits Window {
             MenuItem { title: "3D Workspace"; activated => { root.view_changed(1); } }
             MenuItem { title: "Zoom In"; activated => { root.zoom_in(); } }
             MenuItem { title: "Zoom Out"; activated => { root.zoom_out(); } }
+        }
+        Menu {
+            title: "Macro";
+            MenuItem { title: "Record"; activated => { root.macro_record(); } }
+            MenuItem { title: "Play"; activated => { root.macro_play(); } }
         }
     }
 
