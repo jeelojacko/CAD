@@ -11,7 +11,10 @@ pub fn write_ifc_points(path: &str, points: &[Point3], epsg: Option<u32>) -> io:
     writeln!(file, "HEADER;")?;
     writeln!(file, "FILE_DESCRIPTION(('Survey CAD IFC export'),'2;1');")?;
     if let Some(code) = epsg {
-        writeln!(file, "FILE_NAME('', '', (), (), 'EPSG:{}', 'SurveyCAD', '');", code)?;
+        writeln!(
+            file,
+            "FILE_NAME('', '', (), (), 'EPSG:{code}', 'SurveyCAD', '');"
+        )?;
     } else {
         writeln!(file, "FILE_NAME('', '', (), (), '', 'SurveyCAD', '');")?;
     }
@@ -19,7 +22,14 @@ pub fn write_ifc_points(path: &str, points: &[Point3], epsg: Option<u32>) -> io:
     writeln!(file, "ENDSEC;")?;
     writeln!(file, "DATA;")?;
     for (idx, p) in points.iter().enumerate() {
-        writeln!(file, "#{}=IFCCARTESIANPOINT(({},{},{}));", idx + 1, p.x, p.y, p.z)?;
+        writeln!(
+            file,
+            "#{}=IFCCARTESIANPOINT(({},{},{}));",
+            idx + 1,
+            p.x,
+            p.y,
+            p.z
+        )?;
     }
     writeln!(file, "ENDSEC;")?;
     writeln!(file, "END-ISO-10303-21;")?;
