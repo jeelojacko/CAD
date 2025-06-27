@@ -1,7 +1,7 @@
 //! Basic 2D point types used throughout the crate.
 
 /// Symbol used when rendering a point entity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum PointSymbol {
     #[default]
     Circle,
@@ -10,7 +10,7 @@ pub enum PointSymbol {
 }
 
 /// Basic visual style information for a point.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PointStyle {
     pub symbol: PointSymbol,
     pub color: [u8; 3],

@@ -30,10 +30,13 @@ use survey_cad::superelevation::SuperelevationPoint;
 use survey_cad::snap::{snap_point_with_settings, SnapSettings};
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
 use truck_backend::{TruckBackend, HitObject};
+mod persistence;
+use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
 
 use once_cell::sync::Lazy;
 use rusttype::{point, Font, Scale};
@@ -1269,7 +1272,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
     let layers = Rc::new(RefCell::new(ScLayerManager::new()));
     let layer_names = Rc::new(RefCell::new(Vec::<String>::new()));
-    {
+    if let Some(saved) = load_layers(Path::new("layers.json")) {
+        *layers.borrow_mut() = saved;
+        layer_names
+            .borrow_mut()
+            .extend(layers.borrow().iter().map(|l| l.name.clone()));
+    } else {
         let mut mgr = layers.borrow_mut();
         let default = Layer::new("DEFAULT");
         mgr.add_layer(default);
@@ -1297,14 +1305,18 @@ fn main() -> Result<(), slint::PlatformError> {
     let click_pos_3d = Rc::new(RefCell::new(None::<(f64, f64)>));
     let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
-    let point_styles = survey_cad::styles::default_point_styles();
+    let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
+        point_styles: survey_cad::styles::default_point_styles(),
+        line_styles: survey_cad::styles::default_line_styles(),
+    });
+    let point_styles = style_settings.point_styles.clone();
     let point_style_names: Vec<SharedString> = point_styles
         .iter()
         .map(|(n, _)| SharedString::from(n.clone()))
         .collect();
     let point_style_values: Vec<PointStyle> = point_styles.iter().map(|(_, s)| *s).collect();
 
-    let line_styles = survey_cad::styles::default_line_styles();
+    let line_styles = style_settings.line_styles.clone();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
     let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
@@ -2575,6 +2587,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let point_style_indices = point_style_indices.clone();
         let grid_settings = grid_settings.clone();
+        let point_styles = point_styles.clone();
+        let line_styles = line_styles.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Project", &["json"])
@@ -2593,6 +2607,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         line_style_indices: line_style_indices.borrow().clone(),
                         grid: grid_settings.borrow().clone(),
                     };
+                    let base = Path::new(p);
+                    let _ = save_layers(&base.with_extension("layers.json"), &layers_ref.borrow());
+                    let style_settings = StyleSettings {
+                        point_styles: point_styles.clone(),
+                        line_styles: line_styles.clone(),
+                    };
+                    let _ = save_styles(&base.with_extension("styles.json"), &style_settings);
+
                     if let Err(e) = write_project_json(p, &proj) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to save: {}", e)));
