@@ -25,6 +25,9 @@ use survey_cad::styles::{
 };
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
+use survey_cad::snap::{snap_point_with_settings, SnapSettings};
+use serde::{Deserialize, Serialize};
+use std::fs;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -72,6 +75,43 @@ struct DragSelect {
 struct CursorFeedback {
     pos: (f32, f32),
     frame: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct SnapPrefs {
+    snap_to_grid: bool,
+    snap_to_entities: bool,
+    snap_endpoints: bool,
+    snap_midpoints: bool,
+    snap_intersections: bool,
+    snap_nearest: bool,
+}
+
+impl Default for SnapPrefs {
+    fn default() -> Self {
+        Self {
+            snap_to_grid: true,
+            snap_to_entities: true,
+            snap_endpoints: true,
+            snap_midpoints: true,
+            snap_intersections: true,
+            snap_nearest: true,
+        }
+    }
+}
+
+fn load_snap_prefs() -> SnapPrefs {
+    if let Ok(data) = fs::read_to_string("snap_prefs.json") {
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        SnapPrefs::default()
+    }
+}
+
+fn save_snap_prefs(p: &SnapPrefs) {
+    if let Ok(json) = serde_json::to_string_pretty(p) {
+        let _ = fs::write("snap_prefs.json", json);
+    }
 }
 
 #[derive(Default, Clone, PartialEq)]
@@ -1154,6 +1194,16 @@ fn main() -> Result<(), slint::PlatformError> {
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
     sharedfontdb::register_font_from_memory(FONT_DATA).expect("failed to register embedded font");
     let app = MainWindow::new()?;
+    let snap_prefs = Rc::new(RefCell::new(load_snap_prefs()));
+    {
+        let p = snap_prefs.borrow();
+        app.set_snap_to_grid(p.snap_to_grid);
+        app.set_snap_to_entities(p.snap_to_entities);
+        app.set_snap_endpoints(p.snap_endpoints);
+        app.set_snap_midpoints(p.snap_midpoints);
+        app.set_snap_intersections(p.snap_intersections);
+        app.set_snap_nearest(p.snap_nearest);
+    }
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
     // example data so the 2D workspace has something to draw
@@ -1620,6 +1670,54 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     {
+        let prefs = snap_prefs.clone();
+        app.on_snap_grid_changed(move |val| {
+            prefs.borrow_mut().snap_to_grid = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
+        let prefs = snap_prefs.clone();
+        app.on_snap_objects_changed(move |val| {
+            prefs.borrow_mut().snap_to_entities = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
+        let prefs = snap_prefs.clone();
+        app.on_snap_endpoints_changed(move |val| {
+            prefs.borrow_mut().snap_endpoints = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
+        let prefs = snap_prefs.clone();
+        app.on_snap_midpoints_changed(move |val| {
+            prefs.borrow_mut().snap_midpoints = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
+        let prefs = snap_prefs.clone();
+        app.on_snap_intersections_changed(move |val| {
+            prefs.borrow_mut().snap_intersections = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
+        let prefs = snap_prefs.clone();
+        app.on_snap_nearest_changed(move |val| {
+            prefs.borrow_mut().snap_nearest = val;
+            save_snap_prefs(&prefs.borrow());
+        });
+    }
+
+    {
         let drawing_mode = drawing_mode.clone();
         let polygons = polygons.clone();
         let render_image = render_image.clone();
@@ -1765,9 +1863,18 @@ fn main() -> Result<(), slint::PlatformError> {
                                     layer: None,
                                 });
                             }
-                            if let Some(sp) =
-                                survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
-                            {
+                            let settings = SnapSettings {
+                                endpoints: app.get_snap_endpoints(),
+                                midpoints: app.get_snap_midpoints(),
+                                intersections: app.get_snap_intersections(),
+                                nearest: app.get_snap_nearest(),
+                            };
+                            if let Some(sp) = snap_point_with_settings(
+                                p,
+                                &ents,
+                                5.0 / (zoom_factor as f64),
+                                settings,
+                            ) {
                                 p = sp;
                             }
                         }
@@ -2099,9 +2206,18 @@ fn main() -> Result<(), slint::PlatformError> {
                                 layer: None,
                             });
                         }
-                        if let Some(sp) =
-                            survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
-                        {
+                        let settings = SnapSettings {
+                            endpoints: app.get_snap_endpoints(),
+                            midpoints: app.get_snap_midpoints(),
+                            intersections: app.get_snap_intersections(),
+                            nearest: app.get_snap_nearest(),
+                        };
+                        if let Some(sp) = snap_point_with_settings(
+                            p,
+                            &ents,
+                            5.0 / (zoom_factor as f64),
+                            settings,
+                        ) {
                             p = sp;
                         }
                     }
@@ -5233,9 +5349,18 @@ fn main() -> Result<(), slint::PlatformError> {
                                 layer: None,
                             });
                         }
-                        if let Some(sp) =
-                            survey_cad::snap::snap_point(p, &ents, 5.0 / (zoom_factor as f64))
-                        {
+                        let settings = SnapSettings {
+                            endpoints: app.get_snap_endpoints(),
+                            midpoints: app.get_snap_midpoints(),
+                            intersections: app.get_snap_intersections(),
+                            nearest: app.get_snap_nearest(),
+                        };
+                        if let Some(sp) = snap_point_with_settings(
+                            p,
+                            &ents,
+                            5.0 / (zoom_factor as f64),
+                            settings,
+                        ) {
                             p = sp;
                         }
                     }

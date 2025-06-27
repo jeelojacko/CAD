@@ -9578,10 +9578,13 @@ dependencies = [
  "once_cell",
  "rfd",
  "rusttype 0.9.3",
+ "serde",
+ "serde_json",
  "slint",
  "slint-build",
  "survey_cad",
  "tiny-skia",
+ "truck-modeling",
  "truck_cad_engine",
 ]
 
