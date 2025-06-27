@@ -319,9 +319,9 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                     writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{x}", x = point.x)?;
+                writeln!(file, "{}", point.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{y}", y = point.y)?;
+                writeln!(file, "{}", point.y)?;
                 writeln!(file, "30")?;
                 writeln!(file, "0.0")?;
             }
@@ -333,13 +333,13 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                     writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{x}", x = line.start.x)?;
+                writeln!(file, "{}", line.start.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{y}", y = line.start.y)?;
+                writeln!(file, "{}", line.start.y)?;
                 writeln!(file, "11")?;
-                writeln!(file, "{x}", x = line.end.x)?;
+                writeln!(file, "{}", line.end.x)?;
                 writeln!(file, "21")?;
-                writeln!(file, "{y}", y = line.end.y)?;
+                writeln!(file, "{}", line.end.y)?;
             }
             DxfEntity::Polyline { polyline, layer } => {
                 writeln!(file, "0")?;
@@ -360,9 +360,9 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                         writeln!(file, "{l}")?;
                     }
                     writeln!(file, "10")?;
-                    writeln!(file, "{x}", x = v.x)?;
+                    writeln!(file, "{}", v.x)?;
                     writeln!(file, "20")?;
-                    writeln!(file, "{y}", y = v.y)?;
+                    writeln!(file, "{}", v.y)?;
                     writeln!(file, "30")?;
                     writeln!(file, "0.0")?;
                 }
@@ -377,15 +377,15 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                     writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{x}", x = arc.center.x)?;
+                writeln!(file, "{}", arc.center.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{y}", y = arc.center.y)?;
+                writeln!(file, "{}", arc.center.y)?;
                 writeln!(file, "40")?;
-                writeln!(file, "{r}", r = arc.radius)?;
+                writeln!(file, "{}", arc.radius)?;
                 writeln!(file, "50")?;
-                writeln!(file, "{deg}", deg = arc.start_angle.to_degrees())?;
+                writeln!(file, "{}", arc.start_angle.to_degrees())?;
                 writeln!(file, "51")?;
-                writeln!(file, "{deg}", deg = arc.end_angle.to_degrees())?;
+                writeln!(file, "{}", arc.end_angle.to_degrees())?;
             }
             DxfEntity::Text {
                 position,
@@ -400,11 +400,11 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                     writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{x}", x = position.x)?;
+                writeln!(file, "{}", position.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{y}", y = position.y)?;
+                writeln!(file, "{}", position.y)?;
                 writeln!(file, "40")?;
-                writeln!(file, "{h}", h = height)?;
+                writeln!(file, "{}", height)?;
                 writeln!(file, "1")?;
                 writeln!(file, "{value}")?;
             }
