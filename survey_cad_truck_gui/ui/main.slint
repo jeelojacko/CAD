@@ -476,6 +476,36 @@ export component RotateEntityDialog inherits Window {
     }
 }
 
+export component SettingsDialog inherits Window {
+    in-out property <string> spacing_value;
+    in-out property <string> color_r;
+    in-out property <string> color_g;
+    in-out property <string> color_b;
+    in-out property <bool> show_grid;
+    callback accept();
+    callback cancel();
+    title: "Workspace Settings";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Grid Spacing:"; }
+            LineEdit { text <=> root.spacing_value; width: 60px; }
+        }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Grid Color:"; }
+            LineEdit { text <=> root.color_r; width: 40px; }
+            LineEdit { text <=> root.color_g; width: 40px; }
+            LineEdit { text <=> root.color_b; width: 40px; }
+        }
+        CheckBox { text: "Show Grid"; checked <=> root.show_grid; }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
@@ -576,6 +606,7 @@ export component MainWindow inherits Window {
     callback rotate_entity();
     callback zoom_in();
     callback zoom_out();
+    callback settings();
     callback workspace_left_pressed(length, length);
     callback workspace_right_pressed(length, length);
     callback workspace_pointer_pressed(length, length, PointerEvent);
@@ -660,6 +691,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "3D Workspace"; activated => { root.view_changed(1); } }
             MenuItem { title: "Zoom In"; activated => { root.zoom_in(); } }
             MenuItem { title: "Zoom Out"; activated => { root.zoom_out(); } }
+            MenuItem { title: "Settings..."; activated => { root.settings(); } }
         }
         Menu {
             title: "Macro";
@@ -828,6 +860,7 @@ export component MainWindow inherits Window {
                 checked <=> root.show_point_numbers;
                 toggled => { root.point_numbers_changed(root.show_point_numbers); }
             }
+            Button { text: "Settings..."; clicked => { root.settings(); } }
         }
 
         Rectangle {
