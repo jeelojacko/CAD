@@ -410,12 +410,9 @@ pub fn write_landxml_profile(
             } => {
                 writeln!(
                     &mut xml,
-                    "        <Grade startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" endElev=\"{}\"/>",
-                    start_station,
-                    end_station,
-                    start_elev,
-                    end_elev
-                ).unwrap();
+                    "        <Grade startSta=\"{start_station}\" endSta=\"{end_station}\" startElev=\"{start_elev}\" endElev=\"{end_elev}\"/>"
+                )
+                .unwrap();
             }
             crate::alignment::VerticalElement::Parabola {
                 start_station,
@@ -426,13 +423,9 @@ pub fn write_landxml_profile(
             } => {
                 writeln!(
                     &mut xml,
-                    "        <Parabola startSta=\"{}\" endSta=\"{}\" startElev=\"{}\" startGrade=\"{}\" endGrade=\"{}\"/>",
-                    start_station,
-                    end_station,
-                    start_elev,
-                    start_grade,
-                    end_grade
-                ).unwrap();
+                    "        <Parabola startSta=\"{start_station}\" endSta=\"{end_station}\" startElev=\"{start_elev}\" startGrade=\"{start_grade}\" endGrade=\"{end_grade}\"/>"
+                )
+                .unwrap();
             }
         }
     }

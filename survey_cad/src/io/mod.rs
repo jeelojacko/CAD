@@ -11,15 +11,15 @@ use crate::geometry::{Arc, Point, Point3, Polyline};
 pub mod e57;
 #[cfg(feature = "fgdb")]
 pub mod fgdb;
+pub mod ifc;
 #[cfg(feature = "kml")]
 pub mod kml;
 pub mod landxml;
 #[cfg(feature = "las")]
 pub mod las;
+pub mod project;
 #[cfg(feature = "shapefile")]
 pub mod shp;
-pub mod ifc;
-pub mod project;
 
 /// Reads a file to string.
 pub fn read_to_string(path: &str) -> io::Result<String> {
@@ -111,7 +111,7 @@ pub fn write_points_csv(
             (Some(f), Some(t)) if f != t => f.transform_point(t, p.x, p.y).unwrap_or((p.x, p.y)),
             _ => (p.x, p.y),
         };
-        writeln!(file, "{},{}", x, y)?;
+        writeln!(file, "{x},{y}")?;
     }
     Ok(())
 }
@@ -262,9 +262,9 @@ pub fn write_points_dxf(
         writeln!(file, "0")?;
         writeln!(file, "POINT")?;
         writeln!(file, "10")?;
-        writeln!(file, "{}", x)?;
+        writeln!(file, "{x}")?;
         writeln!(file, "20")?;
-        writeln!(file, "{}", y)?;
+        writeln!(file, "{y}")?;
         writeln!(file, "30")?;
         writeln!(file, "0.0")?;
     }
@@ -316,12 +316,12 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "POINT")?;
                 if let Some(l) = layer {
                     writeln!(file, "8")?;
-                    writeln!(file, "{}", l)?;
+                    writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{}", point.x)?;
+                writeln!(file, "{x}", x = point.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{}", point.y)?;
+                writeln!(file, "{y}", y = point.y)?;
                 writeln!(file, "30")?;
                 writeln!(file, "0.0")?;
             }
@@ -330,23 +330,23 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "LINE")?;
                 if let Some(l) = layer {
                     writeln!(file, "8")?;
-                    writeln!(file, "{}", l)?;
+                    writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{}", line.start.x)?;
+                writeln!(file, "{x}", x = line.start.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{}", line.start.y)?;
+                writeln!(file, "{y}", y = line.start.y)?;
                 writeln!(file, "11")?;
-                writeln!(file, "{}", line.end.x)?;
+                writeln!(file, "{x}", x = line.end.x)?;
                 writeln!(file, "21")?;
-                writeln!(file, "{}", line.end.y)?;
+                writeln!(file, "{y}", y = line.end.y)?;
             }
             DxfEntity::Polyline { polyline, layer } => {
                 writeln!(file, "0")?;
                 writeln!(file, "POLYLINE")?;
                 if let Some(l) = layer {
                     writeln!(file, "8")?;
-                    writeln!(file, "{}", l)?;
+                    writeln!(file, "{l}")?;
                 }
                 writeln!(file, "66")?;
                 writeln!(file, "1")?;
@@ -357,12 +357,12 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                     writeln!(file, "VERTEX")?;
                     if let Some(l) = layer {
                         writeln!(file, "8")?;
-                        writeln!(file, "{}", l)?;
+                        writeln!(file, "{l}")?;
                     }
                     writeln!(file, "10")?;
-                    writeln!(file, "{}", v.x)?;
+                    writeln!(file, "{x}", x = v.x)?;
                     writeln!(file, "20")?;
-                    writeln!(file, "{}", v.y)?;
+                    writeln!(file, "{y}", y = v.y)?;
                     writeln!(file, "30")?;
                     writeln!(file, "0.0")?;
                 }
@@ -374,18 +374,18 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "ARC")?;
                 if let Some(l) = layer {
                     writeln!(file, "8")?;
-                    writeln!(file, "{}", l)?;
+                    writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{}", arc.center.x)?;
+                writeln!(file, "{x}", x = arc.center.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{}", arc.center.y)?;
+                writeln!(file, "{y}", y = arc.center.y)?;
                 writeln!(file, "40")?;
-                writeln!(file, "{}", arc.radius)?;
+                writeln!(file, "{r}", r = arc.radius)?;
                 writeln!(file, "50")?;
-                writeln!(file, "{}", arc.start_angle.to_degrees())?;
+                writeln!(file, "{deg}", deg = arc.start_angle.to_degrees())?;
                 writeln!(file, "51")?;
-                writeln!(file, "{}", arc.end_angle.to_degrees())?;
+                writeln!(file, "{deg}", deg = arc.end_angle.to_degrees())?;
             }
             DxfEntity::Text {
                 position,
@@ -397,16 +397,16 @@ pub fn write_dxf(path: &str, entities: &[DxfEntity]) -> io::Result<()> {
                 writeln!(file, "TEXT")?;
                 if let Some(l) = layer {
                     writeln!(file, "8")?;
-                    writeln!(file, "{}", l)?;
+                    writeln!(file, "{l}")?;
                 }
                 writeln!(file, "10")?;
-                writeln!(file, "{}", position.x)?;
+                writeln!(file, "{x}", x = position.x)?;
                 writeln!(file, "20")?;
-                writeln!(file, "{}", position.y)?;
+                writeln!(file, "{y}", y = position.y)?;
                 writeln!(file, "40")?;
-                writeln!(file, "{}", height)?;
+                writeln!(file, "{h}", h = height)?;
                 writeln!(file, "1")?;
-                writeln!(file, "{}", value)?;
+                writeln!(file, "{value}")?;
             }
         }
     }
@@ -893,7 +893,11 @@ mod tests {
         use shapefile::dbase::FieldValue;
         let mut attrs = std::collections::BTreeMap::new();
         attrs.insert("NAME".to_string(), FieldValue::Character(Some("A".into())));
-        let rec = PointRecord { geom: Point::new(1.0, 2.0), geom_z: None, attrs };
+        let rec = PointRecord {
+            geom: Point::new(1.0, 2.0),
+            geom_z: None,
+            attrs,
+        };
         let feat = point_record_to_feature(rec, Some("test".into()));
         assert_eq!(feat.class.as_deref(), Some("test"));
         assert_eq!(feat.attributes.get("NAME").unwrap(), "A");

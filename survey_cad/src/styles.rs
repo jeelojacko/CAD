@@ -129,7 +129,7 @@ pub fn format_dms(angle_deg: f64) -> String {
         deg += 1;
     }
 
-    format!("{}{}\u{00B0}{}'{}\"", sign, deg, min, sec)
+    format!("{sign}{deg}\u{00B0}{min}'{sec}\"")
 }
 
 /// Returns a basic set of default point styles.

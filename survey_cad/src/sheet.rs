@@ -361,7 +361,7 @@ pub fn write_cross_section_scaled_svg(
                 &mut f,
                 sec_width / 2.0 - 10.0,
                 sec_height + 12.0,
-                &format!("Sta {:.2}", station),
+                &format!("Sta {station:.2}"),
             )?;
         }
         writeln!(f, "</g>")?;
@@ -440,7 +440,7 @@ pub fn write_cross_section_sheet_svg(
                 &mut f,
                 sec_width / 2.0 - 10.0,
                 sec_height + 12.0,
-                &format!("Sta {:.2}", station),
+                &format!("Sta {station:.2}"),
             )?;
         }
         writeln!(f, "</g>")?;

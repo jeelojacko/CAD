@@ -94,7 +94,7 @@ impl Crs {
     /// Creates a new CRS from the given EPSG code.
     pub fn from_epsg(code: u32) -> Self {
         Self {
-            definition: format!("EPSG:{}", code),
+            definition: format!("EPSG:{code}"),
             epsg: Some(code),
         }
     }
