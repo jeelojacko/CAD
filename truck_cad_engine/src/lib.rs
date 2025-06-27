@@ -2,6 +2,7 @@ use pollster::block_on;
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer};
 use truck_meshalgo::prelude::*;
 use truck_modeling::{self as truck, builder};
+use truck_modeling::base::{Point2, Point3, Vector4};
 use truck_platform::{wgpu, *};
 use truck_rendimpl::*;
 
@@ -385,5 +386,55 @@ impl TruckCadEngine {
     pub fn resize(&mut self, width: u32, height: u32) {
         let mut desc = self.scene.descriptor_mut();
         desc.render_texture.canvas_size = (width, height);
+    }
+
+    /// Returns the camera used for rendering.
+    pub fn camera(&self) -> &Camera {
+        &self.scene.studio_config().camera
+    }
+
+    /// Returns the size of the render target.
+    pub fn canvas_size(&self) -> (u32, u32) {
+        self.scene.descriptor().render_texture.canvas_size
+    }
+
+    /// Project a 3D point to screen coordinates (pixels).
+    pub fn project_point(&self, p: Point3) -> Option<(f64, f64, f64)> {
+        let (w, h) = self.canvas_size();
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let aspect = w as f64 / h as f64;
+        let ndc = self.camera().projection(aspect).transform_point(p);
+        let sx = (ndc.x * 0.5 + 0.5) * w as f64;
+        let sy = (1.0 - (ndc.y * 0.5 + 0.5)) * h as f64;
+        Some((sx, sy, ndc.z))
+    }
+
+    /// Construct a ray from screen coordinates.
+    pub fn screen_ray(&self, x: f64, y: f64) -> Ray {
+        let (w, h) = self.canvas_size();
+        let u = x / w as f64 * 2.0 - 1.0;
+        let v = 1.0 - y / h as f64 * 2.0;
+        self.camera().ray(Point2::new(u, v))
+    }
+
+    /// Get the world position of a point marker.
+    pub fn point_marker_position(&self, id: usize) -> Option<Point3> {
+        self.point_markers
+            .get(id)
+            .and_then(|o| o.as_ref())
+            .map(|inst| {
+                let m = inst.instance_state().matrix;
+                Point3::new(m[3].x, m[3].y, m[3].z)
+            })
+    }
+
+    /// Set the surface color for highlighting.
+    pub fn set_surface_color(&mut self, id: usize, color: Vector4) {
+        if let Some(Some(surface)) = self.surfaces.get_mut(id) {
+            surface.instance.instance_state_mut().material.albedo = color;
+            self.scene.update_bind_group(&surface.instance);
+        }
     }
 }

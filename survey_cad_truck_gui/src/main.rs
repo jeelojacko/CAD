@@ -33,7 +33,7 @@ use std::fs;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
-use truck_backend::TruckBackend;
+use truck_backend::{TruckBackend, HitObject};
 
 use once_cell::sync::Lazy;
 use rusttype::{point, Font, Scale};
@@ -1293,6 +1293,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let cursor_feedback = Rc::new(RefCell::new(None));
     let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
     let last_click = Rc::new(RefCell::new(None));
+    let selected_surface = Rc::new(RefCell::new(None::<usize>));
+    let click_pos_3d = Rc::new(RefCell::new(None::<(f64, f64)>));
     let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_styles = survey_cad::styles::default_point_styles();
@@ -1914,9 +1916,11 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let rotate_flag = rotate_flag.clone();
         let last_pos = last_pos.clone();
+        let click_pos = click_pos_3d.clone();
         app.on_workspace_left_pressed(move |x, y| {
             *rotate_flag.borrow_mut() = true;
             *last_pos.borrow_mut() = (x as f64, y as f64);
+            *click_pos.borrow_mut() = Some((x as f64, y as f64));
         });
     }
 
@@ -2151,6 +2155,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let cursor_feedback = cursor_feedback.clone();
         let weak = app.as_weak();
+        let click_pos = click_pos_3d.clone();
+        let selected_surface_ref = selected_surface.clone();
+        let backend_inner = backend.clone();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
@@ -2232,6 +2239,31 @@ fn main() -> Result<(), slint::PlatformError> {
                         app.window().request_redraw();
                     }
                 }
+            } else if let Some(start) = click_pos.borrow_mut().take() {
+                if let Some(app) = weak.upgrade() {
+                    if app.get_workspace_mode() == 1 {
+                        if let Some(hit) = backend_inner.borrow().hit_test(start.0, start.1) {
+                            match hit {
+                                HitObject::Surface(i) => {
+                                    if let Some(prev) = selected_surface_ref.replace(Some(i)) {
+                                        backend_inner.borrow_mut().highlight_surface(prev, false);
+                                    }
+                                    backend_inner.borrow_mut().highlight_surface(i, true);
+                                    backend_inner.borrow_mut().show_surface_handles(i);
+                                }
+                                _ => {
+                                    if let Some(prev) = selected_surface_ref.take() {
+                                        backend_inner.borrow_mut().highlight_surface(prev, false);
+                                        backend_inner.borrow_mut().hide_handles();
+                                    }
+                                }
+                            }
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                }
             }
         });
     }
@@ -2241,6 +2273,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let rotate_flag = rotate_flag.clone();
         let pan_flag = pan_flag.clone();
         let last_pos = last_pos.clone();
+        let click_pos = click_pos_3d.clone();
         let pan_2d_flag = pan_2d_flag.clone();
         let last_pos_2d = last_pos_2d.clone();
         let offset = offset.clone();
@@ -2262,6 +2295,11 @@ fn main() -> Result<(), slint::PlatformError> {
             let dy = y as f64 - last.1;
             *last = (x as f64, y as f64);
             if *rotate_flag.borrow() {
+                if let Some(start) = *click_pos.borrow() {
+                    if (x as f64 - start.0).abs() > 3.0 || (y as f64 - start.1).abs() > 3.0 {
+                        *click_pos.borrow_mut() = None;
+                    }
+                }
                 backend.borrow_mut().rotate(dx, dy);
                 if let Some(app) = weak.upgrade() {
                     app.window().request_redraw();
