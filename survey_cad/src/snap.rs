@@ -143,45 +143,89 @@ pub fn snap_to_nearest(target: Point, entities: &[DxfEntity], tol: f64) -> Optio
 ///
 /// The function checks endpoints, midpoints, arc centres, line
 /// intersections and nearest points on line or arc entities.
-pub fn snap_point(target: Point, entities: &[DxfEntity], tol: f64) -> Option<Point> {
+#[derive(Clone, Copy)]
+pub struct SnapSettings {
+    pub endpoints: bool,
+    pub midpoints: bool,
+    pub intersections: bool,
+    pub nearest: bool,
+}
+
+impl Default for SnapSettings {
+    fn default() -> Self {
+        Self {
+            endpoints: true,
+            midpoints: true,
+            intersections: true,
+            nearest: true,
+        }
+    }
+}
+
+pub fn snap_point_with_settings(
+    target: Point,
+    entities: &[DxfEntity],
+    tol: f64,
+    settings: SnapSettings,
+) -> Option<Point> {
     let mut candidates: Vec<Point> = Vec::new();
     let mut lines: Vec<Line> = Vec::new();
 
     for e in entities {
         match e {
-            DxfEntity::Point { point, .. } => candidates.push(*point),
+            DxfEntity::Point { point, .. } => {
+                if settings.endpoints {
+                    candidates.push(*point);
+                }
+            }
             DxfEntity::Line { line, .. } => {
-                candidates.push(line.start);
-                candidates.push(line.end);
-                candidates.push(line.midpoint());
+                if settings.endpoints {
+                    candidates.push(line.start);
+                    candidates.push(line.end);
+                }
+                if settings.midpoints {
+                    candidates.push(line.midpoint());
+                }
                 lines.push(*line);
             }
             DxfEntity::Polyline { polyline, .. } => {
                 for seg in polyline.vertices.windows(2) {
                     let l = Line::new(seg[0], seg[1]);
-                    candidates.push(l.start);
-                    candidates.push(l.end);
-                    candidates.push(l.midpoint());
+                    if settings.endpoints {
+                        candidates.push(l.start);
+                        candidates.push(l.end);
+                    }
+                    if settings.midpoints {
+                        candidates.push(l.midpoint());
+                    }
                     lines.push(l);
                 }
             }
             DxfEntity::Arc { arc, .. } => {
-                candidates.push(arc.start_point());
-                candidates.push(arc.end_point());
-                candidates.push(arc.midpoint());
-                candidates.push(arc.center);
+                if settings.endpoints {
+                    candidates.push(arc.start_point());
+                    candidates.push(arc.end_point());
+                }
+                if settings.midpoints {
+                    candidates.push(arc.midpoint());
+                }
             }
-            DxfEntity::Text { position, .. } => candidates.push(*position),
+            DxfEntity::Text { position, .. } => {
+                if settings.endpoints {
+                    candidates.push(*position);
+                }
+            }
         }
     }
 
-    // line-line intersections
-    for i in 0..lines.len() {
-        for j in (i + 1)..lines.len() {
-            if let Some(p) =
-                line_intersection(lines[i].start, lines[i].end, lines[j].start, lines[j].end)
-            {
-                candidates.push(p);
+    if settings.intersections {
+        for i in 0..lines.len() {
+            for j in (i + 1)..lines.len() {
+                if let Some(p) =
+                    line_intersection(lines[i].start, lines[i].end, lines[j].start, lines[j].end)
+                {
+                    candidates.push(p);
+                }
             }
         }
     }
@@ -197,27 +241,33 @@ pub fn snap_point(target: Point, entities: &[DxfEntity], tol: f64) -> Option<Poi
         }
     }
 
-    // nearest on segments and arcs if nothing else
-    for l in &lines {
-        let p = l.nearest_point(target);
-        let d = distance(target, p);
-        if d < best_dist {
-            best_dist = d;
-            best = Some(p);
-        }
-    }
-    for e in entities {
-        if let DxfEntity::Arc { arc, .. } = e {
-            let p = arc.nearest_point(target);
+    if settings.nearest {
+        for l in &lines {
+            let p = l.nearest_point(target);
             let d = distance(target, p);
             if d < best_dist {
                 best_dist = d;
                 best = Some(p);
             }
         }
+        for e in entities {
+            if let DxfEntity::Arc { arc, .. } = e {
+                let p = arc.nearest_point(target);
+                let d = distance(target, p);
+                if d < best_dist {
+                    best_dist = d;
+                    best = Some(p);
+                }
+            }
+        }
     }
 
     best
+}
+
+/// Equivalent to `snap_point_with_settings` with all modes enabled.
+pub fn snap_point(target: Point, entities: &[DxfEntity], tol: f64) -> Option<Point> {
+    snap_point_with_settings(target, entities, tol, SnapSettings::default())
 }
 
 #[cfg(test)]
