@@ -511,8 +511,8 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     }
                 } else {
                     match write_points_csv(&output, &pts, None, None) {
-                        Ok(()) => println!("Wrote {}", output),
-                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                        Ok(()) => println!("Wrote {output}"),
+                        Err(e) => eprintln!("Error writing {output}: {e}"),
                     }
                 }
             }
@@ -554,8 +554,8 @@ pub fn run(command: crate::Commands, epsg: u32) {
                 if output.to_ascii_lowercase().ends_with(".shp") {
                     match survey_cad::io::shp::write_polylines_shp(&output, &lines, Some(&lines_z))
                     {
-                        Ok(()) => println!("Wrote {}", output),
-                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                        Ok(()) => println!("Wrote {output}"),
+                        Err(e) => eprintln!("Error writing {output}: {e}"),
                     }
                 } else {
                     match write_polylines_csv(&output, &lines) {
@@ -802,8 +802,8 @@ pub fn run(command: crate::Commands, epsg: u32) {
                         }
                     }
                 }
-                (Err(e), _) => eprintln!("Error reading {}: {}", points, e),
-                (_, Err(e)) => eprintln!("Error reading {}: {}", observations, e),
+                (Err(e), _) => eprintln!("Error reading {points}: {e}"),
+                (_, Err(e)) => eprintln!("Error reading {observations}: {e}"),
             }
         }
         Commands::CorridorVolume {
@@ -1039,7 +1039,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     }
                 }
             }
-            Err(e) => eprintln!("Error reading network: {}", e),
+            Err(e) => eprintln!("Error reading network: {e}"),
         },
         Commands::PipeNetworkAnalyze {
             structures,
