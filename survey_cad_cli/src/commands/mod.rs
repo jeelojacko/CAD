@@ -58,7 +58,7 @@ fn macro_record(path: &str) {
                 if l.trim().is_empty() {
                     break;
                 }
-                if let Err(e) = writeln!(file, "{}", l) {
+                if let Err(e) = writeln!(file, "{l}") {
                     eprintln!("Error writing {}: {}", path, e);
                     break;
                 }
@@ -457,7 +457,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
                         Ok(mut file) => {
                             for p in pts {
                                 if let Some(n) = p.number {
-                                    if write!(file, "{}", n).is_err() {
+                                    if write!(file, "{n}").is_err() {
                                         continue;
                                     }
                                 }
@@ -467,7 +467,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
                                     continue;
                                 }
                                 if let Some(desc) = p.description {
-                                    let _ = writeln!(file, "{}", desc);
+                                    let _ = writeln!(file, "{desc}");
                                 } else {
                                     let _ = writeln!(file);
                                 }

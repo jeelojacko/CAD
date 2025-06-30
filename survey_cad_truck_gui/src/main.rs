@@ -173,7 +173,7 @@ struct MacroPlaying(bool);
 
 fn record_macro(rec: &mut MacroRecorder, line: &str) {
     if let Some(file) = &mut rec.file {
-        let _ = writeln!(file, "{}", line);
+        let _ = writeln!(file, "{line}");
     }
 }
 
@@ -4998,7 +4998,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     backend_render.borrow_mut().add_point(0.0, 0.0, 0.0);
                     let idx = point_db.borrow().len();
                     model.push(PointRow {
-                        number: SharedString::from(format!("{}", idx)),
+                        number: SharedString::from(format!("{idx}")),
                         name: SharedString::from(""),
                         x: SharedString::from("0.000"),
                         y: SharedString::from("0.000"),
