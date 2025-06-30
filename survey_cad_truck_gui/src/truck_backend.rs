@@ -311,7 +311,7 @@ impl TruckBackend {
             ) {
                 let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
                     / ((bx - ax).powi(2) + (by - ay).powi(2));
-                if t >= 0.0 && t <= 1.0 {
+                if (0.0..=1.0).contains(&t) {
                     let lx = ax + t * (bx - ax);
                     let ly = ay + t * (by - ay);
                     let lz = az + t * (bz - az);

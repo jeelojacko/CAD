@@ -1238,11 +1238,12 @@ fn refresh_workspace(
     app.window().request_redraw();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn show_inspector_for_point(
     idx: usize,
     app: &MainWindow,
     layer_names: &Rc<RefCell<Vec<String>>>,
-    style_names: &Vec<SharedString>,
+    style_names: &[SharedString],
     layers: &Rc<RefCell<Vec<usize>>>,
     styles: &Rc<RefCell<Vec<usize>>>,
     metadata: &Rc<RefCell<Vec<String>>>,
@@ -1262,7 +1263,7 @@ fn show_inspector_for_point(
             .map(SharedString::from)
             .collect::<Vec<_>>(),
     ));
-    let style_model = Rc::new(VecModel::from(style_names.clone()));
+    let style_model = Rc::new(VecModel::from(style_names.to_vec()));
 
     let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
         w
@@ -1446,8 +1447,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 .map(|(i, s_idx)| {
                     if let Some((s, e)) = current_lines.get(i) {
                         LineRow {
-                            start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
-                            end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
+                            start: SharedString::from(format!(
+                                "{sx:.2},{sy:.2}",
+                                sx = s.x,
+                                sy = s.y
+                            )),
+                            end: SharedString::from(format!(
+                                "{ex:.2},{ey:.2}",
+                                ex = e.x,
+                                ey = e.y
+                            )),
                             style_index: *s_idx as i32,
                         }
                     } else {
@@ -1797,7 +1806,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         app.on_inspector(move || {
             if let Some(app) = weak.upgrade() {
-                if let Some(idx) = selected_indices.borrow().get(0).copied() {
+                if let Some(idx) = selected_indices.borrow().first().copied() {
                     show_inspector_for_point(
                         idx,
                         &app,
@@ -2158,9 +2167,13 @@ fn main() -> Result<(), slint::PlatformError> {
                                     .borrow_mut()
                                     .add_line([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
                                 if !macro_playing.borrow().0 {
+                                    let sx = s.x;
+                                    let sy = s.y;
+                                    let px = p.x;
+                                    let py = p.y;
                                     record_macro(
                                         &mut macro_recorder.borrow_mut(),
-                                        &format!("line {} {} {} {}", s.x, s.y, p.x, p.y),
+                                        &format!("line {sx} {sy} {px} {py}"),
                                     );
                                 }
                                 *mode = DrawingMode::None;
@@ -2866,7 +2879,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     if !macro_playing.borrow().0 {
                                         record_macro(
                                             &mut macro_recorder.borrow_mut(),
-                                            &format!("line {} {} {} {}", x1, y1, x2, y2),
+                                            &format!("line {x1} {y1} {x2} {y2}"),
                                         );
                                     }
                                     command_stack.borrow_mut().push(Command::RemoveLine {
@@ -3017,7 +3030,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                     psi.borrow_mut().push(0);
                                     backend_render.borrow_mut().add_point(x, y, 0.0);
                                     if !macro_playing.borrow().0 {
-                                        record_macro(&mut macro_recorder.borrow_mut(), &format!("point {} {}", x, y));
+                                        record_macro(
+                                            &mut macro_recorder.borrow_mut(),
+                                            &format!("point {x} {y}"),
+                                        );
                                     }
                                     command_stack.borrow_mut().push(Command::RemovePoint {
                                         index: point_db.borrow().len() - 1,
@@ -3144,7 +3160,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     d.get_y_value().parse::<f64>(),
                                 ) {
                                     pts.borrow_mut().push(Point::new(x, y));
-                                    model.push(SharedString::from(format!("{:.3},{:.3}", x, y)));
+                                    model.push(SharedString::from(format!("{x:.3},{y:.3}")));
                                 }
                             }
                         });
@@ -3266,7 +3282,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     d.get_y_value().parse::<f64>(),
                                 ) {
                                     pts.borrow_mut().push(Point::new(x, y));
-                                    model.push(SharedString::from(format!("{:.3},{:.3}", x, y)));
+                                    model.push(SharedString::from(format!("{x:.3},{y:.3}")));
                                 }
                             }
                         });
@@ -3478,7 +3494,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(dist) = res {
-                            app.set_status(SharedString::from(format!("Distance: {:.3}", dist)));
+                            app.set_status(SharedString::from(format!("Distance: {dist:.3}")));
                         } else {
                             app.set_status(SharedString::from("Invalid input"));
                         }
@@ -3534,7 +3550,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(elev) = res {
-                            app.set_status(SharedString::from(format!("Elevation: {:.3}", elev)));
+                            app.set_status(SharedString::from(format!("Elevation: {elev:.3}")));
                         } else {
                             app.set_status(SharedString::from("Invalid input"));
                         }
@@ -3591,7 +3607,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(vol) = res {
-                            app.set_status(SharedString::from(format!("Volume: {:.3}", vol)));
+                            app.set_status(SharedString::from(format!("Volume: {vol:.3}")));
                         } else {
                             app.set_status(SharedString::from("Invalid input or missing data"));
                         }
@@ -5617,9 +5633,13 @@ fn main() -> Result<(), slint::PlatformError> {
                         DrawingMode::Line { start: Some(s) } => {
                             lines_ref.borrow_mut().push((*s, p));
                             if !macro_playing.borrow().0 {
+                                let sx = s.x;
+                                let sy = s.y;
+                                let px = p.x;
+                                let py = p.y;
                                 record_macro(
                                     &mut macro_recorder.borrow_mut(),
-                                    &format!("line {} {} {} {}", s.x, s.y, p.x, p.y),
+                                    &format!("line {sx} {sy} {px} {py}"),
                                 );
                             }
                             *mode = DrawingMode::None;
@@ -5744,7 +5764,12 @@ fn main() -> Result<(), slint::PlatformError> {
                     point_style_indices.borrow_mut().push(0);
                     backend_render.borrow_mut().add_point(p.x, p.y, 0.0);
                     if !macro_playing.borrow().0 {
-                        record_macro(&mut macro_recorder.borrow_mut(), &format!("point {} {}", p.x, p.y));
+                        let px = p.x;
+                        let py = p.y;
+                        record_macro(
+                            &mut macro_recorder.borrow_mut(),
+                            &format!("point {px} {py}"),
+                        );
                     }
                     command_stack.borrow_mut().push(Command::RemovePoint {
                         index: point_db.borrow().len() - 1,
