@@ -2970,8 +2970,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     };
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Loaded {} points",
-                                            len
+                                            "Loaded {len} points"
                                         )));
                                         if app.get_workspace_mode() == 0 {
                                             app.set_workspace_image(render_image());
