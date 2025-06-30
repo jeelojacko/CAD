@@ -1248,7 +1248,7 @@ fn show_inspector_for_point(
     styles: &Rc<RefCell<Vec<usize>>>,
     metadata: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
-    render_image: &dyn Fn() -> Image,
+    render_image: Rc<dyn Fn() -> Image>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
@@ -1284,10 +1284,11 @@ fn show_inspector_for_point(
         let layers = layers.clone();
         let app_weak = app.as_weak();
         let backend = backend.clone();
+        let render_image = render_image.clone();
         dlg.on_layer_changed(move |val| {
             if let Some(l) = layers.borrow_mut().get_mut(idx) { *l = val as usize; }
             if let Some(a) = app_weak.upgrade() {
-                refresh_workspace(&a, render_image, &backend);
+                refresh_workspace(&a, &*render_image, &backend);
             }
         });
     }
@@ -1296,10 +1297,11 @@ fn show_inspector_for_point(
         let styles_ref = styles.clone();
         let app_weak = app.as_weak();
         let backend = backend.clone();
+        let render_image = render_image.clone();
         dlg.on_style_changed(move |val| {
             if let Some(s) = styles_ref.borrow_mut().get_mut(idx) { *s = val as usize; }
             if let Some(a) = app_weak.upgrade() {
-                refresh_workspace(&a, render_image, &backend);
+                refresh_workspace(&a, &*render_image, &backend);
             }
         });
     }
@@ -1308,10 +1310,11 @@ fn show_inspector_for_point(
         let meta_ref = metadata.clone();
         let app_weak = app.as_weak();
         let backend = backend.clone();
+        let render_image = render_image.clone();
         dlg.on_metadata_changed(move |text| {
             if let Some(m) = meta_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
             if let Some(a) = app_weak.upgrade() {
-                refresh_workspace(&a, render_image, &backend);
+                refresh_workspace(&a, &*render_image, &backend);
             }
         });
     }
@@ -1805,7 +1808,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         &point_style_indices,
                         &point_metadata,
                         &inspector_ref,
-                        &render_image,
+                        Rc::new(render_image.clone()),
                         &backend_render,
                     );
                 }
