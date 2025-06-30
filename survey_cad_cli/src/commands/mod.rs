@@ -47,7 +47,7 @@ fn macro_record(path: &str) {
     let mut file = match std::fs::File::create(path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("Error writing {}: {}", path, e);
+            eprintln!("Error writing {path}: {e}");
             return;
         }
     };
@@ -59,12 +59,12 @@ fn macro_record(path: &str) {
                     break;
                 }
                 if let Err(e) = writeln!(file, "{l}") {
-                    eprintln!("Error writing {}: {}", path, e);
+                    eprintln!("Error writing {path}: {e}");
                     break;
                 }
             }
             Err(e) => {
-                eprintln!("Input error: {}", e);
+                eprintln!("Input error: {e}");
                 break;
             }
         }
@@ -75,14 +75,14 @@ fn macro_play(path: &str, epsg: u32) {
     let lines = match read_lines(path) {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("Error reading {}: {}", path, e);
+            eprintln!("Error reading {path}: {e}");
             return;
         }
     };
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("Cannot locate executable: {}", e);
+            eprintln!("Cannot locate executable: {e}");
             return;
         }
     };
@@ -90,18 +90,18 @@ fn macro_play(path: &str, epsg: u32) {
         let mut args = match shell_words::split(&line) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("Invalid line '{}': {}", line, e);
+                eprintln!("Invalid line '{line}': {e}");
                 continue;
             }
         };
-        args.insert(0, format!("--epsg={}", epsg));
+        args.insert(0, format!("--epsg={epsg}"));
         match std::process::Command::new(&exe).args(&args).status() {
             Ok(status) => {
                 if !status.success() {
-                    eprintln!("Command '{}' failed", line);
+                    eprintln!("Command '{line}' failed");
                 }
             }
-            Err(e) => eprintln!("Failed to run '{}': {}", line, e),
+            Err(e) => eprintln!("Failed to run '{line}': {e}"),
         }
     }
 }
@@ -174,7 +174,7 @@ fn print_point(p: Point) {
 }
 
 fn print_station(sta: f64, elev: f64) {
-    println!("{:.3},{:.3}", sta, elev);
+    println!("{sta:.3},{elev:.3}");
 }
 
 #[cfg(feature = "shapefile")]
@@ -365,14 +365,14 @@ pub fn run(command: crate::Commands, epsg: u32) {
                 let traverse = Traverse::new(pts);
                 println!("Area: {:.3}", traverse.area());
             }
-            Err(e) => eprintln!("Error reading {}: {}", path, e),
+            Err(e) => eprintln!("Error reading {path}: {e}"),
         },
         Commands::Copy { src, dest } => match read_to_string(&src) {
             Ok(contents) => match write_string(&dest, &contents) {
-                Ok(()) => println!("Copied {} to {}", src, dest),
-                Err(e) => eprintln!("Error writing {}: {}", dest, e),
+                Ok(()) => println!("Copied {src} to {dest}"),
+                Err(e) => eprintln!("Error writing {dest}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", src, e),
+            Err(e) => eprintln!("Error reading {src}: {e}"),
         },
         #[cfg(feature = "render")]
         Commands::RenderPoint { x, y } => {
@@ -390,10 +390,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             dst_epsg,
         } => match read_points_csv(&input, src_epsg, dst_epsg) {
             Ok(pts) => match write_points_geojson(&output, &pts, None, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "kml")]
         Commands::ExportKml {
@@ -403,10 +403,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             dst_epsg,
         } => match read_points_csv(&input, src_epsg, dst_epsg) {
             Ok(pts) => match write_points_kml(&output, &pts) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         Commands::ImportGeojson {
             input,
@@ -415,10 +415,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             dst_epsg,
         } => match read_points_geojson(&input, src_epsg, dst_epsg) {
             Ok(pts) => match write_points_csv(&output, &pts, None, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "kml")]
         Commands::ImportKml {
@@ -428,10 +428,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             dst_epsg,
         } => match read_points_kml(&input) {
             Ok(pts) => match write_points_csv(&output, &pts, src_epsg, dst_epsg) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "fgdb")]
         Commands::ImportFgdb {
@@ -440,10 +440,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             output,
         } => match read_points_fgdb(&path, &layer) {
             Ok(pts) => match write_points_csv(&output, &pts, None, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", path, e),
+            Err(e) => eprintln!("Error reading {path}: {e}"),
         },
         Commands::ImportPoints {
             format,
@@ -472,14 +472,14 @@ pub fn run(command: crate::Commands, epsg: u32) {
                                     let _ = writeln!(file);
                                 }
                             }
-                            println!("Wrote {}", output);
+                            println!("Wrote {output}");
                         }
-                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                        Err(e) => eprintln!("Error writing {output}: {e}"),
                     }
                 }
-                Err(e) => eprintln!("Error reading {}: {}", input, e),
+                Err(e) => eprintln!("Error reading {input}: {e}"),
             },
-            Err(_) => eprintln!("Unknown format {}", format),
+            Err(_) => eprintln!("Unknown format {format}"),
         },
         Commands::ExportDxf {
             input,
@@ -488,26 +488,26 @@ pub fn run(command: crate::Commands, epsg: u32) {
             dst_epsg,
         } => match read_points_csv(&input, src_epsg, dst_epsg) {
             Ok(pts) => match write_points_dxf(&output, &pts, None, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportShp { input, output } => match read_points_csv(&input, None, None) {
             Ok(pts) => match write_points_shp(&output, &pts, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportShp { input, output } => match read_points_shp(&input) {
             Ok((pts, pts3)) => {
                 if let Some(z) = pts3 {
                     match write_points_csv_3d(&output, &z) {
-                        Ok(()) => println!("Wrote {}", output),
-                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                        Ok(()) => println!("Wrote {output}"),
+                        Err(e) => eprintln!("Error writing {output}: {e}"),
                     }
                 } else {
                     match write_points_csv(&output, &pts, None, None) {
@@ -516,31 +516,31 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     }
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportPolylinesShp { input, output } => match read_polylines_csv(&input) {
             Ok(lines) => match write_polylines_shp(&output, &lines, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportPolylinesShp { input, output } => match read_polylines_shp(&input) {
             Ok((lines, _)) => match write_polylines_csv(&output, &lines) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ExportPolygonsShp { input, output } => match read_polygons_csv(&input) {
             Ok(polys) => match write_polygons_shp(&output, &polys, None) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::Contours {
@@ -559,52 +559,52 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     }
                 } else {
                     match write_polylines_csv(&output, &lines) {
-                        Ok(()) => println!("Wrote {}", output),
-                        Err(e) => eprintln!("Error writing {}: {}", output, e),
+                        Ok(()) => println!("Wrote {output}"),
+                        Err(e) => eprintln!("Error writing {output}: {e}"),
                     }
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", surface, e),
+            Err(e) => eprintln!("Error reading {surface}: {e}"),
         },
         #[cfg(feature = "shapefile")]
         Commands::ImportPolygonsShp { input, output } => match read_polygons_shp(&input) {
             Ok((polys, _)) => match write_polygons_csv(&output, &polys) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "las")]
         Commands::ImportLas { input, output } => match read_points_las(&input) {
             Ok(pts) => match write_points_csv_3d(&output, &pts) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "las")]
         Commands::ExportLas { input, output } => match read_points_csv_3d(&input) {
             Ok(pts) => match write_points_las(&output, &pts) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "e57")]
         Commands::ImportE57 { input, output } => match read_points_e57(&input) {
             Ok(pts) => match write_points_csv_3d(&output, &pts) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "e57")]
         Commands::ExportE57 { input, output } => match read_points_csv_3d(&input) {
             Ok(pts) => match write_points_e57(&output, &pts) {
-                Ok(()) => println!("Wrote {}", output),
-                Err(e) => eprintln!("Error writing {}: {}", output, e),
+                Ok(()) => println!("Wrote {output}"),
+                Err(e) => eprintln!("Error writing {output}: {e}"),
             },
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "las")]
         Commands::FilterNoise {
@@ -616,12 +616,12 @@ pub fn run(command: crate::Commands, epsg: u32) {
             Ok(pts) => {
                 let filtered = survey_cad::filter_noise(&pts, radius, min_neighbors);
                 if let Err(e) = write_points_csv_3d(&output, &filtered) {
-                    eprintln!("Error writing {}: {}", output, e);
+                    eprintln!("Error writing {output}: {e}");
                 } else {
-                    println!("Wrote {}", output);
+                    println!("Wrote {output}");
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "las")]
         Commands::ClassifyCloud {
@@ -635,12 +635,12 @@ pub fn run(command: crate::Commands, epsg: u32) {
                 let classes =
                     survey_cad::classify_points(&pts, cell_size, ground_threshold, veg_threshold);
                 if let Err(e) = write_points_classified(&output, &pts, &classes) {
-                    eprintln!("Error writing {}: {}", output, e);
+                    eprintln!("Error writing {output}: {e}");
                 } else {
-                    println!("Wrote {}", output);
+                    println!("Wrote {output}");
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         #[cfg(feature = "render")]
         Commands::ViewPoints { input } => match read_points_csv(&input, None, None) {
@@ -651,7 +651,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     render_points(&pts);
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", input, e),
+            Err(e) => eprintln!("Error reading {input}: {e}"),
         },
         Commands::VerticalAngle {
             name_a,
@@ -673,7 +673,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
         }
         Commands::Bearing { x1, y1, x2, y2 } => {
             let bng = bearing(Point::new(x1, y1), Point::new(x2, y2));
-            println!("Bearing: {:.3} rad", bng);
+            println!("Bearing: {bng:.3} rad");
         }
         Commands::Forward {
             x,
@@ -708,7 +708,7 @@ pub fn run(command: crate::Commands, epsg: u32) {
             foresight,
         } => {
             let elev = level_elevation(start_elev, backsight, foresight);
-            println!("New elevation: {:.3}", elev);
+            println!("New elevation: {elev:.3}");
         }
         Commands::NetworkAdjust {
             points,
@@ -797,8 +797,8 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     }
                     for (o, v) in obs.iter().zip(result.residuals.iter()) {
                         match o {
-                            Observation::Distance { .. } => println!("distance residual {:.4}", v),
-                            Observation::Angle { .. } => println!("angle residual {:.6}", v),
+                            Observation::Distance { .. } => println!("distance residual {v:.4}"),
+                            Observation::Angle { .. } => println!("angle residual {v:.6}"),
                         }
                     }
                 }
@@ -827,12 +827,12 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     let val = VerticalAlignment::new(v_pairs);
                     let align = Alignment::new(hal, val);
                     let vol = corridor_volume(&des, &grd, &align, width, interval, offset_step);
-                    println!("Volume: {:.3}", vol);
+                    println!("Volume: {vol:.3}");
                 }
-                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", design, e),
-                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),
-                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign, e),
-                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign, e),
+                (Err(e), _, _, _) => eprintln!("Error reading {design}: {e}"),
+                (_, Err(e), _, _) => eprintln!("Error reading {ground}: {e}"),
+                (_, _, Err(e), _) => eprintln!("Error reading {halign}: {e}"),
+                (_, _, _, Err(e)) => eprintln!("Error reading {valign}: {e}"),
             }
         }
         Commands::MassHaul {
@@ -857,13 +857,13 @@ pub fn run(command: crate::Commands, epsg: u32) {
                     let align = Alignment::new(hal, val);
                     let haul = corridor_mass_haul(&des, &grd, &align, width, interval, offset_step);
                     for (sta, vol) in haul {
-                        println!("{:.3},{:.3}", sta, vol);
+                        println!("{sta:.3},{vol:.3}");
                     }
                 }
-                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", design, e),
-                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", ground, e),
-                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign, e),
-                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign, e),
+                (Err(e), _, _, _) => eprintln!("Error reading {design}: {e}"),
+                (_, Err(e), _, _) => eprintln!("Error reading {ground}: {e}"),
+                (_, _, Err(e), _) => eprintln!("Error reading {halign}: {e}"),
+                (_, _, _, Err(e)) => eprintln!("Error reading {valign}: {e}"),
             }
         }
         Commands::CreateIntersection {
@@ -891,8 +891,8 @@ pub fn run(command: crate::Commands, epsg: u32) {
                         println!("No intersection");
                     }
                 }
-                (Err(e), _) => eprintln!("Error reading {}: {}", align_a, e),
-                (_, Err(e)) => eprintln!("Error reading {}: {}", align_b, e),
+                (Err(e), _) => eprintln!("Error reading {align_a}: {e}"),
+                (_, Err(e)) => eprintln!("Error reading {align_b}: {e}"),
             }
         }
         Commands::CreateFullIntersection {
@@ -998,10 +998,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
                         println!("No intersection");
                     }
                 }
-                (Err(e), _, _, _) => eprintln!("Error reading {}: {}", halign_a, e),
-                (_, Err(e), _, _) => eprintln!("Error reading {}: {}", valign_a, e),
-                (_, _, Err(e), _) => eprintln!("Error reading {}: {}", halign_b, e),
-                (_, _, _, Err(e)) => eprintln!("Error reading {}: {}", valign_b, e),
+                (Err(e), _, _, _) => eprintln!("Error reading {halign_a}: {e}"),
+                (_, Err(e), _, _) => eprintln!("Error reading {valign_a}: {e}"),
+                (_, _, Err(e), _) => eprintln!("Error reading {halign_b}: {e}"),
+                (_, _, _, Err(e)) => eprintln!("Error reading {valign_b}: {e}"),
             }
         }
         Commands::CreatePipeNetwork {
@@ -1011,12 +1011,12 @@ pub fn run(command: crate::Commands, epsg: u32) {
         } => match pipe_network::read_network_csv(&structures, &pipes) {
             Ok(net) => {
                 if let Err(e) = pipe_network::write_network_landxml(&output, &net) {
-                    eprintln!("Error writing {}: {}", output, e);
+                    eprintln!("Error writing {output}: {e}");
                 } else {
-                    println!("Wrote {}", output);
+                    println!("Wrote {output}");
                 }
             }
-            Err(e) => eprintln!("Error reading network: {}", e),
+            Err(e) => eprintln!("Error reading network: {e}"),
         },
         Commands::PipeNetworkGrade {
             structures,
@@ -1050,13 +1050,13 @@ pub fn run(command: crate::Commands, epsg: u32) {
             Ok(net) => {
                 let res = pipe_network::analyze_network(&net);
                 if let Err(e) = pipe_network::write_analysis_csv(&out_csv, &res) {
-                    eprintln!("Error writing {}: {}", out_csv, e);
+                    eprintln!("Error writing {out_csv}: {e}");
                 }
                 if let Err(e) = pipe_network::write_analysis_landxml(&out_xml, &res) {
-                    eprintln!("Error writing {}: {}", out_xml, e);
+                    eprintln!("Error writing {out_xml}: {e}");
                 }
             }
-            Err(e) => eprintln!("Error reading network: {}", e),
+            Err(e) => eprintln!("Error reading network: {e}"),
         },
         Commands::PipeNetworkDesign {
             structures,
@@ -1071,10 +1071,10 @@ pub fn run(command: crate::Commands, epsg: u32) {
             (Ok(mut net), Ok(rules)) => {
                 pipe_network::apply_slope_rules(&mut net, &rules);
                 if let Err(e) = pipe_network::write_network_csv(&net, &out_structs, &out_pipes) {
-                    eprintln!("Error writing network: {}", e);
+                    eprintln!("Error writing network: {e}");
                 }
             }
-            (Err(e), _) | (_, Err(e)) => eprintln!("Error: {}", e),
+            (Err(e), _) | (_, Err(e)) => eprintln!("Error: {e}"),
         },
         Commands::PipeNetworkAnalyzeDetailed {
             structures,
@@ -1085,13 +1085,13 @@ pub fn run(command: crate::Commands, epsg: u32) {
             Ok(net) => {
                 let res = pipe_network::analyze_network_detailed(&net);
                 if let Err(e) = pipe_network::write_detailed_analysis_csv(&out_csv, &res) {
-                    eprintln!("Error writing {}: {}", out_csv, e);
+                    eprintln!("Error writing {out_csv}: {e}");
                 }
                 if let Err(e) = pipe_network::write_detailed_analysis_landxml(&out_xml, &res) {
-                    eprintln!("Error writing {}: {}", out_xml, e);
+                    eprintln!("Error writing {out_xml}: {e}");
                 }
             }
-            Err(e) => eprintln!("Error reading network: {}", e),
+            Err(e) => eprintln!("Error reading network: {e}"),
         },
         Commands::Stakeout {
             halign,
@@ -1112,27 +1112,27 @@ pub fn run(command: crate::Commands, epsg: u32) {
                 match format.as_str() {
                     "csv" => {
                         if let Err(e) = write_points_csv(&output, &out_pts, None, None) {
-                            eprintln!("Error writing {}: {}", output, e);
+                            eprintln!("Error writing {output}: {e}");
                         }
                     }
                     "csv-gnss" => {
                         let pts3: Vec<Point3> =
                             out_pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
                         if let Err(e) = write_points_csv_gnss(&output, &pts3) {
-                            eprintln!("Error writing {}: {}", output, e);
+                            eprintln!("Error writing {output}: {e}");
                         }
                     }
                     "raw" => {
                         let pts3: Vec<Point3> =
                             out_pts.iter().map(|p| Point3::new(p.x, p.y, 0.0)).collect();
                         if let Err(e) = write_points_raw(&output, &pts3) {
-                            eprintln!("Error writing {}: {}", output, e);
+                            eprintln!("Error writing {output}: {e}");
                         }
                     }
-                    _ => eprintln!("Unknown format {}", format),
+                    _ => eprintln!("Unknown format {format}"),
                 }
             }
-            Err(e) => eprintln!("Error reading {}: {}", halign, e),
+            Err(e) => eprintln!("Error reading {halign}: {e}"),
         },
         Commands::Macro { action } => match action {
             MacroAction::Record { file } => macro_record(&file),
