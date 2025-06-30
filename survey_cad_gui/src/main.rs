@@ -417,7 +417,7 @@ fn main() {
                     .init();
             }
             Err(e) => {
-                eprintln!("Failed to create log file {}: {}", path, e);
+                eprintln!("Failed to create log file {path}: {e}");
                 env_logger::Builder::from_default_env().init();
             }
         }
@@ -1969,10 +1969,10 @@ fn handle_add_breakline(
                     .position(|&(x, y)| (x == i1 && y == i2) || (x == i2 && y == i1))
                 {
                     data.breaklines.remove(pos);
-                    println!("Removed breakline between {} and {}", i1, i2);
+                    println!("Removed breakline between {i1} and {i2}");
                 } else {
                     data.breaklines.push((i1, i2));
-                    println!("Added breakline between {} and {}", i1, i2);
+                    println!("Added breakline between {i1} and {i2}");
                 }
                 dirty.0 = true;
                 data.set_changed();
@@ -2004,11 +2004,12 @@ fn handle_add_hole(
             }
             if let Some(pos) = data.holes.iter().position(|h| *h == hole) {
                 data.holes.remove(pos);
-                println!("Removed hole with {} vertices", hole.len());
+                let len = hole.len();
+                println!("Removed hole with {len} vertices");
             } else {
                 data.holes.push(hole);
                 let len = data.holes.last().map(|h| h.len()).unwrap_or(0);
-                println!("Added hole with {} vertices", len);
+                println!("Added hole with {len} vertices");
             }
             dirty.0 = true;
             data.set_changed();
@@ -2039,10 +2040,10 @@ fn handle_add_parcel(
             parcels.parcels.push(parcel);
             if let Some(id) = parcels.text {
                 if let Ok(mut span) = texts.get_mut(id) {
-                    span.0 = format!("Parcel Area (Selected): {:.2}", area);
+                    span.0 = format!("Parcel Area (Selected): {area:.2}");
                 }
             }
-            println!("Parcel area: {:.2}", area);
+            println!("Parcel area: {area:.2}");
         }
     }
 }
@@ -2763,7 +2764,7 @@ fn handle_cogo_buttons(
                             let a = Point::new(a.translation.x as f64, a.translation.y as f64);
                             let b = Point::new(b.translation.x as f64, b.translation.y as f64);
                             let bng = survey_cad::surveying::bearing(a, b);
-                            println!("Bearing: {:.3} rad", bng);
+                            println!("Bearing: {bng:.3} rad");
                         }
                     } else {
                         println!("Select two points for bearing");
@@ -2934,7 +2935,7 @@ fn update_plan_labels(
     while station <= total + 0.01 {
         if let Some(p) = polyline_point_at(&pts, station) {
             commands.spawn((
-                Text2d::new(format!("{:.0}", station)),
+                Text2d::new(format!("{station:.0}")),
                 TextFont {
                     font: font.clone(),
                     font_size: 12.0,
@@ -3054,7 +3055,7 @@ fn update_section_lines(
     }
     if let Some(id) = view.label {
         if let Ok(mut span) = spans.get_mut(id) {
-            span.0 = format!("Station: {:.2}", sec_station);
+            span.0 = format!("Station: {sec_station:.2}");
         }
     }
 }
@@ -3358,7 +3359,7 @@ fn handle_macro_record_button(
             match std::fs::File::create(&path) {
                 Ok(f) => {
                     recorder.file = Some(f);
-                    println!("Recording macro to {:?}", path);
+                    println!("Recording macro to {path:?}");
                 }
                 Err(e) => warn!("Failed to create macro file: {}", e),
             }
@@ -3401,7 +3402,7 @@ fn handle_macro_play_button(
                                 spawn_line(&mut commands, Point::new(x1, y1), Point::new(x2, y2));
                             }
                         }
-                        _ => println!("Unknown macro command: {}", line),
+                        _ => println!("Unknown macro command: {line}"),
                     }
                 }
                 playing.0 = false;
