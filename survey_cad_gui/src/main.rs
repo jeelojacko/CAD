@@ -3431,6 +3431,8 @@ mod tests {
             Entity::from_raw(1),
             Entity::from_raw(2),
         ]));
+        app.insert_resource(MacroRecorder::default());
+        app.insert_resource(MacroPlaying(false));
 
         app.update();
 
