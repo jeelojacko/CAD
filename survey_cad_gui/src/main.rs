@@ -262,7 +262,7 @@ struct MacroPlaying(bool);
 
 fn record_macro(rec: &mut MacroRecorder, line: &str) {
     if let Some(file) = &mut rec.file {
-        let _ = writeln!(file, "{}", line);
+        let _ = writeln!(file, "{line}");
     }
 }
 

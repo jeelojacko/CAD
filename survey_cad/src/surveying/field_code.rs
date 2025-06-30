@@ -63,7 +63,7 @@ impl fmt::Display for FieldCode {
             CodeAction::Begin => write!(f, "B{}", self.code),
             CodeAction::Continue => write!(f, "C{}", self.code),
             CodeAction::End => write!(f, "E{}", self.code),
-            CodeAction::None => write!(f, "{}", self.code),
+            CodeAction::None => write!(f, "{code}", code = self.code),
         }
     }
 }
