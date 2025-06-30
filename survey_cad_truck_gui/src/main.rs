@@ -7,7 +7,6 @@ use std::io::Write;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
-use shell_words;
 
 use survey_cad::alignment::HorizontalAlignment;
 use survey_cad::corridor;
@@ -2685,7 +2684,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to open: {}", e)));
+                                app.set_status(SharedString::from(format!("Failed to open: {e}")));
                             }
                         }
                     }
@@ -2736,7 +2735,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                     if let Err(e) = write_project_json(p, &proj) {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to save: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to save: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Saved"));
@@ -2810,8 +2809,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Err(e) => {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Failed to open: {}",
-                                            e
+                                            "Failed to open: {e}"
                                         )));
                                     }
                                 }
@@ -2971,8 +2969,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Err(e) => {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Failed to open: {}",
-                                            e
+                                            "Failed to open: {e}"
                                         )));
                                     }
                                 }
@@ -3111,8 +3108,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Err(e) => {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Failed to open: {}",
-                                            e
+                                            "Failed to open: {e}"
                                         )));
                                     }
                                 }
@@ -3234,8 +3230,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Err(e) => {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Failed to open: {}",
-                                            e
+                                            "Failed to open: {e}"
                                         )));
                                     }
                                 }
@@ -3353,8 +3348,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Err(e) => {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(format!(
-                                            "Failed to open: {}",
-                                            e
+                                            "Failed to open: {e}"
                                         )));
                                     }
                                 }
@@ -3516,7 +3510,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_status(SharedString::from(format!("Area: {:.3}", trav.area())));
                         }
                         Err(e) => {
-                            app.set_status(SharedString::from(format!("Failed: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed: {e}")));
                         }
                     }
                 }
@@ -4200,8 +4194,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4215,8 +4208,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4248,8 +4240,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4263,8 +4254,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4302,8 +4292,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4317,8 +4306,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4350,8 +4338,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4365,8 +4352,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4409,8 +4395,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             let count = lns.len() + pls_vec.len();
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} polylines",
-                                    count
+                                    "Imported {count} polylines"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4424,8 +4409,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4461,8 +4445,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} polygons",
-                                    len
+                                    "Imported {len} polygons"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4476,8 +4459,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4513,8 +4495,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4528,8 +4509,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4565,8 +4545,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             };
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Imported {} points",
-                                    len
+                                    "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
                                     app.set_workspace_image(render_image());
@@ -4580,8 +4559,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -4608,7 +4586,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         survey_cad::io::write_points_geojson(p, &point_db.borrow(), None, None)
                     {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4630,7 +4608,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "kml")]
                     if let Err(e) = survey_cad::io::kml::write_points_kml(p, &point_db.borrow()) {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4657,7 +4635,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         survey_cad::io::write_points_dxf(p, &point_db.borrow(), None, None)
                     {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4681,7 +4659,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         survey_cad::io::shp::write_points_shp(p, &point_db.borrow(), None)
                     {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4714,7 +4692,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         out.extend(polylines_ref.borrow().iter().cloned());
                         if let Err(e) = survey_cad::io::shp::write_polylines_shp(p, &out, None) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                                app.set_status(SharedString::from(format!("Failed to export: {e}")));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -4741,7 +4719,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     #[cfg(feature = "shapefile")]
                     if let Err(e) = survey_cad::io::shp::write_polygons_shp(p, &polygons_ref.borrow(), None) {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4774,8 +4752,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         if let Err(e) = survey_cad::io::las::write_points_las(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to export: {}",
-                                    e
+                                    "Failed to export: {e}"
                                 )));
                             }
                         } else if let Some(app) = weak.upgrade() {
@@ -4810,8 +4787,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         if let Err(e) = survey_cad::io::e57::write_points_e57(p, &pts3) {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to export: {}",
-                                    e
+                                    "Failed to export: {e}"
                                 )));
                             }
                         } else if let Some(app) = weak.upgrade() {
@@ -4845,7 +4821,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let tin = &surfaces.borrow()[0];
                     if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin) {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4873,7 +4849,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let hal = &alignments.borrow()[0];
                     if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, hal) {
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!("Failed to export: {}", e)));
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
@@ -4960,7 +4936,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             p.x = v;
                             if let Some(row) = model.row_data(idx as usize) {
                                 let mut r = row.clone();
-                                r.x = SharedString::from(format!("{:.3}", v));
+                                r.x = SharedString::from(format!("{v:.3}"));
                                 model.set_row_data(idx as usize, r);
                             }
                             backend_render
@@ -4980,7 +4956,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             p.y = v;
                             if let Some(row) = model.row_data(idx as usize) {
                                 let mut r = row.clone();
-                                r.y = SharedString::from(format!("{:.3}", v));
+                                r.y = SharedString::from(format!("{v:.3}"));
                                 model.set_row_data(idx as usize, r);
                             }
                             backend_render
@@ -5557,8 +5533,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
@@ -5596,8 +5571,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         Err(e) => {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from(format!(
-                                    "Failed to import: {}",
-                                    e
+                                    "Failed to import: {e}"
                                 )));
                             }
                         }
