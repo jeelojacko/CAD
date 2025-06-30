@@ -3,6 +3,7 @@ export { LineStyleManager } from "line_style_manager.slint";
 export { LayerManager } from "layer_manager.slint";
 export { CrossSectionViewer } from "cross_section_viewer.slint";
 export { SuperelevationEditor } from "superelevation_editor.slint";
+export { EntityInspector } from "entity_inspector.slint";
 
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
@@ -573,6 +574,7 @@ export component MainWindow inherits Window {
     callback point_manager();
     callback line_style_manager();
     callback layer_manager();
+    callback inspector();
     callback import_geojson();
     callback import_kml();
     callback import_dxf();
@@ -665,6 +667,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
             MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); } }
             MenuItem { title: "Layer Manager..."; activated => { root.layer_manager(); } }
+            MenuItem { title: "Inspector..."; activated => { root.inspector(); } }
             MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
         }
         Menu {
@@ -738,6 +741,10 @@ export component MainWindow inherits Window {
             Button {
                 text: "Layer Manager...";
                 clicked => { root.layer_manager(); }
+            }
+            Button {
+                text: "Inspector...";
+                clicked => { root.inspector(); }
             }
             Button {
                 text: "Add Line";

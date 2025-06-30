@@ -1,0 +1,36 @@
+export component EntityInspector inherits Window {
+    in-out property <[string]> layers_model;
+    in-out property <[string]> styles_model;
+    in-out property <int> layer_index;
+    in-out property <int> style_index;
+    in-out property <string> metadata;
+    in-out property <string> entity_type;
+
+    callback layer_changed(int);
+    callback style_changed(int);
+    callback metadata_changed(string);
+
+    title: "Inspector";
+    width: 300px;
+    height: 150px;
+
+    VerticalBox {
+        spacing: 6px;
+        Text { color: #FFFFFF; text: "Type: " + root.entity_type; }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Layer:"; width: 60px; }
+            ComboBox { model: root.layers_model; current-index: root.layer_index; selected => { root.layer_changed(self.current-index); } }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Style:"; width: 60px; }
+            ComboBox { model: root.styles_model; current-index: root.style_index; selected => { root.style_changed(self.current-index); } }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Meta:"; width: 60px; }
+            LineEdit { text <=> root.metadata; edited(text) => { root.metadata_changed(text); } }
+        }
+    }
+}

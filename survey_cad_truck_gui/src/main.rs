@@ -1239,6 +1239,86 @@ fn refresh_workspace(
     app.window().request_redraw();
 }
 
+fn show_inspector_for_point(
+    idx: usize,
+    app: &MainWindow,
+    layer_names: &Rc<RefCell<Vec<String>>>,
+    style_names: &Vec<SharedString>,
+    layers: &Rc<RefCell<Vec<usize>>>,
+    styles: &Rc<RefCell<Vec<usize>>>,
+    metadata: &Rc<RefCell<Vec<String>>>,
+    inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
+    render_image: &dyn Fn() -> Image,
+    backend: &Rc<RefCell<TruckBackend>>,
+) {
+    while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
+    while styles.borrow().len() <= idx { styles.borrow_mut().push(0); }
+    while metadata.borrow().len() <= idx { metadata.borrow_mut().push(String::new()); }
+
+    let layer_model = Rc::new(VecModel::from(
+        layer_names
+            .borrow()
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    ));
+    let style_model = Rc::new(VecModel::from(style_names.clone()));
+
+    let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
+        w
+    } else {
+        let d = EntityInspector::new().unwrap();
+        *inspector.borrow_mut() = Some(d.as_weak());
+        d
+    };
+
+    dlg.set_layers_model(layer_model.into());
+    dlg.set_styles_model(style_model.into());
+    dlg.set_entity_type(SharedString::from("Point"));
+    dlg.set_layer_index(layers.borrow()[idx] as i32);
+    dlg.set_style_index(styles.borrow()[idx] as i32);
+    dlg.set_metadata(SharedString::from(metadata.borrow()[idx].clone()));
+
+    {
+        let layers = layers.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        dlg.on_layer_changed(move |val| {
+            if let Some(l) = layers.borrow_mut().get_mut(idx) { *l = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let styles_ref = styles.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        dlg.on_style_changed(move |val| {
+            if let Some(s) = styles_ref.borrow_mut().get_mut(idx) { *s = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let meta_ref = metadata.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        dlg.on_metadata_changed(move |text| {
+            if let Some(m) = meta_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, render_image, &backend);
+            }
+        });
+    }
+
+    dlg.show().unwrap();
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
     // Always populate the font database with the system fonts first so that the
@@ -1305,6 +1385,11 @@ fn main() -> Result<(), slint::PlatformError> {
     let click_pos_3d = Rc::new(RefCell::new(None::<(f64, f64)>));
     let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let point_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let line_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let point_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
+    let line_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
+    let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> = Rc::new(RefCell::new(None));
     let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
         point_styles: survey_cad::styles::default_point_styles(),
         line_styles: survey_cad::styles::default_line_styles(),
@@ -1694,6 +1779,37 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
             dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let layer_names = layer_names.clone();
+        let point_style_names = point_style_names.clone();
+        let point_layers = point_layers.clone();
+        let point_style_indices = point_style_indices.clone();
+        let point_metadata = point_metadata.clone();
+        let inspector_ref = inspector_window.clone();
+        let selected_indices = selected_indices.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        app.on_inspector(move || {
+            if let Some(app) = weak.upgrade() {
+                if let Some(idx) = selected_indices.borrow().get(0).copied() {
+                    show_inspector_for_point(
+                        idx,
+                        &app,
+                        &layer_names,
+                        &point_style_names,
+                        &point_layers,
+                        &point_style_indices,
+                        &point_metadata,
+                        &inspector_ref,
+                        &render_image,
+                        &backend_render,
+                    );
+                }
+            }
         });
     }
 
