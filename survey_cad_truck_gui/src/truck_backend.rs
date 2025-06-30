@@ -3,10 +3,10 @@ use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
 
 pub enum HitObject {
-    Point(usize),
-    Line(usize),
+    Point,
+    Line,
     Surface(usize),
-    Handle(usize),
+    Handle,
 }
 
 struct SurfaceData {
@@ -262,6 +262,7 @@ impl TruckBackend {
     }
 
     /// Move a handle and the underlying vertex.
+    #[allow(dead_code)]
     pub fn move_handle(&mut self, handle_idx: usize, new_pos: Point3) {
         if let Some((surf_idx, ref mut handles)) = self.handles {
             if let Some(id) = handles.get(handle_idx).copied() {
@@ -283,7 +284,7 @@ impl TruckBackend {
                         let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                         if d2 < 64.0 && z < best_z {
                             best_z = z;
-                            result = Some(HitObject::Handle(i));
+                            result = Some(HitObject::Handle);
                         }
                     }
                 }
@@ -298,7 +299,7 @@ impl TruckBackend {
                 let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                 if d2 < 64.0 && z < best_z {
                     best_z = z;
-                    result = Some(HitObject::Point(i));
+                    result = Some(HitObject::Point);
                 }
             }
         }
@@ -317,7 +318,7 @@ impl TruckBackend {
                     let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                     if d2 < 36.0 && lz < best_z {
                         best_z = lz;
-                        result = Some(HitObject::Line(i));
+                        result = Some(HitObject::Line);
                     }
                 }
             }
