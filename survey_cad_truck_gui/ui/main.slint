@@ -523,10 +523,9 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_to_grid;
     in-out property <bool> snap_to_entities;
     in-out property <bool> show_point_numbers;
+    in-out property <bool> snap_points;
     in-out property <bool> snap_endpoints;
-    in-out property <bool> snap_midpoints;
     in-out property <bool> snap_intersections;
-    in-out property <bool> snap_nearest;
     in-out property <float> zoom_level;
 
     callback key_pressed(string);
@@ -568,10 +567,9 @@ export component MainWindow inherits Window {
     callback point_numbers_changed(bool);
     callback snap_grid_changed(bool);
     callback snap_objects_changed(bool);
+    callback snap_points_changed(bool);
     callback snap_endpoints_changed(bool);
-    callback snap_midpoints_changed(bool);
     callback snap_intersections_changed(bool);
-    callback snap_nearest_changed(bool);
     callback point_manager();
     callback line_style_manager();
     callback layer_manager();
@@ -868,10 +866,9 @@ export component MainWindow inherits Window {
             spacing: 6px;
             CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; toggled => { root.snap_grid_changed(root.snap_to_grid); } }
             CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; toggled => { root.snap_objects_changed(root.snap_to_entities); } }
+            CheckBox { text: "Points"; checked <=> root.snap_points; toggled => { root.snap_points_changed(root.snap_points); } }
             CheckBox { text: "Endpoints"; checked <=> root.snap_endpoints; toggled => { root.snap_endpoints_changed(root.snap_endpoints); } }
-            CheckBox { text: "Midpoints"; checked <=> root.snap_midpoints; toggled => { root.snap_midpoints_changed(root.snap_midpoints); } }
             CheckBox { text: "Intersections"; checked <=> root.snap_intersections; toggled => { root.snap_intersections_changed(root.snap_intersections); } }
-            CheckBox { text: "Nearest"; checked <=> root.snap_nearest; toggled => { root.snap_nearest_changed(root.snap_nearest); } }
             CheckBox {
                 text: "Point Numbers";
                 checked <=> root.show_point_numbers;

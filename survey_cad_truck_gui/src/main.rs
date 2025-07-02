@@ -26,7 +26,7 @@ use survey_cad::styles::{
 };
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
-use survey_cad::snap::{snap_point_with_settings, SnapSettings};
+mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -86,10 +86,9 @@ struct CursorFeedback {
 struct SnapPrefs {
     snap_to_grid: bool,
     snap_to_entities: bool,
+    snap_points: bool,
     snap_endpoints: bool,
-    snap_midpoints: bool,
     snap_intersections: bool,
-    snap_nearest: bool,
 }
 
 impl Default for SnapPrefs {
@@ -97,10 +96,9 @@ impl Default for SnapPrefs {
         Self {
             snap_to_grid: true,
             snap_to_entities: true,
+            snap_points: true,
             snap_endpoints: true,
-            snap_midpoints: true,
             snap_intersections: true,
-            snap_nearest: true,
         }
     }
 }
@@ -295,6 +293,7 @@ struct RenderState<'a> {
     selected_dimensions: &'a Rc<RefCell<Vec<usize>>>,
     drag: &'a Rc<RefCell<DragSelect>>,
     cursor_feedback: &'a Rc<RefCell<Option<CursorFeedback>>>,
+    snap_target: &'a Rc<RefCell<Option<Point>>>,
 }
 
 struct RenderStyles<'a> {
@@ -1108,6 +1107,26 @@ fn render_workspace(
         }
     }
 
+    if let Some(sp) = state.snap_target.borrow().as_ref() {
+        paint.set_color(Color::from_rgba8(255, 0, 0, 255));
+        let r = 3.0;
+        let (sx, sy) = (tx(sp.x as f32), ty(sp.y as f32));
+        let mut pb = PathBuilder::new();
+        pb.move_to(sx - r, sy);
+        pb.line_to(sx + r, sy);
+        pb.move_to(sx, sy - r);
+        pb.line_to(sx, sy + r);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(
+                &path,
+                &paint,
+                &Stroke { width: 1.0, ..Stroke::default() },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+
     if state.drag.borrow().active {
         let ds = state.drag.borrow();
         let x1 = ds.start.0.min(ds.end.0);
@@ -1403,9 +1422,8 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_snap_to_grid(p.snap_to_grid);
         app.set_snap_to_entities(p.snap_to_entities);
         app.set_snap_endpoints(p.snap_endpoints);
-        app.set_snap_midpoints(p.snap_midpoints);
+        app.set_snap_points(p.snap_points);
         app.set_snap_intersections(p.snap_intersections);
-        app.set_snap_nearest(p.snap_nearest);
     }
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
@@ -1450,6 +1468,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let selected_dimensions = Rc::new(RefCell::new(Vec::<usize>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
     let cursor_feedback = Rc::new(RefCell::new(None));
+    let snap_target = Rc::new(RefCell::new(None::<Point>));
     let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
     let last_click = Rc::new(RefCell::new(None));
     let selected_surface = Rc::new(RefCell::new(None::<usize>));
@@ -1574,6 +1593,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_styles_vals = line_style_values.clone();
         let line_style_indices = line_style_indices.clone();
         let cursor_feedback = cursor_feedback.clone();
+        let snap_target = snap_target.clone();
         let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
         let point_label_style = point_label_style.clone();
@@ -1606,6 +1626,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     selected_dimensions: &selected_dimensions,
                     drag: &drag_select,
                     cursor_feedback: &cursor_feedback,
+                    snap_target: &snap_target,
                 },
                 &RenderStyles {
                     point_styles: &point_styles,
@@ -2048,14 +2069,6 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let prefs = snap_prefs.clone();
-        app.on_snap_midpoints_changed(move |val| {
-            prefs.borrow_mut().snap_midpoints = val;
-            save_snap_prefs(&prefs.borrow());
-        });
-    }
-
-    {
-        let prefs = snap_prefs.clone();
         app.on_snap_intersections_changed(move |val| {
             prefs.borrow_mut().snap_intersections = val;
             save_snap_prefs(&prefs.borrow());
@@ -2064,8 +2077,8 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let prefs = snap_prefs.clone();
-        app.on_snap_nearest_changed(move |val| {
-            prefs.borrow_mut().snap_nearest = val;
+        app.on_snap_points_changed(move |val| {
+            prefs.borrow_mut().snap_points = val;
             save_snap_prefs(&prefs.borrow());
         });
     }
@@ -2178,6 +2191,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let macro_playing = macro_playing.clone();
         let macro_recorder = macro_recorder.clone();
+        let snap_target = snap_target.clone();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if ev.button == PointerEventButton::Left {
@@ -2193,51 +2207,31 @@ fn main() -> Result<(), slint::PlatformError> {
                         );
                         let zoom_factor = *zoom.borrow();
                         if app.get_snap_to_entities() {
-                            let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
-                            for pt in point_db.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Point {
-                                    point: *pt,
-                                    layer: None,
-                                });
-                            }
-                            for (s, e) in lines_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Line {
-                                    line: Line::new(*s, *e),
-                                    layer: None,
-                                });
-                            }
-                            for poly in polygons_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Polyline {
-                                    polyline: Polyline::new(poly.clone()),
-                                    layer: None,
-                                });
-                            }
-                            for pl in polylines.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Polyline {
-                                    polyline: pl.clone(),
-                                    layer: None,
-                                });
-                            }
-                            for arc in arcs_ref.borrow().iter() {
-                                ents.push(survey_cad::io::DxfEntity::Arc {
-                                    arc: *arc,
-                                    layer: None,
-                                });
-                            }
-                            let settings = SnapSettings {
-                                endpoints: app.get_snap_endpoints(),
-                                midpoints: app.get_snap_midpoints(),
-                                intersections: app.get_snap_intersections(),
-                                nearest: app.get_snap_nearest(),
+                            let scene = snap::Scene {
+                                points: &point_db.borrow(),
+                                lines: &lines_ref.borrow(),
+                                polygons: &polygons_ref.borrow(),
+                                polylines: &polylines.borrow(),
+                                arcs: &arcs_ref.borrow(),
                             };
-                            if let Some(sp) = snap_point_with_settings(
+                            let opts = snap::SnapOptions {
+                                snap_points: app.get_snap_points(),
+                                snap_endpoints: app.get_snap_endpoints(),
+                                snap_intersections: app.get_snap_intersections(),
+                            };
+                            if let Some(sp) = snap::resolve_snap(
                                 p,
-                                &ents,
+                                &scene,
                                 5.0 / (zoom_factor as f64),
-                                settings,
+                                opts,
                             ) {
+                                *snap_target.borrow_mut() = Some(sp);
                                 p = sp;
+                            } else {
+                                *snap_target.borrow_mut() = None;
                             }
+                        } else {
+                            *snap_target.borrow_mut() = None;
                         }
                         if app.get_snap_to_grid() {
                             p.x = p.x.round();
@@ -2545,6 +2539,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs_ref = arcs.clone();
         let current_line = current_line.clone();
+        let snap_target = snap_target.clone();
         let weak = app.as_weak();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
@@ -2607,51 +2602,31 @@ fn main() -> Result<(), slint::PlatformError> {
                     );
                     let zoom_factor = *zoom.borrow();
                     if app.get_snap_to_entities() {
-                        let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
-                        for pt in point_db.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Point {
-                                point: *pt,
-                                layer: None,
-                            });
-                        }
-                        for (s, e) in lines_ref.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Line {
-                                line: Line::new(*s, *e),
-                                layer: None,
-                            });
-                        }
-                        for poly in polygons_ref.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline {
-                                polyline: Polyline::new(poly.clone()),
-                                layer: None,
-                            });
-                        }
-                        for pl in polylines.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline {
-                                polyline: pl.clone(),
-                                layer: None,
-                            });
-                        }
-                        for arc in arcs_ref.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Arc {
-                                arc: *arc,
-                                layer: None,
-                            });
-                        }
-                        let settings = SnapSettings {
-                            endpoints: app.get_snap_endpoints(),
-                            midpoints: app.get_snap_midpoints(),
-                            intersections: app.get_snap_intersections(),
-                            nearest: app.get_snap_nearest(),
+                        let scene = snap::Scene {
+                            points: &point_db.borrow(),
+                            lines: &lines_ref.borrow(),
+                            polygons: &polygons_ref.borrow(),
+                            polylines: &polylines.borrow(),
+                            arcs: &arcs_ref.borrow(),
                         };
-                        if let Some(sp) = snap_point_with_settings(
+                        let opts = snap::SnapOptions {
+                            snap_points: app.get_snap_points(),
+                            snap_endpoints: app.get_snap_endpoints(),
+                            snap_intersections: app.get_snap_intersections(),
+                        };
+                        if let Some(sp) = snap::resolve_snap(
                             p,
-                            &ents,
+                            &scene,
                             5.0 / (zoom_factor as f64),
-                            settings,
+                            opts,
                         ) {
+                            *snap_target.borrow_mut() = Some(sp);
                             p = sp;
+                        } else {
+                            *snap_target.borrow_mut() = None;
                         }
+                    } else {
+                        *snap_target.borrow_mut() = None;
                     }
                     if app.get_snap_to_grid() {
                         p.x = p.x.round();
@@ -5841,11 +5816,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let macro_playing = macro_playing.clone();
         let macro_recorder = macro_recorder.clone();
+        let snap_target = snap_target.clone();
         app.on_workspace_clicked(move |x, y| {
             if *drawing_mode.borrow() != DrawingMode::None {
                 if let Some(app) = weak.upgrade() {
                     let size = app.window().size();
-                    let p = screen_to_workspace(
+                    let mut p = screen_to_workspace(
                         x,
                         y,
                         &offset_ref,
@@ -5853,6 +5829,38 @@ fn main() -> Result<(), slint::PlatformError> {
                         size.width as f32,
                         size.height as f32,
                     );
+                    let zoom_factor = *zoom_ref.borrow();
+                    if app.get_snap_to_entities() {
+                        let scene = snap::Scene {
+                            points: &point_db.borrow(),
+                            lines: &lines_ref.borrow(),
+                            polygons: &polygons_ref.borrow(),
+                            polylines: &polylines.borrow(),
+                            arcs: &arcs_ref.borrow(),
+                        };
+                        let opts = snap::SnapOptions {
+                            snap_points: app.get_snap_points(),
+                            snap_endpoints: app.get_snap_endpoints(),
+                            snap_intersections: app.get_snap_intersections(),
+                        };
+                        if let Some(sp) = snap::resolve_snap(
+                            p,
+                            &scene,
+                            5.0 / (zoom_factor as f64),
+                            opts,
+                        ) {
+                            *snap_target.borrow_mut() = Some(sp);
+                            p = sp;
+                        } else {
+                            *snap_target.borrow_mut() = None;
+                        }
+                    } else {
+                        *snap_target.borrow_mut() = None;
+                    }
+                    if app.get_snap_to_grid() {
+                        p.x = p.x.round();
+                        p.y = p.y.round();
+                    }
                     let mut mode = drawing_mode.borrow_mut();
                     match &mut *mode {
                         DrawingMode::Line { start: Some(s) } => {
@@ -5935,51 +5943,31 @@ fn main() -> Result<(), slint::PlatformError> {
                     );
                     let zoom_factor = *zoom_ref.borrow();
                     if app.get_snap_to_entities() {
-                        let mut ents: Vec<survey_cad::io::DxfEntity> = Vec::new();
-                        for pt in point_db.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Point {
-                                point: *pt,
-                                layer: None,
-                            });
-                        }
-                        for (s, e) in lines.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Line {
-                                line: Line::new(*s, *e),
-                                layer: None,
-                            });
-                        }
-                        for poly in polygons.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline {
-                                polyline: Polyline::new(poly.clone()),
-                                layer: None,
-                            });
-                        }
-                        for pl in polylines.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Polyline {
-                                polyline: pl.clone(),
-                                layer: None,
-                            });
-                        }
-                        for arc in arcs.borrow().iter() {
-                            ents.push(survey_cad::io::DxfEntity::Arc {
-                                arc: *arc,
-                                layer: None,
-                            });
-                        }
-                        let settings = SnapSettings {
-                            endpoints: app.get_snap_endpoints(),
-                            midpoints: app.get_snap_midpoints(),
-                            intersections: app.get_snap_intersections(),
-                            nearest: app.get_snap_nearest(),
+                        let scene = snap::Scene {
+                            points: &point_db.borrow(),
+                            lines: &lines.borrow(),
+                            polygons: &polygons.borrow(),
+                            polylines: &polylines.borrow(),
+                            arcs: &arcs.borrow(),
                         };
-                        if let Some(sp) = snap_point_with_settings(
+                        let opts = snap::SnapOptions {
+                            snap_points: app.get_snap_points(),
+                            snap_endpoints: app.get_snap_endpoints(),
+                            snap_intersections: app.get_snap_intersections(),
+                        };
+                        if let Some(sp) = snap::resolve_snap(
                             p,
-                            &ents,
+                            &scene,
                             5.0 / (zoom_factor as f64),
-                            settings,
+                            opts,
                         ) {
+                            *snap_target.borrow_mut() = Some(sp);
                             p = sp;
+                        } else {
+                            *snap_target.borrow_mut() = None;
                         }
+                    } else {
+                        *snap_target.borrow_mut() = None;
                     }
                     if app.get_snap_to_grid() {
                         p.x = p.x.round();
