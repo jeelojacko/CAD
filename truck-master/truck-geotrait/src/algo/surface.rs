@@ -248,24 +248,30 @@ where
             if *ub && *vb {
                 continue;
             }
-            let (u_gen, v_gen) = ((u[0] + u[1]) / 2.0, (v[0] + v[1]) / 2.0);
-            let gen = surface.subs(u_gen, v_gen);
-            let p = 0.5 + (0.2 * HashGen::hash1(gen) - 0.1);
-            let q = 0.5 + (0.2 * HashGen::hash1(gen) - 0.1);
-            let u0 = u[0] * (1.0 - p) + u[1] * p;
-            let v0 = v[0] * (1.0 - q) + v[1] * q;
-            let p0 = surface.subs(u0, v0);
-            let pt00 = surface.subs(u[0], v[0]);
-            let pt01 = surface.subs(u[0], v[1]);
-            let pt10 = surface.subs(u[1], v[0]);
-            let pt11 = surface.subs(u[1], v[1]);
-            let pt = S::Point::from_vec(
-                pt00.to_vec() * (1.0 - p) * (1.0 - q)
-                    + pt01.to_vec() * (1.0 - p) * q
-                    + pt10.to_vec() * p * (1.0 - q)
-                    + pt11.to_vec() * p * q,
-            );
-            let far = p0.distance2(pt) > tol * tol;
+            let far = {
+                let corners = [
+                    (1.0 / 3.0, 1.0 / 3.0),
+                    (2.0 / 3.0, 1.0 / 3.0),
+                    (1.0 / 3.0, 2.0 / 3.0),
+                    (2.0 / 3.0, 2.0 / 3.0),
+                ];
+                let pt00 = surface.subs(u[0], v[0]);
+                let pt01 = surface.subs(u[0], v[1]);
+                let pt10 = surface.subs(u[1], v[0]);
+                let pt11 = surface.subs(u[1], v[1]);
+                corners.iter().any(|&(p, q)| {
+                    let u0 = u[0] * (1.0 - p) + u[1] * p;
+                    let v0 = v[0] * (1.0 - q) + v[1] * q;
+                    let p0 = surface.subs(u0, v0);
+                    let pt = S::Point::from_vec(
+                        pt00.to_vec() * (1.0 - p) * (1.0 - q)
+                            + pt01.to_vec() * (1.0 - p) * q
+                            + pt10.to_vec() * p * (1.0 - q)
+                            + pt11.to_vec() * p * q,
+                    );
+                    p0.distance2(pt) > tol * tol
+                })
+            };
 
             *ub = *ub || far;
             *vb = *vb || far;
