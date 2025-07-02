@@ -248,14 +248,20 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
         Command::RemoveDimension { index, dim } => {
             ctx.backend.borrow_mut().remove_dimension(*index);
             ctx.dimensions.borrow_mut().remove(*index);
-            Command::AddDimension { index: *index, dim: *dim }
+            Command::AddDimension {
+                index: *index,
+                dim: dim.clone(),
+            }
         }
         Command::AddDimension { index, dim } => {
-            ctx.dimensions.borrow_mut().insert(*index, *dim);
+            ctx.dimensions.borrow_mut().insert(*index, dim.clone());
             ctx.backend
                 .borrow_mut()
                 .add_dimension([dim.start.x, dim.start.y, 0.0], [dim.end.x, dim.end.y, 0.0]);
-            Command::RemoveDimension { index: *index, dim: *dim }
+            Command::RemoveDimension {
+                index: *index,
+                dim: dim.clone(),
+            }
         }
         Command::TinDeleteVertex { surface, index, point } => {
             ctx.backend.borrow_mut().delete_vertex(*surface, *index);
@@ -1561,6 +1567,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_polygons = selected_polygons.clone();
         let selected_polylines = selected_polylines.clone();
         let selected_arcs = selected_arcs.clone();
+        let dimensions = dimensions.clone();
+        let selected_dimensions = selected_dimensions.clone();
         let style_indices = point_style_indices.clone();
         let point_styles = point_style_values.clone();
         let line_styles_vals = line_style_values.clone();
@@ -1905,6 +1913,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let backend = backend.clone();
         let render_image = render_image.clone();
+        let dimensions = dimensions.clone();
         let weak = app.as_weak();
         app.on_undo(move || {
             let ctx = Context {
@@ -1930,6 +1939,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_indices = line_style_indices.clone();
         let backend = backend.clone();
         let render_image = render_image.clone();
+        let dimensions = dimensions.clone();
         let weak = app.as_weak();
         app.on_redo(move || {
             let ctx = Context {
@@ -2071,6 +2081,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let backend = backend.clone();
         let command_stack = command_stack.clone();
+        let dimensions = dimensions.clone();
         app.on_key_pressed(move |key| {
             if key.as_str() == "\u{001a}" {
                 let ctx = Context {
@@ -2392,6 +2403,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let click_pos = click_pos_3d.clone();
         let selected_surface_ref = selected_surface.clone();
         let backend_inner = backend.clone();
+        let dimensions = dimensions.clone();
+        let selected_dimensions = selected_dimensions.clone();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
@@ -2709,6 +2722,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_polylines = selected_polylines.clone();
         let selected_arcs = selected_arcs.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
+        let dimensions = dimensions.clone();
+        let selected_dimensions = selected_dimensions.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -2748,6 +2763,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let grid_settings = grid_settings.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let dimensions = dimensions.clone();
         app.on_open_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Project", &["json"])
@@ -2831,6 +2847,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let grid_settings = grid_settings.clone();
         let point_styles = point_styles.clone();
         let line_styles = line_styles.clone();
+        let dimensions = dimensions.clone();
         app.on_save_project(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Project", &["json"])
@@ -5914,6 +5931,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let selected_indices = selected_indices.clone();
         let selected_lines = selected_lines.clone();
+        let dimensions = dimensions.clone();
+        let selected_dimensions = selected_dimensions.clone();
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         let backend_render = backend.clone();
         app.on_clear_workspace(move || {
