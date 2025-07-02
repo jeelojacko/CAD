@@ -537,6 +537,7 @@ export component MainWindow inherits Window {
     callback draw_line_mode();
     callback draw_polygon_mode();
     callback draw_arc_mode();
+    callback draw_dimension_mode();
 
     callback workspace_clicked(length, length);
     callback workspace_mouse_moved(length, length);
@@ -660,6 +661,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Line Mode"; activated => { root.draw_line_mode(); } }
             MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); } }
             MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); } }
+            MenuItem { title: "Dimension Mode"; activated => { root.draw_dimension_mode(); } }
             MenuItem { title: "Move Entities"; activated => { root.move_entity(); } }
             MenuItem { title: "Rotate Entities"; activated => { root.rotate_entity(); } }
             MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
@@ -773,6 +775,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Arc Mode";
                 clicked => { root.draw_arc_mode(); }
+            }
+        Button {
+                text: "Dimension Mode";
+                clicked => { root.draw_dimension_mode(); }
             }
         Button {
                 text: "Move";

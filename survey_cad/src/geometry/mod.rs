@@ -4,11 +4,13 @@ pub mod line;
 pub mod line3;
 pub mod point;
 pub mod point3;
+pub mod dimension;
 
 pub use line::{Line, LineAnnotation, LineType, LineStyle};
 pub use line3::Line3;
 pub use point::{NamedPoint, Point, PointSymbol};
 pub use point3::Point3;
+pub use dimension::{LinearDimension, LinearDimension3};
 
 /// Calculates the Euclidean distance between two points.
 pub fn distance(a: Point, b: Point) -> f64 {

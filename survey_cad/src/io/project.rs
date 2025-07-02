@@ -28,6 +28,8 @@ pub struct Project {
     pub polygons: Vec<Vec<Point>>,
     pub polylines: Vec<Polyline>,
     pub arcs: Vec<Arc>,
+    #[serde(default)]
+    pub dimensions: Vec<crate::geometry::LinearDimension>,
     pub surfaces: Vec<Tin>,
     pub layers: Vec<Layer>,
     pub point_style_indices: Vec<usize>,
@@ -44,6 +46,7 @@ impl Project {
             polygons: Vec::new(),
             polylines: Vec::new(),
             arcs: Vec::new(),
+            dimensions: Vec::new(),
             surfaces: Vec::new(),
             layers: Vec::new(),
             point_style_indices: Vec::new(),
