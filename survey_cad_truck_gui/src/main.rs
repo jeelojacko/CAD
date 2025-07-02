@@ -2,7 +2,7 @@
 
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
-use slint::{Image, Model, SharedString, VecModel};
+use slint::{Image, Model, SharedString, VecModel, PhysicalSize};
 use std::io::Write;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -29,7 +29,8 @@ use survey_cad::superelevation::SuperelevationPoint;
 mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use dirs;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -103,18 +104,60 @@ impl Default for SnapPrefs {
     }
 }
 
-fn load_snap_prefs() -> SnapPrefs {
-    if let Ok(data) = fs::read_to_string("snap_prefs.json") {
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        SnapPrefs::default()
+#[derive(Serialize, Deserialize, Clone)]
+struct Config {
+    window_width: u32,
+    window_height: u32,
+    last_open_dir: Option<String>,
+    snap: SnapPrefs,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            window_width: 800,
+            window_height: 600,
+            last_open_dir: None,
+            snap: SnapPrefs::default(),
+        }
     }
 }
 
-fn save_snap_prefs(p: &SnapPrefs) {
-    if let Ok(json) = serde_json::to_string_pretty(p) {
-        let _ = fs::write("snap_prefs.json", json);
+fn config_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|p| p.join("survey_cad_truck_gui").join("config.json"))
+}
+
+fn load_config() -> Config {
+    if let Some(path) = config_path() {
+        if let Ok(data) = fs::read_to_string(path) {
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            Config::default()
+        }
+    } else {
+        Config::default()
     }
+}
+
+fn save_config(cfg: &Config) {
+    if let Some(path) = config_path() {
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Ok(json) = serde_json::to_string_pretty(cfg) {
+            let _ = fs::write(path, json);
+        }
+    }
+}
+
+fn load_snap_prefs() -> SnapPrefs {
+    load_config().snap
+}
+
+fn save_snap_prefs(p: &SnapPrefs) {
+    let mut cfg = load_config();
+    cfg.snap = p.clone();
+    save_config(&cfg);
 }
 
 #[derive(Default, Clone, PartialEq)]
@@ -1408,7 +1451,12 @@ fn show_inspector_for_point(
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    let backend = Rc::new(RefCell::new(TruckBackend::new(640, 480)));
+    let cfg = load_config();
+    let config = Rc::new(RefCell::new(cfg));
+    let backend = Rc::new(RefCell::new(TruckBackend::new(
+        config.borrow().window_width,
+        config.borrow().window_height,
+    )));
     // Always populate the font database with the system fonts first so that the
     // embedded font can complement, rather than replace, them. This ensures
     // that built-in controls can resolve their default fonts while we still
@@ -1416,7 +1464,12 @@ fn main() -> Result<(), slint::PlatformError> {
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
     sharedfontdb::register_font_from_memory(FONT_DATA).expect("failed to register embedded font");
     let app = MainWindow::new()?;
-    let snap_prefs = Rc::new(RefCell::new(load_snap_prefs()));
+    app.window().set_size(PhysicalSize::new(
+        config.borrow().window_width,
+        config.borrow().window_height,
+    ));
+
+    let snap_prefs = Rc::new(RefCell::new(config.borrow().snap.clone()));
     {
         let p = snap_prefs.borrow();
         app.set_snap_to_grid(p.snap_to_grid);
@@ -1425,6 +1478,7 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_snap_points(p.snap_points);
         app.set_snap_intersections(p.snap_intersections);
     }
+    let last_folder = Rc::new(RefCell::new(config.borrow().last_open_dir.clone()));
     let window_size = Rc::new(RefCell::new(app.window().size()));
 
     // example data so the 2D workspace has something to draw
@@ -1699,8 +1753,20 @@ fn main() -> Result<(), slint::PlatformError> {
 
         use slint::CloseRequestResponse;
         let timer_handle = timer.clone();
+        let cfg = config.clone();
+        let snap = snap_prefs.clone();
+        let win = window_size.clone();
+        let last_dir = last_folder.clone();
         app.window().on_close_requested(move || {
             timer_handle.stop();
+            {
+                let mut c = cfg.borrow_mut();
+                c.window_width = win.borrow().width;
+                c.window_height = win.borrow().height;
+                c.last_open_dir = last_dir.borrow().clone();
+                c.snap = snap.borrow().clone();
+                save_config(&c);
+            }
             CloseRequestResponse::HideWindow
         });
     }
@@ -2045,41 +2111,51 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let prefs = snap_prefs.clone();
+        let cfg = config.clone();
         app.on_snap_grid_changed(move |val| {
             prefs.borrow_mut().snap_to_grid = val;
-            save_snap_prefs(&prefs.borrow());
+            cfg.borrow_mut().snap.snap_to_grid = val;
+            save_config(&cfg.borrow());
         });
     }
 
     {
         let prefs = snap_prefs.clone();
+        let cfg = config.clone();
         app.on_snap_objects_changed(move |val| {
             prefs.borrow_mut().snap_to_entities = val;
-            save_snap_prefs(&prefs.borrow());
+            cfg.borrow_mut().snap.snap_to_entities = val;
+            save_config(&cfg.borrow());
         });
     }
 
     {
         let prefs = snap_prefs.clone();
+        let cfg = config.clone();
         app.on_snap_endpoints_changed(move |val| {
             prefs.borrow_mut().snap_endpoints = val;
-            save_snap_prefs(&prefs.borrow());
+            cfg.borrow_mut().snap.snap_endpoints = val;
+            save_config(&cfg.borrow());
         });
     }
 
     {
         let prefs = snap_prefs.clone();
+        let cfg = config.clone();
         app.on_snap_intersections_changed(move |val| {
             prefs.borrow_mut().snap_intersections = val;
-            save_snap_prefs(&prefs.borrow());
+            cfg.borrow_mut().snap.snap_intersections = val;
+            save_config(&cfg.borrow());
         });
     }
 
     {
         let prefs = snap_prefs.clone();
+        let cfg = config.clone();
         app.on_snap_points_changed(move |val| {
             prefs.borrow_mut().snap_points = val;
-            save_snap_prefs(&prefs.borrow());
+            cfg.borrow_mut().snap.snap_points = val;
+            save_config(&cfg.borrow());
         });
     }
 
@@ -2739,11 +2815,17 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         let dimensions = dimensions.clone();
+        let last_dir = last_folder.clone();
+        let config_rc = config.clone();
         app.on_open_project(move || {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("Project", &["json"])
-                .pick_file()
-            {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(dir) = last_dir.borrow().as_ref() {
+                dialog = dialog.set_directory(dir);
+            }
+            if let Some(path) = dialog.add_filter("Project", &["json"]).pick_file() {
+                *last_dir.borrow_mut() = path.parent().map(|p| p.to_string_lossy().to_string());
+                config_rc.borrow_mut().last_open_dir = last_dir.borrow().clone();
+                save_config(&config_rc.borrow());
                 if let Some(p) = path.to_str() {
                     match read_project_json(p) {
                         Ok(proj) => {
@@ -2823,11 +2905,17 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_styles = point_styles.clone();
         let line_styles = line_styles.clone();
         let dimensions = dimensions.clone();
+        let last_dir = last_folder.clone();
+        let config_rc = config.clone();
         app.on_save_project(move || {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("Project", &["json"])
-                .save_file()
-            {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(dir) = last_dir.borrow().as_ref() {
+                dialog = dialog.set_directory(dir);
+            }
+            if let Some(path) = dialog.add_filter("Project", &["json"]).save_file() {
+                *last_dir.borrow_mut() = path.parent().map(|p| p.to_string_lossy().to_string());
+                config_rc.borrow_mut().last_open_dir = last_dir.borrow().clone();
+                save_config(&config_rc.borrow());
                 if let Some(p) = path.to_str() {
                     let proj = Project {
                         points: point_db.borrow().points().to_vec(),
