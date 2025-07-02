@@ -30,7 +30,6 @@ mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use dirs;
 use truck_modeling::base::Point3;
 
 mod truck_backend;
@@ -150,15 +149,6 @@ fn save_config(cfg: &Config) {
     }
 }
 
-fn load_snap_prefs() -> SnapPrefs {
-    load_config().snap
-}
-
-fn save_snap_prefs(p: &SnapPrefs) {
-    let mut cfg = load_config();
-    cfg.snap = p.clone();
-    save_config(&cfg);
-}
 
 #[derive(Default, Clone, PartialEq)]
 enum DrawingMode {
