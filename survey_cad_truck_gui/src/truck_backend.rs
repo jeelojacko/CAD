@@ -18,9 +18,11 @@ pub struct TruckBackend {
     engine: TruckCadEngine,
     point_ids: Vec<Option<usize>>,
     line_ids: Vec<Option<usize>>,
+    dimension_ids: Vec<Option<usize>>,
     surface_ids: Vec<Option<usize>>,
     points: Vec<Point3>,
     lines: Vec<(Point3, Point3)>,
+    dimensions: Vec<(Point3, Point3)>,
     surfaces: Vec<SurfaceData>,
     handles: Option<(usize, Vec<usize>)>,
 }
@@ -33,9 +35,11 @@ impl TruckBackend {
             engine,
             point_ids: Vec::new(),
             line_ids: Vec::new(),
+            dimension_ids: Vec::new(),
             surface_ids: Vec::new(),
             points: Vec::new(),
             lines: Vec::new(),
+            dimensions: Vec::new(),
             surfaces: Vec::new(),
             handles: None,
         }
@@ -124,6 +128,31 @@ impl TruckBackend {
             }
             if idx < self.lines.len() {
                 self.lines.remove(idx);
+            }
+        }
+    }
+
+    /// Add a dimension represented as a simple line between two points.
+    pub fn add_dimension(&mut self, a: [f64; 3], b: [f64; 3]) -> usize {
+        let id = self
+            .engine
+            .add_line(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
+        self.dimension_ids.push(Some(id));
+        self.dimensions.push((
+            Point3::new(a[0], a[1], a[2]),
+            Point3::new(b[0], b[1], b[2]),
+        ));
+        self.dimension_ids.len() - 1
+    }
+
+    /// Remove an existing dimension.
+    pub fn remove_dimension(&mut self, idx: usize) {
+        if idx < self.dimension_ids.len() {
+            if let Some(id) = self.dimension_ids.remove(idx) {
+                self.engine.remove_line(id);
+            }
+            if idx < self.dimensions.len() {
+                self.dimensions.remove(idx);
             }
         }
     }
@@ -217,11 +246,15 @@ impl TruckBackend {
         for _ in 0..self.line_ids.len() {
             self.remove_line(0);
         }
+        for _ in 0..self.dimension_ids.len() {
+            self.remove_dimension(0);
+        }
         for _ in 0..self.surface_ids.len() {
             self.remove_surface(0);
         }
         self.points.clear();
         self.lines.clear();
+        self.dimensions.clear();
         self.surfaces.clear();
         if let Some((_, handles)) = self.handles.take() {
             for id in handles {

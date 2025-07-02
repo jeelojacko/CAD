@@ -15,7 +15,7 @@ use survey_cad::dtm::Tin;
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
     Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
-    convex_hull, Point3 as ScPoint3,
+    convex_hull, Point3 as ScPoint3, LinearDimension,
 };
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::io::project::{read_project_json, write_project_json, Project, GridSettings};
@@ -58,8 +58,10 @@ struct WorkspaceRenderData<'a> {
     polygons: &'a [Vec<Point>],
     polylines: &'a [Polyline],
     arcs: &'a [Arc],
+    dimensions: &'a [LinearDimension],
     surfaces: &'a [Tin],
     alignments: &'a [HorizontalAlignment],
+    dimensions: &'a [LinearDimension],
 }
 
 #[derive(Default, Clone)]
@@ -145,6 +147,7 @@ enum DrawingMode {
         end: Option<Point>,
         radius: Option<f64>,
     },
+    Dimension { start: Option<Point> },
 }
 
 #[derive(Clone)]
@@ -153,6 +156,8 @@ enum Command {
     AddPoint { index: usize, point: Point },
     RemoveLine { index: usize, line: (Point, Point) },
     AddLine { index: usize, line: (Point, Point) },
+    RemoveDimension { index: usize, dim: LinearDimension },
+    AddDimension { index: usize, dim: LinearDimension },
     TinDeleteVertex { surface: usize, index: usize, point: Point3 },
     TinAddVertex { surface: usize, index: usize, point: Point3 },
 }
@@ -206,6 +211,7 @@ struct Context<'a> {
     point_styles: &'a Rc<RefCell<Vec<usize>>>,
     lines: &'a Rc<RefCell<Vec<(Point, Point)>>>,
     line_styles: &'a Rc<RefCell<Vec<usize>>>,
+    dimensions: &'a Rc<RefCell<Vec<LinearDimension>>>,
     backend: &'a Rc<RefCell<TruckBackend>>,
 }
 
@@ -240,6 +246,18 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
             );
             Command::RemoveLine { index: *index, line: *line }
         }
+        Command::RemoveDimension { index, dim } => {
+            ctx.backend.borrow_mut().remove_dimension(*index);
+            ctx.dimensions.borrow_mut().remove(*index);
+            Command::AddDimension { index: *index, dim: *dim }
+        }
+        Command::AddDimension { index, dim } => {
+            ctx.dimensions.borrow_mut().insert(*index, *dim);
+            ctx.backend
+                .borrow_mut()
+                .add_dimension([dim.start.x, dim.start.y, 0.0], [dim.end.x, dim.end.y, 0.0]);
+            Command::RemoveDimension { index: *index, dim: *dim }
+        }
         Command::TinDeleteVertex { surface, index, point } => {
             ctx.backend.borrow_mut().delete_vertex(*surface, *index);
             Command::TinAddVertex {
@@ -269,6 +287,7 @@ struct RenderState<'a> {
     selected_polygons: &'a Rc<RefCell<Vec<usize>>>,
     selected_polylines: &'a Rc<RefCell<Vec<usize>>>,
     selected_arcs: &'a Rc<RefCell<Vec<usize>>>,
+    selected_dimensions: &'a Rc<RefCell<Vec<usize>>>,
     drag: &'a Rc<RefCell<DragSelect>>,
     cursor_feedback: &'a Rc<RefCell<Option<CursorFeedback>>>,
 }
@@ -682,6 +701,34 @@ fn render_workspace(
         }
     }
 
+    paint.set_color(Color::from_rgba8(200, 200, 0, 255));
+    for (i, dim) in data.dimensions.iter().enumerate() {
+        let selected = state.selected_dimensions.borrow().contains(&i);
+        if selected {
+            paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+        } else {
+            paint.set_color(Color::from_rgba8(200, 200, 0, 255));
+        }
+        let mut pb = PathBuilder::new();
+        pb.move_to(tx(dim.start.x as f32), ty(dim.start.y as f32));
+        pb.line_to(tx(dim.end.x as f32), ty(dim.end.y as f32));
+        if let Some(path) = pb.finish() {
+            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+        let line = Line::new(dim.start, dim.end);
+        let mid = line.midpoint();
+        let text = if let Some(t) = &dim.text { t.clone() } else { format!("{:.2}", line.length()) };
+        draw_text(
+            &mut pixmap,
+            &text,
+            tx(mid.x as f32),
+            ty(mid.y as f32 - 10.0),
+            Color::from_rgba8(255, 255, 255, 255),
+            12.0,
+        );
+    }
+
     paint.set_color(Color::from_rgba8(128, 128, 128, 255));
     for tin in data.surfaces {
         for tri in &tin.triangles {
@@ -877,6 +924,20 @@ fn render_workspace(
                             width: 1.0,
                             ..Stroke::default()
                         },
+                        Transform::identity(),
+                        None,
+                    );
+                }
+            }
+            DrawingMode::Dimension { start: Some(s) } => {
+                let mut pb = PathBuilder::new();
+                pb.move_to(tx(s.x as f32), ty(s.y as f32));
+                pb.line_to(tx(wp.x as f32), ty(wp.y as f32));
+                if let Some(path) = pb.finish() {
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &Stroke { width: 1.0, ..Stroke::default() },
                         Transform::identity(),
                         None,
                     );
@@ -1350,6 +1411,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let polygons = Rc::new(RefCell::new(Vec::<Vec<Point>>::new()));
     let polylines = Rc::new(RefCell::new(Vec::<Polyline>::new()));
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
+    let dimensions = Rc::new(RefCell::new(Vec::<LinearDimension>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
     let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
     let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
@@ -1380,6 +1442,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let selected_polygons = Rc::new(RefCell::new(Vec::<usize>::new()));
     let selected_polylines = Rc::new(RefCell::new(Vec::<usize>::new()));
     let selected_arcs = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let selected_dimensions = Rc::new(RefCell::new(Vec::<usize>::new()));
     let drag_select = Rc::new(RefCell::new(DragSelect::default()));
     let cursor_feedback = Rc::new(RefCell::new(None));
     let drawing_mode = Rc::new(RefCell::new(DrawingMode::None));
@@ -1521,6 +1584,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     polygons: &polygons.borrow(),
                     polylines: &polylines.borrow(),
                     arcs: &arcs.borrow(),
+                    dimensions: &dimensions.borrow(),
                     surfaces: &surfaces.borrow(),
                     alignments: &alignments.borrow(),
                 },
@@ -1532,6 +1596,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     selected_polygons: &selected_polygons,
                     selected_polylines: &selected_polylines,
                     selected_arcs: &selected_arcs,
+                    selected_dimensions: &selected_dimensions,
                     drag: &drag_select,
                     cursor_feedback: &cursor_feedback,
                 },
@@ -1794,6 +1859,13 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     {
+        let drawing_mode = drawing_mode.clone();
+        app.on_draw_dimension_mode(move || {
+            *drawing_mode.borrow_mut() = DrawingMode::Dimension { start: None };
+        });
+    }
+
+    {
         let weak = app.as_weak();
         let layer_names = layer_names.clone();
         let point_style_names = point_style_names.clone();
@@ -1841,6 +1913,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 point_styles: &point_style_indices,
                 lines: &lines,
                 line_styles: &line_style_indices,
+                dimensions: &dimensions,
                 backend: &backend,
             };
             command_stack.borrow_mut().undo(&ctx);
@@ -1865,6 +1938,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 point_styles: &point_style_indices,
                 lines: &lines,
                 line_styles: &line_style_indices,
+                dimensions: &dimensions,
                 backend: &backend,
             };
             command_stack.borrow_mut().redo(&ctx);
@@ -2005,6 +2079,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     point_styles: &point_style_indices,
                     lines: &lines,
                     line_styles: &line_style_indices,
+                    dimensions: &dimensions,
                     backend: &backend,
                 };
                 command_stack.borrow_mut().undo(&ctx);
@@ -2017,6 +2092,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     point_styles: &point_style_indices,
                     lines: &lines,
                     line_styles: &line_style_indices,
+                    dimensions: &dimensions,
                     backend: &backend,
                 };
                 command_stack.borrow_mut().redo(&ctx);
@@ -2084,6 +2160,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let point_db = point_db.clone();
         let arcs_ref = arcs.clone();
+        let dimensions = dimensions.clone();
         let last_click = last_click.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
@@ -2185,6 +2262,21 @@ fn main() -> Result<(), slint::PlatformError> {
                                     }
                                     *mode = DrawingMode::None;
                                     return;
+                                }
+                            }
+                            DrawingMode::Dimension { start } => {
+                                if start.is_none() {
+                                    *start = Some(p);
+                                } else if let Some(s) = start.take() {
+                                    dimensions.borrow_mut().push(LinearDimension::new(s, p));
+                                    backend_render
+                                        .borrow_mut()
+                                        .add_dimension([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
+                                    command_stack.borrow_mut().push(Command::RemoveDimension {
+                                        index: dimensions.borrow().len() - 1,
+                                        dim: LinearDimension::new(s, p),
+                                    });
+                                    *mode = DrawingMode::None;
                                 }
                             }
                             DrawingMode::Polygon { vertices } => {
@@ -2338,6 +2430,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         selected_polygons.borrow_mut().clear();
                         selected_polylines.borrow_mut().clear();
                         selected_arcs.borrow_mut().clear();
+                        selected_dimensions.borrow_mut().clear();
                         for (i, pt) in point_db.borrow().iter().enumerate() {
                             if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
                                 selected_indices.borrow_mut().push(i);
@@ -2367,6 +2460,15 @@ fn main() -> Result<(), slint::PlatformError> {
                             let max_ay = arc.center.y + arc.radius;
                             if min_ax >= min_x && max_ax <= max_x && min_ay >= min_y && max_ay <= max_y {
                                 selected_arcs.borrow_mut().push(i);
+                            }
+                        }
+                        for (i, dim) in dimensions.borrow().iter().enumerate() {
+                            let min_dx = dim.start.x.min(dim.end.x);
+                            let max_dx = dim.start.x.max(dim.end.x);
+                            let min_dy = dim.start.y.min(dim.end.y);
+                            let max_dy = dim.start.y.max(dim.end.y);
+                            if min_dx >= min_x && max_dx <= max_x && min_dy >= min_y && max_dy <= max_y {
+                                selected_dimensions.borrow_mut().push(i);
                             }
                         }
                         ds.active = false;
@@ -2614,6 +2716,7 @@ fn main() -> Result<(), slint::PlatformError> {
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
+            dimensions.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
@@ -2621,6 +2724,7 @@ fn main() -> Result<(), slint::PlatformError> {
             selected_polygons.borrow_mut().clear();
             selected_polylines.borrow_mut().clear();
             selected_arcs.borrow_mut().clear();
+            selected_dimensions.borrow_mut().clear();
             backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
@@ -2663,6 +2767,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             polylines.borrow_mut().extend(proj.polylines.clone());
                             arcs.borrow_mut().clear();
                             arcs.borrow_mut().extend(proj.arcs.clone());
+                            dimensions.borrow_mut().clear();
+                            dimensions.borrow_mut().extend(proj.dimensions.clone());
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
@@ -2688,6 +2794,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     .map(|p| Point3::new(p.x, p.y, p.z))
                                     .collect();
                                 backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                            }
+                            for dim in dimensions.borrow().iter() {
+                                backend_render.borrow_mut().add_dimension(
+                                    [dim.start.x, dim.start.y, 0.0],
+                                    [dim.end.x, dim.end.y, 0.0],
+                                );
                             }
 
                             if let Some(app) = weak.upgrade() {
@@ -2732,6 +2844,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         polygons: polygons.borrow().clone(),
                         polylines: polylines.borrow().clone(),
                         arcs: arcs.borrow().clone(),
+                        dimensions: dimensions.borrow().clone(),
                         surfaces: surfaces.borrow().clone(),
                         layers: layers_ref.borrow().iter().cloned().collect(),
                         point_style_indices: point_style_indices.borrow().clone(),
@@ -5810,6 +5923,7 @@ fn main() -> Result<(), slint::PlatformError> {
             polygons.borrow_mut().clear();
             polylines.borrow_mut().clear();
             arcs.borrow_mut().clear();
+            dimensions.borrow_mut().clear();
             point_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
             alignments.borrow_mut().clear();
@@ -5818,6 +5932,7 @@ fn main() -> Result<(), slint::PlatformError> {
             selected_polygons.borrow_mut().clear();
             selected_polylines.borrow_mut().clear();
             selected_arcs.borrow_mut().clear();
+            selected_dimensions.borrow_mut().clear();
             backend_render.borrow_mut().clear();
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
