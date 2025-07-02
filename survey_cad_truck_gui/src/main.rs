@@ -283,6 +283,8 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
             ctx.backend.borrow_mut().add_line(
                 [line.0.x, line.0.y, 0.0],
                 [line.1.x, line.1.y, 0.0],
+                [1.0, 1.0, 1.0, 1.0],
+                1.0,
             );
             Command::RemoveLine { index: *index, line: *line }
         }
@@ -298,7 +300,12 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
             ctx.dimensions.borrow_mut().insert(*index, dim.clone());
             ctx.backend
                 .borrow_mut()
-                .add_dimension([dim.start.x, dim.start.y, 0.0], [dim.end.x, dim.end.y, 0.0]);
+                .add_dimension(
+                    [dim.start.x, dim.start.y, 0.0],
+                    [dim.end.x, dim.end.y, 0.0],
+                    [1.0, 1.0, 1.0, 1.0],
+                    1.0,
+                );
             Command::RemoveDimension {
                 index: *index,
                 dim: dim.clone(),
@@ -484,7 +491,9 @@ fn spawn_line(
     spawn_point(points, point_styles, backend, b);
     lines.borrow_mut().push((a, b));
     line_styles.borrow_mut().push(0);
-    backend.borrow_mut().add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0]);
+    backend
+        .borrow_mut()
+        .add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0], [1.0, 1.0, 1.0, 1.0], 1.0);
 }
 
 fn render_workspace(
@@ -2322,7 +2331,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                 lines_ref.borrow_mut().push((s, p));
                                 backend_render
                                     .borrow_mut()
-                                    .add_line([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
+                                    .add_line(
+                                        [s.x, s.y, 0.0],
+                                        [p.x, p.y, 0.0],
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        1.0,
+                                    );
                                 if !macro_playing.borrow().0 {
                                     let sx = s.x;
                                     let sy = s.y;
@@ -2351,7 +2365,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     dimensions.borrow_mut().push(LinearDimension::new(s, p));
                                     backend_render
                                         .borrow_mut()
-                                        .add_dimension([s.x, s.y, 0.0], [p.x, p.y, 0.0]);
+                                        .add_dimension(
+                                            [s.x, s.y, 0.0],
+                                            [p.x, p.y, 0.0],
+                                            [1.0, 1.0, 1.0, 1.0],
+                                            1.0,
+                                        );
                                     command_stack.borrow_mut().push(Command::RemoveDimension {
                                         index: dimensions.borrow().len() - 1,
                                         dim: LinearDimension::new(s, p),
@@ -2871,6 +2890,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 backend_render.borrow_mut().add_dimension(
                                     [dim.start.x, dim.start.y, 0.0],
                                     [dim.end.x, dim.end.y, 0.0],
+                                    [1.0, 1.0, 1.0, 1.0],
+                                    1.0,
                                 );
                             }
 
@@ -2989,7 +3010,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     let (s, e) = l;
                                     backend_render
                                         .borrow_mut()
-                                        .add_line([s.x, s.y, 0.0], [e.x, e.y, 0.0]);
+                                        .add_line(
+                                            [s.x, s.y, 0.0],
+                                            [e.x, e.y, 0.0],
+                                            [1.0, 1.0, 1.0, 1.0],
+                                            1.0,
+                                        );
                                     command_stack.borrow_mut().push(Command::RemoveLine {
                                         index: lines.borrow().len() - 1,
                                         line: (s, e),
@@ -3069,7 +3095,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
                                     backend_render
                                         .borrow_mut()
-                                        .add_line([x1, y1, 0.0], [x2, y2, 0.0]);
+                                        .add_line(
+                                            [x1, y1, 0.0],
+                                            [x2, y2, 0.0],
+                                            [1.0, 1.0, 1.0, 1.0],
+                                            1.0,
+                                        );
                                     if !macro_playing.borrow().0 {
                                         record_macro(
                                             &mut macro_recorder.borrow_mut(),
@@ -3881,6 +3912,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 i,
                                 [line.0.x, line.0.y, 0.0],
                                 [line.1.x, line.1.y, 0.0],
+                                [1.0, 1.0, 1.0, 1.0],
+                                1.0,
                             );
                         }
                     }
@@ -3984,6 +4017,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 i,
                                 [line.0.x, line.0.y, 0.0],
                                 [line.1.x, line.1.y, 0.0],
+                                [1.0, 1.0, 1.0, 1.0],
+                                1.0,
                             );
                         }
                     }
@@ -4083,6 +4118,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 backend_inner.borrow_mut().add_line(
                                     [pair[0].x, pair[0].y, pair[0].z],
                                     [pair[1].x, pair[1].y, pair[1].z],
+                                    [1.0, 1.0, 1.0, 1.0],
+                                    1.0,
                                 );
                             }
                         }
@@ -5464,6 +5501,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let layers_ref = layers.clone();
         let layer_names_ref = layer_names.clone();
         let line_type_model = line_type_names.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        let weak = app.as_weak();
         app.on_layer_manager(move || {
             let dlg = LayerManager::new().unwrap();
             dlg.set_line_types_model(line_type_model.clone().into());
@@ -5483,6 +5523,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                 LineType::Dashed => 1,
                                 LineType::Dotted => 2,
                             },
+                            color: SharedString::from(
+                                layer
+                                    .line_color
+                                    .map(|c| format!("{},{},{}", c[0], c[1], c[2]))
+                                    .unwrap_or_default(),
+                            ),
                             weight: SharedString::from(
                                 layer
                                     .line_weight
@@ -5508,6 +5554,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 let model = model.clone();
                 let layers = layers_ref.clone();
                 let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
                 dlg.on_toggle_on(move |idx, val| {
                     if let Some(name) = names.borrow().get(idx as usize).cloned() {
                         layers.borrow_mut().set_layer_state(&name, val);
@@ -5517,12 +5566,18 @@ fn main() -> Result<(), slint::PlatformError> {
                             model.set_row_data(idx as usize, r);
                         }
                     }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
                 });
             }
             {
                 let model = model.clone();
                 let layers = layers_ref.clone();
                 let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
                 dlg.on_toggle_lock(move |idx, val| {
                     if let Some(name) = names.borrow().get(idx as usize).cloned() {
                         if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
@@ -5534,12 +5589,18 @@ fn main() -> Result<(), slint::PlatformError> {
                             model.set_row_data(idx as usize, r);
                         }
                     }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
                 });
             }
             {
                 let model = model.clone();
                 let layers = layers_ref.clone();
                 let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
                 dlg.on_line_type_changed(move |idx, val| {
                     if let Some(name) = names.borrow().get(idx as usize).cloned() {
                         if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
@@ -5555,12 +5616,47 @@ fn main() -> Result<(), slint::PlatformError> {
                             model.set_row_data(idx as usize, r);
                         }
                     }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
                 });
             }
             {
                 let model = model.clone();
                 let layers = layers_ref.clone();
                 let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                dlg.on_color_changed(move |idx, text| {
+                    if let Some(name) = names.borrow().get(idx as usize).cloned() {
+                        if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
+                            let vals: Vec<u8> = text
+                                .split(',')
+                                .filter_map(|v| v.trim().parse::<u8>().ok())
+                                .collect();
+                            if vals.len() == 3 {
+                                layer.line_color = Some([vals[0], vals[1], vals[2]]);
+                            }
+                        }
+                        if let Some(row) = model.row_data(idx as usize) {
+                            let mut r = row.clone();
+                            r.color = text.clone();
+                            model.set_row_data(idx as usize, r);
+                        }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
                 dlg.on_weight_changed(move |idx, text| {
                     if let Some(name) = names.borrow().get(idx as usize).cloned() {
                         if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
@@ -5576,12 +5672,18 @@ fn main() -> Result<(), slint::PlatformError> {
                             model.set_row_data(idx as usize, r);
                         }
                     }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
                 });
             }
             {
                 let model = model.clone();
                 let layers = layers_ref.clone();
                 let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
                 dlg.on_text_style_changed(move |idx, text| {
                     if let Some(name) = names.borrow().get(idx as usize).cloned() {
                         if let Some(layer) = layers.borrow_mut().layer_mut(&name) {
@@ -5596,6 +5698,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             r.text_style = text.clone();
                             model.set_row_data(idx as usize, r);
                         }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
                     }
                 });
             }

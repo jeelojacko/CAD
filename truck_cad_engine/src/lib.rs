@@ -142,24 +142,37 @@ impl TruckCadEngine {
     }
 
     /// Add a line as a wireframe instance.
-    pub fn add_line(&mut self, a: truck::base::Point3, b: truck::base::Point3) -> usize {
+    pub fn add_line(
+        &mut self,
+        a: truck::base::Point3,
+        b: truck::base::Point3,
+        color: Vector4,
+        _weight: f32,
+    ) -> usize {
         let poly = PolylineCurve(vec![a, b]);
-        let instance = self
-            .creator
-            .create_instance(&poly, &WireFrameState::default());
+        let mut state = WireFrameState::default();
+        state.color = color;
+        let instance = self.creator.create_instance(&poly, &state);
         self.scene.add_object(&instance);
         self.lines.push(Some(instance));
         self.lines.len() - 1
     }
 
     /// Update an existing line.
-    pub fn update_line(&mut self, id: usize, a: truck::base::Point3, b: truck::base::Point3) {
+    pub fn update_line(
+        &mut self,
+        id: usize,
+        a: truck::base::Point3,
+        b: truck::base::Point3,
+        color: Vector4,
+        _weight: f32,
+    ) {
         if let Some(Some(inst)) = self.lines.get_mut(id) {
             self.scene.remove_object(inst);
             let poly = PolylineCurve(vec![a, b]);
-            let new_inst = self
-                .creator
-                .create_instance(&poly, &WireFrameState::default());
+            let mut state = WireFrameState::default();
+            state.color = color;
+            let new_inst = self.creator.create_instance(&poly, &state);
             self.scene.add_object(&new_inst);
             *inst = new_inst;
         }

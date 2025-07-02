@@ -21,7 +21,7 @@ pub struct TruckBackend {
     dimension_ids: Vec<Option<usize>>,
     surface_ids: Vec<Option<usize>>,
     points: Vec<Point3>,
-    lines: Vec<(Point3, Point3)>,
+    lines: Vec<(Point3, Point3, Vector4, f32)>,
     dimensions: Vec<(Point3, Point3)>,
     surfaces: Vec<SurfaceData>,
     handles: Option<(usize, Vec<usize>)>,
@@ -92,31 +92,54 @@ impl TruckBackend {
         }
     }
 
-    pub fn add_line(&mut self, a: [f64; 3], b: [f64; 3]) -> usize {
-        let id = self
-            .engine
-            .add_line(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
+    pub fn add_line(
+        &mut self,
+        a: [f64; 3],
+        b: [f64; 3],
+        color: [f32; 4],
+        weight: f32,
+    ) -> usize {
+        let col = Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64);
+        let id = self.engine.add_line(
+            Point3::new(a[0], a[1], a[2]),
+            Point3::new(b[0], b[1], b[2]),
+            col,
+            weight,
+        );
         self.line_ids.push(Some(id));
         self.lines.push((
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
+            col,
+            weight,
         ));
         self.line_ids.len() - 1
     }
 
     #[allow(dead_code)]
-    pub fn update_line(&mut self, idx: usize, a: [f64; 3], b: [f64; 3]) {
+    pub fn update_line(
+        &mut self,
+        idx: usize,
+        a: [f64; 3],
+        b: [f64; 3],
+        color: [f32; 4],
+        weight: f32,
+    ) {
         if let Some(Some(id)) = self.line_ids.get(idx) {
             self.engine.update_line(
                 *id,
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
+                Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+                weight,
             );
         }
         if let Some(line) = self.lines.get_mut(idx) {
             *line = (
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
+                Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+                weight,
             );
         }
     }
@@ -133,10 +156,13 @@ impl TruckBackend {
     }
 
     /// Add a dimension represented as a simple line between two points.
-    pub fn add_dimension(&mut self, a: [f64; 3], b: [f64; 3]) -> usize {
-        let id = self
-            .engine
-            .add_line(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]));
+    pub fn add_dimension(&mut self, a: [f64; 3], b: [f64; 3], color: [f32; 4], weight: f32) -> usize {
+        let id = self.engine.add_line(
+            Point3::new(a[0], a[1], a[2]),
+            Point3::new(b[0], b[1], b[2]),
+            Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+            weight,
+        );
         self.dimension_ids.push(Some(id));
         self.dimensions.push((
             Point3::new(a[0], a[1], a[2]),
@@ -337,7 +363,7 @@ impl TruckBackend {
             }
         }
 
-        for (i, (a, b)) in self.lines.iter().enumerate() {
+        for (i, (a, b, _, _)) in self.lines.iter().enumerate() {
             if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
                 self.engine.project_point(*a),
                 self.engine.project_point(*b),
