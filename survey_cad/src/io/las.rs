@@ -17,9 +17,11 @@ pub fn read_points_las(path: &str) -> io::Result<Vec<Point3>> {
 /// Writes points to a LAS or LAZ file. Compression is inferred from the
 /// file extension when the `laz` feature of the `las` crate is enabled.
 pub fn write_points_las(path: &str, points: &[Point3]) -> io::Result<()> {
-    let mut builder = Builder::default();
-    builder.point_format = Format::new(0).unwrap();
-    builder.version = Version::new(1, 2);
+    let builder = Builder {
+        point_format: Format::new(0).unwrap(),
+        version: Version::new(1, 2),
+        ..Default::default()
+    };
     let header = builder.into_header().map_err(io::Error::other)?;
     let mut writer = Writer::from_path(path, header).map_err(io::Error::other)?;
     for p in points {

@@ -1,8 +1,8 @@
 use pollster::block_on;
 use slint::{Image, Rgba8Pixel, SharedPixelBuffer};
 use truck_meshalgo::prelude::*;
-use truck_modeling::{self as truck, builder};
 use truck_modeling::base::{Point2, Point3, Vector4};
+use truck_modeling::{self as truck, builder};
 use truck_platform::{wgpu, *};
 use truck_rendimpl::*;
 
@@ -150,8 +150,10 @@ impl TruckCadEngine {
         _weight: f32,
     ) -> usize {
         let poly = PolylineCurve(vec![a, b]);
-        let mut state = WireFrameState::default();
-        state.color = color;
+        let state = WireFrameState {
+            color,
+            ..Default::default()
+        };
         let instance = self.creator.create_instance(&poly, &state);
         self.scene.add_object(&instance);
         self.lines.push(Some(instance));
@@ -170,8 +172,10 @@ impl TruckCadEngine {
         if let Some(Some(inst)) = self.lines.get_mut(id) {
             self.scene.remove_object(inst);
             let poly = PolylineCurve(vec![a, b]);
-            let mut state = WireFrameState::default();
-            state.color = color;
+            let state = WireFrameState {
+                color,
+                ..Default::default()
+            };
             let new_inst = self.creator.create_instance(&poly, &state);
             self.scene.add_object(&new_inst);
             *inst = new_inst;
