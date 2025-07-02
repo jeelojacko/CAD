@@ -3,6 +3,7 @@ export struct LayerRow {
     on: bool,
     locked: bool,
     line_type_index: int,
+    color: string,
     weight: string,
     text_style: string,
 }
@@ -16,6 +17,7 @@ export component LayerManager inherits Window {
     callback toggle_on(int, bool);
     callback toggle_lock(int, bool);
     callback line_type_changed(int, int);
+    callback color_changed(int, string);
     callback weight_changed(int, string);
     callback text_style_changed(int, string);
     title: "Layer Manager";
@@ -35,6 +37,7 @@ export component LayerManager inherits Window {
                 Text { color: #FFFFFF; text: "On"; width: 40px; }
                 Text { color: #FFFFFF; text: "Lock"; width: 40px; }
                 Text { color: #FFFFFF; text: "Type"; width: 80px; }
+                Text { color: #FFFFFF; text: "Color"; width: 80px; }
                 Text { color: #FFFFFF; text: "Weight"; width: 60px; }
                 Text { color: #FFFFFF; text: "Text Style"; width: 100px; }
             }
@@ -51,6 +54,7 @@ export component LayerManager inherits Window {
                     CheckBox { checked: row.on; toggled => { root.toggle_on(i, self.checked); } width: 40px; }
                     CheckBox { checked: row.locked; toggled => { root.toggle_lock(i, self.checked); } width: 40px; }
                     ComboBox { model: root.line_types_model; current-index: row.line_type_index; selected => { root.line_type_changed(i, self.current-index); } width: 80px; }
+                    LineEdit { text: row.color; edited(text) => { root.color_changed(i, text); } width: 80px; }
                     LineEdit { text: row.weight; edited(text) => { root.weight_changed(i, text); } width: 60px; }
                     LineEdit { text: row.text_style; edited(text) => { root.text_style_changed(i, text); } width: 100px; }
                 }

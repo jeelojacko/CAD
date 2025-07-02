@@ -13,6 +13,7 @@ pub struct Layer {
     pub line_type: Option<LineType>,
     pub line_weight: Option<LineWeight>,
     pub text_style: Option<TextStyle>,
+    pub line_color: Option<[u8; 3]>,
 }
 
 impl Layer {
@@ -26,6 +27,7 @@ impl Layer {
             line_type: None,
             line_weight: None,
             text_style: None,
+            line_color: None,
         }
     }
 }
