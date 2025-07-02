@@ -579,6 +579,7 @@ export component MainWindow inherits Window {
     callback import_geojson();
     callback import_kml();
     callback import_dxf();
+    callback import_dwg();
     callback import_shp();
     callback import_polylines_shp();
     callback import_polygons_shp();
@@ -587,6 +588,7 @@ export component MainWindow inherits Window {
     callback export_geojson();
     callback export_kml();
     callback export_dxf();
+    callback export_dwg();
     callback export_shp();
     callback export_polylines_shp();
     callback export_polygons_shp();
@@ -627,6 +629,7 @@ export component MainWindow inherits Window {
                 MenuItem { title: "GeoJSON"; activated => { root.import_geojson(); } }
                 MenuItem { title: "KML"; activated => { root.import_kml(); } }
                 MenuItem { title: "DXF"; activated => { root.import_dxf(); } }
+                MenuItem { title: "DWG"; activated => { root.import_dwg(); } }
                 MenuItem { title: "SHP"; activated => { root.import_shp(); } }
                 MenuItem { title: "Polyline SHP"; activated => { root.import_polylines_shp(); } }
                 MenuItem { title: "Polygon SHP"; activated => { root.import_polygons_shp(); } }
@@ -640,6 +643,7 @@ export component MainWindow inherits Window {
                 MenuItem { title: "GeoJSON"; activated => { root.export_geojson(); } }
                 MenuItem { title: "KML"; activated => { root.export_kml(); } }
                 MenuItem { title: "DXF"; activated => { root.export_dxf(); } }
+                MenuItem { title: "DWG"; activated => { root.export_dwg(); } }
                 MenuItem { title: "SHP"; activated => { root.export_shp(); } }
                 MenuItem { title: "Polyline SHP"; activated => { root.export_polylines_shp(); } }
                 MenuItem { title: "Polygon SHP"; activated => { root.export_polygons_shp(); } }

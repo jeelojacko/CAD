@@ -2914,6 +2914,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let command_stack = command_stack_outer.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("DWG", &["dwg"])
+                        .add_filter("DGN", &["dgn"])
                         .add_filter("CSV", &["csv"])
                         .pick_file()
                     {
@@ -3077,6 +3079,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let backend_render = backend_render.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("DWG", &["dwg"])
+                        .add_filter("DGN", &["dgn"])
                         .add_filter("CSV", &["csv"])
                         .pick_file()
                     {
@@ -3225,6 +3229,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let dlg_weak = dlg_weak.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("DWG", &["dwg"])
+                        .add_filter("DGN", &["dgn"])
                         .add_filter("CSV", &["csv"])
                         .pick_file()
                     {
@@ -3644,6 +3650,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         app.on_traverse_area(move || {
             if let Some(path) = rfd::FileDialog::new()
+                .add_filter("DWG", &["dwg"])
+                .add_filter("DGN", &["dgn"])
                 .add_filter("CSV", &["csv"])
                 .pick_file()
             {
@@ -4465,6 +4473,58 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        app.on_import_dwg(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("DWG", &["dwg"])
+                .add_filter("DGN", &["dgn"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match survey_cad::io::read_dwg(p) {
+                        Ok(ents) => {
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(ents.into_iter().filter_map(|e| match e {
+                                    survey_cad::io::DxfEntity::Point { point, .. } => Some(point),
+                                    _ => None,
+                                }));
+                                db.len()
+                            };
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {len} points"
+                                )));
+                                if app.get_workspace_mode() == 0 {
+                                    app.set_workspace_image(render_image());
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
+                                }
+                                app.window().request_redraw();
+                            }
+                        }
+                        Err(e) => {
+                            let msg = if e.to_string().contains("dwg2dxf") {
+                                "dwg2dxf tool not found".to_string()
+                            } else {
+                                format!("Failed to import: {e}")
+                            };
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(msg));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -4783,6 +4843,43 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     } else if let Some(app) = weak.upgrade() {
                         app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        app.on_export_dwg(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("DWG", &["dwg"])
+                .add_filter("DGN", &["dgn"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    let ents: Vec<survey_cad::io::DxfEntity> = point_db
+                        .borrow()
+                        .iter()
+                        .map(|pt| survey_cad::io::DxfEntity::Point { point: *pt, layer: None })
+                        .collect();
+                    match survey_cad::io::write_dwg(p, &ents) {
+                        Ok(()) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from("Exported"));
+                            }
+                        }
+                        Err(e) => {
+                            let msg = if e.to_string().contains("dxf2dwg") {
+                                "dxf2dwg tool not found".to_string()
+                            } else {
+                                format!("Failed to export: {e}")
+                            };
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(msg));
+                            }
+                        }
                     }
                 }
             }
