@@ -61,7 +61,6 @@ struct WorkspaceRenderData<'a> {
     dimensions: &'a [LinearDimension],
     surfaces: &'a [Tin],
     alignments: &'a [HorizontalAlignment],
-    dimensions: &'a [LinearDimension],
 }
 
 #[derive(Default, Clone)]

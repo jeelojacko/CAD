@@ -1,7 +1,7 @@
 use super::{Point, Point3};
 
 /// Linear dimension annotation between two 2D points.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LinearDimension {
     pub start: Point,
     pub end: Point,
@@ -23,7 +23,7 @@ impl LinearDimension {
 }
 
 /// Linear dimension annotation between two 3D points.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LinearDimension3 {
     pub start: Point3,
     pub end: Point3,
