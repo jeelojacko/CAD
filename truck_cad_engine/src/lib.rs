@@ -447,6 +447,14 @@ impl TruckCadEngine {
             })
     }
 
+    /// Set the color of a point marker.
+    pub fn set_point_marker_color(&mut self, id: usize, color: Vector4) {
+        if let Some(Some(inst)) = self.point_markers.get_mut(id) {
+            inst.instance_state_mut().material.albedo = color;
+            self.scene.update_bind_group(&*inst);
+        }
+    }
+
     /// Set the surface color for highlighting.
     pub fn set_surface_color(&mut self, id: usize, color: Vector4) {
         if let Some(Some(surface)) = self.surfaces.get_mut(id) {

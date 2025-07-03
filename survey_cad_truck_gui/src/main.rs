@@ -1682,6 +1682,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let last_click = Rc::new(RefCell::new(None));
     let selected_surface = Rc::new(RefCell::new(None::<usize>));
     let click_pos_3d = Rc::new(RefCell::new(None::<(f64, f64)>));
+    let active_handle = Rc::new(RefCell::new(None::<usize>));
     let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
@@ -2524,10 +2525,25 @@ fn main() -> Result<(), slint::PlatformError> {
         let rotate_flag = rotate_flag.clone();
         let last_pos = last_pos.clone();
         let click_pos = click_pos_3d.clone();
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        let active_handle_ref = active_handle.clone();
         app.on_workspace_left_pressed(move |x, y| {
-            *rotate_flag.borrow_mut() = true;
             *last_pos.borrow_mut() = (x as f64, y as f64);
-            *click_pos.borrow_mut() = Some((x as f64, y as f64));
+            if let Some(HitObject::Handle(i)) = backend.borrow().hit_test(x as f64, y as f64) {
+                *rotate_flag.borrow_mut() = false;
+                *active_handle_ref.borrow_mut() = Some(i);
+                backend.borrow_mut().highlight_handle(i, true);
+                if let Some(app) = weak.upgrade() {
+                    let image = backend.borrow_mut().render();
+                    app.set_workspace_texture(image);
+                    app.window().request_redraw();
+                }
+            } else {
+                *rotate_flag.borrow_mut() = true;
+                *active_handle_ref.borrow_mut() = None;
+                *click_pos.borrow_mut() = Some((x as f64, y as f64));
+            }
         });
     }
 
@@ -2778,11 +2794,21 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_inner = backend.clone();
         let dimensions = dimensions.clone();
         let selected_dimensions = selected_dimensions.clone();
+        let active_handle_ref = active_handle.clone();
         app.on_workspace_pointer_released(move || {
             *rotate_flag.borrow_mut() = false;
             *pan_flag.borrow_mut() = false;
             *pan_2d_flag.borrow_mut() = false;
             *cursor_feedback.borrow_mut() = None;
+
+            if let Some(i) = active_handle_ref.borrow_mut().take() {
+                backend_inner.borrow_mut().highlight_handle(i, false);
+                if let Some(app) = weak.upgrade() {
+                    let image = backend_inner.borrow_mut().render();
+                    app.set_workspace_texture(image);
+                    app.window().request_redraw();
+                }
+            }
 
             let mut update = false;
             {
@@ -2920,11 +2946,27 @@ fn main() -> Result<(), slint::PlatformError> {
         let current_line = current_line.clone();
         let snap_target = snap_target.clone();
         let weak = app.as_weak();
+        let active_handle_ref = active_handle.clone();
+        let backend_move = backend.clone();
         app.on_workspace_mouse_moved(move |x, y| {
             let mut last = last_pos.borrow_mut();
             let dx = x as f64 - last.0;
             let dy = y as f64 - last.1;
             *last = (x as f64, y as f64);
+            if let Some(i) = *active_handle_ref.borrow() {
+                if let Some(pos) = backend_move.borrow().handle_position(i) {
+                    let new_p = backend_move
+                        .borrow()
+                        .screen_to_plane(x as f64, y as f64, pos.z);
+                    backend_move.borrow_mut().move_handle(i, new_p);
+                    if let Some(app) = weak.upgrade() {
+                        let image = backend_move.borrow_mut().render();
+                        app.set_workspace_texture(image);
+                        app.window().request_redraw();
+                    }
+                    return;
+                }
+            }
             if *rotate_flag.borrow() {
                 if let Some(start) = *click_pos.borrow() {
                     if (x as f64 - start.0).abs() > 3.0 || (y as f64 - start.1).abs() > 3.0 {
