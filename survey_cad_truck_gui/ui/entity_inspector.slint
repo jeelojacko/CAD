@@ -3,13 +3,16 @@ import { VerticalBox, HorizontalBox, ComboBox, LineEdit } from "std-widgets.slin
 export component EntityInspector inherits Window {
     in-out property <[string]> layers_model;
     in-out property <[string]> styles_model;
+    in-out property <[string]> hatch_model;
     in-out property <int> layer_index;
     in-out property <int> style_index;
+    in-out property <int> hatch_index;
     in-out property <string> metadata;
     in-out property <string> entity_type;
 
     callback layer_changed(int);
     callback style_changed(int);
+    callback hatch_changed(int);
     callback metadata_changed(string);
 
     title: "Inspector";
@@ -28,6 +31,11 @@ export component EntityInspector inherits Window {
             spacing: 6px;
             Text { color: #FFFFFF; text: "Style:"; width: 60px; }
             ComboBox { model: root.styles_model; current-index: root.style_index; selected => { root.style_changed(self.current-index); } }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Hatch:"; width: 60px; }
+            ComboBox { model: root.hatch_model; current-index: root.hatch_index; selected => { root.hatch_changed(self.current-index); } }
         }
         HorizontalBox {
             spacing: 6px;
