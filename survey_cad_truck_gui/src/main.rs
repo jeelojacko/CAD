@@ -31,6 +31,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use truck_modeling::base::Point3;
+use truck_modeling::base::Vector3;
+use truck_modeling::builder;
+use truck_modeling::topology::{Solid, Wire};
+use truck_modeling::base::InnerSpace;
 
 mod truck_backend;
 use truck_backend::{TruckBackend, HitObject};
@@ -488,6 +492,25 @@ fn spawn_line(
     backend
         .borrow_mut()
         .add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0], [1.0, 1.0, 1.0, 1.0], 1.0);
+}
+
+fn polyline_to_solid(pl: &Polyline, vector: Vector3) -> Option<Solid> {
+    if pl.vertices.len() < 3 {
+        return None;
+    }
+    let verts: Vec<_> = pl
+        .vertices
+        .iter()
+        .map(|p| builder::vertex(Point3::new(p.x, p.y, 0.0)))
+        .collect();
+    let mut edges = Vec::new();
+    for i in 0..verts.len() {
+        edges.push(builder::line(&verts[i], &verts[(i + 1) % verts.len()]));
+    }
+    let wire = Wire::from_iter(edges);
+    let face = builder::try_attach_plane(&[wire]).ok()?;
+    let solid: Solid = builder::tsweep(&face, vector);
+    Some(solid)
 }
 
 fn render_workspace(
@@ -4425,6 +4448,62 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     if let Some(app) = weak2.upgrade() {
                         app.set_workspace_image(render_image());
+                        app.window().request_redraw();
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let polylines_ref = polylines.clone();
+        let selected_polylines_ref = selected_polylines.clone();
+        let backend_ref = backend.clone();
+        app.on_extrude_polyline(move || {
+            let dlg = ExtrudePolylineDialog::new().unwrap();
+            dlg.set_distance_value("1".into());
+            dlg.set_dx_value("0".into());
+            dlg.set_dy_value("0".into());
+            dlg.set_dz_value("1".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let polylines_inner = polylines_ref.clone();
+            let selected_pl = selected_polylines_ref.clone();
+            let backend_inner = backend_ref.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let dist = d.get_distance_value().parse::<f64>().unwrap_or(0.0);
+                    let dx = d.get_dx_value().parse::<f64>().unwrap_or(0.0);
+                    let dy = d.get_dy_value().parse::<f64>().unwrap_or(0.0);
+                    let dz = d.get_dz_value().parse::<f64>().unwrap_or(1.0);
+                    let mut dir = Vector3::new(dx, dy, dz);
+                    if dir.magnitude2() < f64::EPSILON {
+                        dir = Vector3::unit_z();
+                    } else {
+                        dir = dir.normalize();
+                    }
+                    let vec = dir * dist;
+                    for &idx in selected_pl.borrow().iter() {
+                        if let Some(pl) = polylines_inner.borrow().get(idx) {
+                            if let Some(sol) = polyline_to_solid(pl, vec) {
+                                backend_inner.borrow_mut().add_solid(sol);
+                            }
+                        }
+                    }
+                    if let Some(app) = weak2.upgrade() {
+                        if app.get_workspace_mode() == 1 {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                        }
                         app.window().request_redraw();
                     }
                     let _ = d.hide();
