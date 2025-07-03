@@ -94,7 +94,10 @@ struct SnapPrefs {
     snap_to_entities: bool,
     snap_points: bool,
     snap_endpoints: bool,
+    snap_midpoints: bool,
     snap_intersections: bool,
+    snap_nearest: bool,
+    snap_tolerance: f32,
 }
 
 impl Default for SnapPrefs {
@@ -104,7 +107,10 @@ impl Default for SnapPrefs {
             snap_to_entities: true,
             snap_points: true,
             snap_endpoints: true,
+            snap_midpoints: true,
             snap_intersections: true,
+            snap_nearest: true,
+            snap_tolerance: 5.0,
         }
     }
 }
@@ -1654,6 +1660,9 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_snap_endpoints(p.snap_endpoints);
         app.set_snap_points(p.snap_points);
         app.set_snap_intersections(p.snap_intersections);
+        app.set_snap_midpoints(p.snap_midpoints);
+        app.set_snap_nearest(p.snap_nearest);
+        app.set_snap_tolerance(p.snap_tolerance);
     }
     let last_folder = Rc::new(RefCell::new(config.borrow().last_open_dir.clone()));
     let window_size = Rc::new(RefCell::new(app.window().size()));
@@ -2466,6 +2475,8 @@ fn main() -> Result<(), slint::PlatformError> {
         });
     }
 
+
+
     {
         let prefs = snap_prefs.clone();
         let cfg = config.clone();
@@ -2625,12 +2636,14 @@ fn main() -> Result<(), slint::PlatformError> {
                             let opts = snap::SnapOptions {
                                 snap_points: app.get_snap_points(),
                                 snap_endpoints: app.get_snap_endpoints(),
+                                snap_midpoints: app.get_snap_midpoints(),
                                 snap_intersections: app.get_snap_intersections(),
+                                snap_nearest: app.get_snap_nearest(),
                             };
                             if let Some(sp) = snap::resolve_snap(
                                 p,
                                 &scene,
-                                5.0 / (zoom_factor as f64),
+                                app.get_snap_tolerance() as f64 / (zoom_factor as f64),
                                 opts,
                             ) {
                                 *snap_target.borrow_mut() = Some(sp);
@@ -3056,12 +3069,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         let opts = snap::SnapOptions {
                             snap_points: app.get_snap_points(),
                             snap_endpoints: app.get_snap_endpoints(),
+                            snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
+                            snap_nearest: app.get_snap_nearest(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
                             &scene,
-                            5.0 / (zoom_factor as f64),
+                            app.get_snap_tolerance() as f64 / (zoom_factor as f64),
                             opts,
                         ) {
                             *snap_target.borrow_mut() = Some(sp);
@@ -6420,6 +6435,64 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let snap_prefs_ref = snap_prefs.clone();
+        let cfg = config.clone();
+        app.on_snap_settings(move || {
+            let dlg = SnapSettingsDialog::new().unwrap();
+            let prefs = snap_prefs_ref.borrow();
+            dlg.set_tolerance(SharedString::from(format!("{:.1}", prefs.snap_tolerance)));
+            dlg.set_snap_points(prefs.snap_points);
+            dlg.set_snap_endpoints(prefs.snap_endpoints);
+            dlg.set_snap_midpoints(prefs.snap_midpoints);
+            dlg.set_snap_intersections(prefs.snap_intersections);
+            dlg.set_snap_nearest(prefs.snap_nearest);
+            drop(prefs);
+            let dlg_weak = dlg.as_weak();
+            let prefs_ref = snap_prefs_ref.clone();
+            let cfg_ref = cfg.clone();
+            let app_weak = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let Ok(v) = d.get_tolerance().parse::<f32>() {
+                        prefs_ref.borrow_mut().snap_tolerance = v;
+                        cfg_ref.borrow_mut().snap.snap_tolerance = v;
+                    }
+                    prefs_ref.borrow_mut().snap_points = d.get_snap_points();
+                    cfg_ref.borrow_mut().snap.snap_points = d.get_snap_points();
+                    prefs_ref.borrow_mut().snap_endpoints = d.get_snap_endpoints();
+                    cfg_ref.borrow_mut().snap.snap_endpoints = d.get_snap_endpoints();
+                    prefs_ref.borrow_mut().snap_midpoints = d.get_snap_midpoints();
+                    cfg_ref.borrow_mut().snap.snap_midpoints = d.get_snap_midpoints();
+                    prefs_ref.borrow_mut().snap_intersections = d.get_snap_intersections();
+                    cfg_ref.borrow_mut().snap.snap_intersections = d.get_snap_intersections();
+                    prefs_ref.borrow_mut().snap_nearest = d.get_snap_nearest();
+                    cfg_ref.borrow_mut().snap.snap_nearest = d.get_snap_nearest();
+                    if let Some(a) = app_weak.upgrade() {
+                        a.set_snap_points(d.get_snap_points());
+                        a.set_snap_endpoints(d.get_snap_endpoints());
+                        a.set_snap_midpoints(d.get_snap_midpoints());
+                        a.set_snap_intersections(d.get_snap_intersections());
+                        a.set_snap_nearest(d.get_snap_nearest());
+                        if let Ok(v) = d.get_tolerance().parse::<f32>() {
+                            a.set_snap_tolerance(v);
+                        }
+                    }
+                    save_config(&cfg_ref.borrow());
+                    d.hide().unwrap();
+                }
+            });
+            let cancel_weak = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = cancel_weak.upgrade() {
+                    d.hide().unwrap();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
@@ -6546,12 +6619,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         let opts = snap::SnapOptions {
                             snap_points: app.get_snap_points(),
                             snap_endpoints: app.get_snap_endpoints(),
+                            snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
+                            snap_nearest: app.get_snap_nearest(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
                             &scene,
-                            5.0 / (zoom_factor as f64),
+                            app.get_snap_tolerance() as f64 / (zoom_factor as f64),
                             opts,
                         ) {
                             *snap_target.borrow_mut() = Some(sp);
@@ -6658,12 +6733,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         let opts = snap::SnapOptions {
                             snap_points: app.get_snap_points(),
                             snap_endpoints: app.get_snap_endpoints(),
+                            snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
+                            snap_nearest: app.get_snap_nearest(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
                             &scene,
-                            5.0 / (zoom_factor as f64),
+                            app.get_snap_tolerance() as f64 / (zoom_factor as f64),
                             opts,
                         ) {
                             *snap_target.borrow_mut() = Some(sp);

@@ -539,6 +539,35 @@ export component SettingsDialog inherits Window {
     }
 }
 
+export component SnapSettingsDialog inherits Window {
+    in-out property <string> tolerance;
+    in-out property <bool> snap_points;
+    in-out property <bool> snap_endpoints;
+    in-out property <bool> snap_midpoints;
+    in-out property <bool> snap_intersections;
+    in-out property <bool> snap_nearest;
+    callback accept();
+    callback cancel();
+    title: "Snap Settings";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Tolerance:"; }
+            LineEdit { text <=> root.tolerance; width: 60px; }
+        }
+        CheckBox { text: "Points"; checked <=> root.snap_points; }
+        CheckBox { text: "Endpoints"; checked <=> root.snap_endpoints; }
+        CheckBox { text: "Midpoints"; checked <=> root.snap_midpoints; }
+        CheckBox { text: "Intersections"; checked <=> root.snap_intersections; }
+        CheckBox { text: "Nearest"; checked <=> root.snap_nearest; }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
@@ -557,7 +586,10 @@ export component MainWindow inherits Window {
     in-out property <bool> show_point_numbers;
     in-out property <bool> snap_points;
     in-out property <bool> snap_endpoints;
+    in-out property <bool> snap_midpoints;
     in-out property <bool> snap_intersections;
+    in-out property <bool> snap_nearest;
+    in-out property <float> snap_tolerance;
     in-out property <float> zoom_level;
 
     callback key_pressed(string);
@@ -602,6 +634,9 @@ export component MainWindow inherits Window {
     callback snap_points_changed(bool);
     callback snap_endpoints_changed(bool);
     callback snap_intersections_changed(bool);
+    callback snap_midpoints_changed(bool);
+    callback snap_nearest_changed(bool);
+    callback snap_tolerance_changed(float);
     callback point_manager();
     callback line_style_manager();
     callback layer_manager();
@@ -643,6 +678,7 @@ export component MainWindow inherits Window {
     callback extrude_polyline();
     callback zoom_in();
     callback zoom_out();
+    callback snap_settings();
     callback settings();
     callback workspace_left_pressed(length, length);
     callback workspace_right_pressed(length, length);
@@ -734,6 +770,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Zoom In"; activated => { root.zoom_in(); } }
             MenuItem { title: "Zoom Out"; activated => { root.zoom_out(); } }
             MenuItem { title: "Settings..."; activated => { root.settings(); } }
+            MenuItem { title: "Snap Settings..."; activated => { root.snap_settings(); } }
         }
         Menu {
             title: "Macro";
@@ -915,6 +952,7 @@ export component MainWindow inherits Window {
                 toggled => { root.point_numbers_changed(root.show_point_numbers); }
             }
             Button { text: "Settings..."; clicked => { root.settings(); } }
+            Button { text: "Snap..."; clicked => { root.snap_settings(); } }
         }
 
         Rectangle {
