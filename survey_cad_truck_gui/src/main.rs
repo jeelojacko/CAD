@@ -686,15 +686,92 @@ fn render_workspace(
         }
         pb.close();
         if let Some(path) = pb.finish() {
+            let style_idx = styles
+                .polygon_style_indices
+                .borrow()
+                .get(i)
+                .copied()
+                .unwrap_or(0);
+            let pstyle = styles
+                .polygon_styles
+                .get(style_idx)
+                .copied()
+                .unwrap_or_default();
+
+            paint.set_color(Color::from_rgba8(
+                pstyle.fill_color[0],
+                pstyle.fill_color[1],
+                pstyle.fill_color[2],
+                255,
+            ));
+            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+
+            if pstyle.hatch_pattern != HatchPattern::None {
+                paint.set_color(Color::from_rgba8(
+                    pstyle.hatch_color[0],
+                    pstyle.hatch_color[1],
+                    pstyle.hatch_color[2],
+                    255,
+                ));
+                let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                if let Some(bb) = path.bounding_box() {
+                    let step = 10.0;
+                    if matches!(pstyle.hatch_pattern, HatchPattern::Cross | HatchPattern::Grid) {
+                        let mut x = bb.left();
+                        while x <= bb.right() {
+                            let mut pb = PathBuilder::new();
+                            pb.move_to(x, bb.top());
+                            pb.line_to(x, bb.bottom());
+                            if let Some(p) = pb.finish() {
+                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                            }
+                            x += step;
+                        }
+                        let mut y = bb.top();
+                        while y <= bb.bottom() {
+                            let mut pb = PathBuilder::new();
+                            pb.move_to(bb.left(), y);
+                            pb.line_to(bb.right(), y);
+                            if let Some(p) = pb.finish() {
+                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                            }
+                            y += step;
+                        }
+                    }
+                    if pstyle.hatch_pattern == HatchPattern::ForwardDiagonal {
+                        let mut x = bb.left() - bb.height();
+                        while x <= bb.right() {
+                            let mut pb = PathBuilder::new();
+                            pb.move_to(x, bb.bottom());
+                            pb.line_to(x + bb.height(), bb.top());
+                            if let Some(p) = pb.finish() {
+                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                            }
+                            x += step;
+                        }
+                    } else if pstyle.hatch_pattern == HatchPattern::BackwardDiagonal {
+                        let mut x = bb.left();
+                        while x <= bb.right() + bb.height() {
+                            let mut pb = PathBuilder::new();
+                            pb.move_to(x, bb.top());
+                            pb.line_to(x - bb.height(), bb.bottom());
+                            if let Some(p) = pb.finish() {
+                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                            }
+                            x += step;
+                        }
+                    }
+                }
+            }
+
             let selected = state.selected_polygons.borrow().contains(&i);
             if selected {
                 paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+            } else {
+                paint.set_color(Color::from_rgba8(255, 0, 0, 255));
             }
             let stroke = Stroke { width: 1.0, ..Stroke::default() };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
-            if selected {
-                paint.set_color(Color::from_rgba8(255, 0, 0, 255));
-            }
         }
     }
 
@@ -1451,6 +1528,76 @@ fn show_inspector_for_point(
     dlg.show().unwrap();
 }
 
+#[allow(clippy::too_many_arguments)]
+fn show_inspector_for_polygon(
+    idx: usize,
+    app: &MainWindow,
+    layer_names: &Rc<RefCell<Vec<String>>>,
+    hatch_names: &[SharedString],
+    layers: &Rc<RefCell<Vec<usize>>>,
+    hatches: &Rc<RefCell<Vec<usize>>>,
+    inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
+    render_image: Rc<dyn Fn() -> Image>,
+    backend: &Rc<RefCell<TruckBackend>>,
+) {
+    while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
+    while hatches.borrow().len() <= idx { hatches.borrow_mut().push(0); }
+
+    let layer_model = Rc::new(VecModel::from(
+        layer_names
+            .borrow()
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    ));
+    let hatch_model = Rc::new(VecModel::from(hatch_names.to_vec()));
+
+    let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
+        w
+    } else {
+        let d = EntityInspector::new().unwrap();
+        *inspector.borrow_mut() = Some(d.as_weak());
+        d
+    };
+
+    dlg.set_layers_model(layer_model.into());
+    dlg.set_styles_model(VecModel::from(vec![]).into());
+    dlg.set_hatch_model(hatch_model.into());
+    dlg.set_entity_type(SharedString::from("Polygon"));
+    dlg.set_layer_index(layers.borrow()[idx] as i32);
+    dlg.set_hatch_index(hatches.borrow()[idx] as i32);
+    dlg.set_metadata(SharedString::from(""));
+
+    {
+        let layers = layers.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_layer_changed(move |val| {
+            if let Some(l) = layers.borrow_mut().get_mut(idx) { *l = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let h_ref = hatches.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_hatch_changed(move |val| {
+            if let Some(h) = h_ref.borrow_mut().get_mut(idx) { *h = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    dlg.show().unwrap();
+}
+
 fn main() -> Result<(), slint::PlatformError> {
     let cfg = load_config();
     let config = Rc::new(RefCell::new(cfg));
@@ -1533,12 +1680,14 @@ fn main() -> Result<(), slint::PlatformError> {
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
     let line_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let polygon_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
     let line_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
     let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> = Rc::new(RefCell::new(None));
     let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
         point_styles: survey_cad::styles::default_point_styles(),
         line_styles: survey_cad::styles::default_line_styles(),
+        polygon_styles: survey_cad::styles::default_polygon_styles(),
     });
     let point_styles = style_settings.point_styles.clone();
     let point_style_names: Vec<SharedString> = point_styles
@@ -1549,6 +1698,15 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let line_styles = style_settings.line_styles.clone();
     let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
+
+    let polygon_styles = style_settings.polygon_styles.clone();
+    let polygon_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let polygon_style_names: Vec<SharedString> = polygon_styles
+        .iter()
+        .map(|(n, _)| SharedString::from(n.clone()))
+        .collect();
+    let polygon_style_values: Vec<survey_cad::styles::PolygonStyle> =
+        polygon_styles.iter().map(|(_, s)| *s).collect();
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
     let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
     let macro_playing = Rc::new(RefCell::new(MacroPlaying::default()));
@@ -2077,6 +2235,18 @@ fn main() -> Result<(), slint::PlatformError> {
                         &point_layers,
                         &point_style_indices,
                         &point_metadata,
+                        &inspector_ref,
+                        Rc::new(render_image.clone()),
+                        &backend_render,
+                    );
+                } else if let Some(idx) = selected_polygons.borrow().first().copied() {
+                    show_inspector_for_polygon(
+                        idx,
+                        &app,
+                        &layer_names,
+                        &polygon_style_names,
+                        &polygon_layers,
+                        &polygon_style_indices,
                         &inspector_ref,
                         Rc::new(render_image.clone()),
                         &backend_render,
@@ -2985,6 +3155,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
+                            *polygon_style_indices.borrow_mut() = proj.polygon_style_indices.clone();
                             *grid_settings.borrow_mut() = proj.grid.clone();
 
                             let mut mgr = ScLayerManager::new();
@@ -3071,6 +3242,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         layers: layers_ref.borrow().iter().cloned().collect(),
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
+                        polygon_style_indices: polygon_style_indices.borrow().clone(),
                         grid: grid_settings.borrow().clone(),
                         crs_epsg: *workspace_crs.borrow(),
                     };
@@ -3079,6 +3251,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let style_settings = StyleSettings {
                         point_styles: point_styles.clone(),
                         line_styles: line_styles.clone(),
+                        polygon_styles: polygon_styles.clone(),
                     };
                     let _ = save_styles(&base.with_extension("styles.json"), &style_settings);
 

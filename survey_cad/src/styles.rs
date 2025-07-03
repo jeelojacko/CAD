@@ -111,6 +111,38 @@ impl LineLabelStyle {
     }
 }
 
+/// Available hatch patterns for polygons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum HatchPattern {
+    None,
+    Cross,
+    ForwardDiagonal,
+    BackwardDiagonal,
+    Grid,
+}
+
+impl Default for HatchPattern {
+    fn default() -> Self { Self::None }
+}
+
+/// Style information for polygon fills.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PolygonStyle {
+    pub fill_color: [u8; 3],
+    pub hatch_pattern: HatchPattern,
+    pub hatch_color: [u8; 3],
+}
+
+impl Default for PolygonStyle {
+    fn default() -> Self {
+        Self {
+            fill_color: [200, 200, 200],
+            hatch_pattern: HatchPattern::None,
+            hatch_color: [0, 0, 0],
+        }
+    }
+}
+
 /// Formats a decimal degree value as a degrees-minutes-seconds string.
 pub fn format_dms(angle_deg: f64) -> String {
     let sign = if angle_deg < 0.0 { "-" } else { "" };
@@ -209,6 +241,36 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
                 [255, 255, 0],
                 LineLabelPosition::Below,
             ),
+        ),
+    ]
+}
+
+/// Returns a basic set of default polygon styles.
+pub fn default_polygon_styles() -> Vec<(String, PolygonStyle)> {
+    vec![
+        (
+            "Gray Solid".to_string(),
+            PolygonStyle {
+                fill_color: [200, 200, 200],
+                hatch_pattern: HatchPattern::None,
+                hatch_color: [0, 0, 0],
+            },
+        ),
+        (
+            "Blue Cross".to_string(),
+            PolygonStyle {
+                fill_color: [180, 180, 255],
+                hatch_pattern: HatchPattern::Cross,
+                hatch_color: [0, 0, 128],
+            },
+        ),
+        (
+            "Green Diagonal".to_string(),
+            PolygonStyle {
+                fill_color: [180, 255, 180],
+                hatch_pattern: HatchPattern::ForwardDiagonal,
+                hatch_color: [0, 128, 0],
+            },
         ),
     ]
 }

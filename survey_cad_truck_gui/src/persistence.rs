@@ -6,11 +6,13 @@ use serde::{Deserialize, Serialize};
 use survey_cad::layers::LayerManager;
 use survey_cad::geometry::line::LineStyle;
 use survey_cad::geometry::point::PointStyle;
+use survey_cad::styles::PolygonStyle;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct StyleSettings {
     pub point_styles: Vec<(String, PointStyle)>,
     pub line_styles: Vec<(String, LineStyle)>,
+    pub polygon_styles: Vec<(String, PolygonStyle)>,
 }
 
 pub fn save_layers(path: &Path, layers: &LayerManager) -> std::io::Result<()> {
