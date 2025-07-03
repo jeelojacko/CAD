@@ -36,6 +36,8 @@ pub struct Project {
     pub line_style_indices: Vec<usize>,
     #[serde(default)]
     pub grid: GridSettings,
+    #[serde(default)]
+    pub crs_epsg: u32,
 }
 
 impl Project {
@@ -52,6 +54,7 @@ impl Project {
             point_style_indices: Vec::new(),
             line_style_indices: Vec::new(),
             grid: GridSettings::default(),
+            crs_epsg: 4326,
         }
     }
 }

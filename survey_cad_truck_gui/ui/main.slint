@@ -482,6 +482,7 @@ export component SettingsDialog inherits Window {
     in-out property <string> color_r;
     in-out property <string> color_g;
     in-out property <string> color_b;
+    in-out property <string> crs_epsg;
     in-out property <bool> show_grid;
     callback accept();
     callback cancel();
@@ -499,6 +500,10 @@ export component SettingsDialog inherits Window {
             LineEdit { text <=> root.color_b; width: 40px; }
         }
         CheckBox { text: "Show Grid"; checked <=> root.show_grid; }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "EPSG:"; }
+            LineEdit { text <=> root.crs_epsg; width: 80px; }
+        }
         HorizontalBox {
             spacing: 6px;
             Button { text: "OK"; clicked => { root.accept(); } }
