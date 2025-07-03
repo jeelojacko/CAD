@@ -3089,7 +3089,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 *workspace_crs.borrow_mut() = 4326;
                 if let Some(idx) = crs_entries_rc
                     .iter()
-                    .position(|e| e.code == format!("EPSG:4326"))
+                    .position(|e| e.code == "EPSG:4326")
                 {
                     app.set_crs_index(idx as i32);
                 }
@@ -5538,7 +5538,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             point_style_indices.borrow_mut().push(0);
                         }
                         PointRow {
-                            number: SharedString::from(format!("{}", i + 1)),
+                            number: SharedString::from((i + 1).to_string()),
                             name: SharedString::from(""),
                             x: SharedString::from(format!("{:.3}", p.x)),
                             y: SharedString::from(format!("{:.3}", p.y)),
@@ -6188,11 +6188,11 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg = SettingsDialog::new().unwrap();
             let gs = grid_settings.borrow();
             dlg.set_spacing_value(SharedString::from(format!("{:.1}", gs.spacing)));
-            dlg.set_color_r(SharedString::from(format!("{}", gs.color[0])));
-            dlg.set_color_g(SharedString::from(format!("{}", gs.color[1])));
-            dlg.set_color_b(SharedString::from(format!("{}", gs.color[2])));
+            dlg.set_color_r(SharedString::from(gs.color[0].to_string()));
+            dlg.set_color_g(SharedString::from(gs.color[1].to_string()));
+            dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
             dlg.set_show_grid(gs.visible);
-            dlg.set_crs_epsg(SharedString::from(format!("{}", *workspace_crs.borrow())));
+            dlg.set_crs_epsg(SharedString::from(workspace_crs.borrow().to_string()));
             drop(gs);
             let dlg_weak = dlg.as_weak();
             let gs_ref = grid_settings.clone();

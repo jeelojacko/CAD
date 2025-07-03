@@ -48,7 +48,11 @@ pub fn points_report_excel(path: &str, points: &[Point]) -> std::io::Result<()> 
     let rows: Vec<Vec<String>> = points
         .iter()
         .enumerate()
-        .map(|(i, p)| vec![format!("{}", i + 1), format!("{}", p.x), format!("{}", p.y)])
+        .map(|(i, p)| vec![
+            (i + 1).to_string(),
+            p.x.to_string(),
+            p.y.to_string(),
+        ])
         .collect();
     write_excel(path, &rows)
 }
