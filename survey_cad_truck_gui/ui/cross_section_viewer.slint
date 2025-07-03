@@ -3,6 +3,8 @@ import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
 export component CrossSectionViewer inherits Window {
     in-out property <image> section_image;
     in-out property <string> station_label;
+    in-out property <string> elevation_label;
+    in-out property <string> slope_label;
     callback prev();
     callback next();
     title: "Cross Section Viewer";
@@ -15,6 +17,8 @@ export component CrossSectionViewer inherits Window {
             spacing: 6px;
             Button { text: "Prev"; clicked => { root.prev(); } }
             Text { color: #FFFFFF; text: root.station_label; }
+            Text { color: #FFFFFF; text: root.elevation_label; }
+            Text { color: #FFFFFF; text: root.slope_label; }
             Button { text: "Next"; clicked => { root.next(); } }
         }
         Image {

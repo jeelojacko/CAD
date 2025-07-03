@@ -30,6 +30,8 @@ pub struct Project {
     pub arcs: Vec<Arc>,
     #[serde(default)]
     pub dimensions: Vec<crate::geometry::LinearDimension>,
+    #[serde(default)]
+    pub alignments: Vec<crate::alignment::Alignment>,
     pub surfaces: Vec<Tin>,
     pub layers: Vec<Layer>,
     pub point_style_indices: Vec<usize>,
@@ -55,6 +57,7 @@ impl Project {
             polylines: Vec::new(),
             arcs: Vec::new(),
             dimensions: Vec::new(),
+            alignments: Vec::new(),
             surfaces: Vec::new(),
             layers: Vec::new(),
             point_style_indices: Vec::new(),
