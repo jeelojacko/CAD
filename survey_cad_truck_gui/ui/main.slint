@@ -477,6 +477,33 @@ export component RotateEntityDialog inherits Window {
     }
 }
 
+export component ExtrudePolylineDialog inherits Window {
+    in-out property <string> distance_value;
+    in-out property <string> dx_value;
+    in-out property <string> dy_value;
+    in-out property <string> dz_value;
+    callback accept();
+    callback cancel();
+    title: "Extrude Polyline";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Distance:"; } LineEdit { text <=> root.distance_value; } }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "DX:"; }
+            LineEdit { text <=> root.dx_value; }
+            Text { color: #FFFFFF; text: "DY:"; }
+            LineEdit { text <=> root.dy_value; }
+            Text { color: #FFFFFF; text: "DZ:"; }
+            LineEdit { text <=> root.dz_value; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component SettingsDialog inherits Window {
     in-out property <string> spacing_value;
     in-out property <string> color_r;
@@ -613,6 +640,7 @@ export component MainWindow inherits Window {
     callback redo();
     callback move_entity();
     callback rotate_entity();
+    callback extrude_polyline();
     callback zoom_in();
     callback zoom_out();
     callback settings();
@@ -689,6 +717,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); } }
             MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); } }
             MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); } }
+            MenuItem { title: "Extrude Polyline"; activated => { root.extrude_polyline(); } }
         }
         Menu {
             title: "TIN";
@@ -836,6 +865,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Cross Sections";
                 clicked => { root.view_cross_sections(); }
+            }
+        Button {
+                text: "Extrude Polyline";
+                clicked => { root.extrude_polyline(); }
             }
         Button {
                 text: "Clear";

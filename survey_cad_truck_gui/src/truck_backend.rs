@@ -1,6 +1,7 @@
 use slint::Image;
 use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
+use truck_modeling::topology::Solid;
 
 pub enum HitObject {
     Point,
@@ -191,6 +192,10 @@ impl TruckBackend {
             triangles: triangles.to_vec(),
         });
         self.surface_ids.len() - 1
+    }
+
+    pub fn add_solid(&mut self, solid: Solid) {
+        self.engine.add_solid(solid);
     }
 
     #[allow(dead_code)]
