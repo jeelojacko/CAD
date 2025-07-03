@@ -40,7 +40,6 @@ use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSetti
 use once_cell::sync::Lazy;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use survey_cad_python;
 use rusttype::{point, Font, Scale};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
@@ -1884,7 +1883,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .borrow()
                                 .iter()
                                 .map(|s| {
-                                    let dict = PyDict::new(py);
+                                    let dict = PyDict::new_bound(py);
                                     let verts: Vec<(f64, f64, f64)> = s
                                         .vertices
                                         .iter()
@@ -1901,13 +1900,13 @@ fn main() -> Result<(), slint::PlatformError> {
                                 })
                                 .collect::<PyResult<_>>()?;
 
-                            let globals = PyDict::new(py);
+                            let globals = PyDict::new_bound(py);
                             globals.set_item("survey_cad_python", module)?;
                             globals.set_item("points", pts)?;
                             globals.set_item("lines", lines_py)?;
                             globals.set_item("surfaces", surfs)?;
 
-                            py.run(&code, Some(globals), None)
+                            py.run_bound(&code, Some(&globals), None)
                         });
 
                         match result {
