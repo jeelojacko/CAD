@@ -22,7 +22,7 @@ use survey_cad::io::project::{read_project_json, write_project_json, Project, Gr
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
     format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
-    TextStyle as ScTextStyle,
+    TextStyle as ScTextStyle, HatchPattern,
 };
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
@@ -41,7 +41,7 @@ use once_cell::sync::Lazy;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusttype::{point, Font, Scale};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform, FillRule};
 
 slint::include_modules!();
 
@@ -343,6 +343,8 @@ struct RenderStyles<'a> {
     style_indices: &'a Rc<RefCell<Vec<usize>>>,
     line_styles: &'a [LineStyle],
     line_style_indices: &'a Rc<RefCell<Vec<usize>>>,
+    polygon_styles: &'a [survey_cad::styles::PolygonStyle],
+    polygon_style_indices: &'a Rc<RefCell<Vec<usize>>>,
     show_labels: bool,
     label_style: &'a LineLabelStyle,
     point_label_style: &'a PointLabelStyle,
@@ -714,7 +716,8 @@ fn render_workspace(
                     255,
                 ));
                 let stroke = Stroke { width: 1.0, ..Stroke::default() };
-                if let Some(bb) = path.bounding_box() {
+                {
+                    let bb = path.bounds();
                     let step = 10.0;
                     if matches!(pstyle.hatch_pattern, HatchPattern::Cross | HatchPattern::Grid) {
                         let mut x = bb.left();
@@ -1562,7 +1565,7 @@ fn show_inspector_for_polygon(
     };
 
     dlg.set_layers_model(layer_model.into());
-    dlg.set_styles_model(VecModel::from(vec![]).into());
+    dlg.set_styles_model(Rc::new(VecModel::from(Vec::<SharedString>::new())).into());
     dlg.set_hatch_model(hatch_model.into());
     dlg.set_entity_type(SharedString::from("Polygon"));
     dlg.set_layer_index(layers.borrow()[idx] as i32);
@@ -1806,6 +1809,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_styles = point_style_values.clone();
         let line_styles_vals = line_style_values.clone();
         let line_style_indices = line_style_indices.clone();
+        let polygon_style_indices = polygon_style_indices.clone();
         let cursor_feedback = cursor_feedback.clone();
         let snap_target = snap_target.clone();
         let drawing_mode = drawing_mode.clone();
@@ -1847,6 +1851,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     style_indices: &style_indices,
                     line_styles: &line_styles_vals,
                     line_style_indices: &line_style_indices,
+                    polygon_styles: &polygon_style_values,
+                    polygon_style_indices: &polygon_style_indices,
                     show_labels: true,
                     label_style: &label_style,
                     point_label_style: &point_label_style,
@@ -2222,6 +2228,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_metadata = point_metadata.clone();
         let inspector_ref = inspector_window.clone();
         let selected_indices = selected_indices.clone();
+        let selected_polygons = selected_polygons.clone();
+        let polygon_style_names = polygon_style_names.clone();
+        let polygon_layers = polygon_layers.clone();
+        let polygon_style_indices = polygon_style_indices.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         app.on_inspector(move || {
@@ -3110,6 +3120,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let layer_names_ref = layer_names.clone();
         let line_style_indices = line_style_indices.clone();
         let point_style_indices = point_style_indices.clone();
+        let polygon_style_indices = polygon_style_indices.clone();
         let grid_settings = grid_settings.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
@@ -3214,6 +3225,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let layers_ref = layers.clone();
         let line_style_indices = line_style_indices.clone();
         let point_style_indices = point_style_indices.clone();
+        let polygon_style_indices = polygon_style_indices.clone();
         let grid_settings = grid_settings.clone();
         let point_styles = point_styles.clone();
         let line_styles = line_styles.clone();
