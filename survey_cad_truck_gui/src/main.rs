@@ -351,12 +351,12 @@ struct RenderStyles<'a> {
     show_point_numbers: bool,
 }
 
-fn draw_text(pixmap: &mut Pixmap, text: &str, x: f32, y: f32, color: Color, size: f32) {
+fn draw_text(pixmap: &mut Pixmap, text: &str, font: &Font, x: f32, y: f32, color: Color, size: f32) {
     let scale = Scale::uniform(size);
-    let v_metrics = FONT.v_metrics(scale);
+    let v_metrics = font.v_metrics(scale);
     let mut cursor = x;
     for ch in text.chars() {
-        let glyph = FONT
+        let glyph = font
             .glyph(ch)
             .scaled(scale)
             .positioned(point(cursor, y + v_metrics.ascent));
@@ -663,6 +663,7 @@ fn render_workspace(
             draw_text(
                 &mut pixmap,
                 &text,
+                &FONT,
                 tx(mid.x as f32 + ox * 10.0),
                 ty(mid.y as f32 + oy * 10.0),
                 Color::from_rgba8(
@@ -850,6 +851,7 @@ fn render_workspace(
         draw_text(
             &mut pixmap,
             &text,
+            &FONT,
             tx(mid.x as f32),
             ty(mid.y as f32 - 10.0),
             Color::from_rgba8(255, 255, 255, 255),
@@ -1016,6 +1018,7 @@ fn render_workspace(
             draw_text(
                 &mut pixmap,
                 &(idx + 1).to_string(),
+                &FONT,
                 tx(p.x as f32 + styles.point_label_style.offset[0]),
                 ty(p.y as f32 + styles.point_label_style.offset[1]),
                 Color::from_rgba8(
@@ -1720,7 +1723,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ]));
     let line_label_styles = survey_cad::styles::default_line_label_styles();
     let point_label_styles = survey_cad::styles::default_point_label_styles();
-    let point_label_style = point_label_styles[0].1.clone();
+    let point_label_style = Rc::new(RefCell::new(point_label_styles[0].1.clone()));
     let line_style_names: Rc<Vec<SharedString>> = Rc::new(
         line_styles
             .iter()
@@ -1855,7 +1858,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     polygon_style_indices: &polygon_style_indices,
                     show_labels: true,
                     label_style: &label_style,
-                    point_label_style: &point_label_style,
+                    point_label_style: &point_label_style.borrow(),
                     show_point_numbers: show_numbers,
                 },
                 &drawing_mode.borrow(),
@@ -3122,6 +3125,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let polygon_style_indices = polygon_style_indices.clone();
         let grid_settings = grid_settings.clone();
+        let point_label_style = point_label_style.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         let dimensions = dimensions.clone();
@@ -3168,6 +3172,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
                             *polygon_style_indices.borrow_mut() = proj.polygon_style_indices.clone();
                             *grid_settings.borrow_mut() = proj.grid.clone();
+                            {
+                                let mut pls = point_label_style.borrow_mut();
+                                pls.text_style.font = proj.point_label_font.clone();
+                                pls.offset = proj.point_label_offset;
+                            }
 
                             let mut mgr = ScLayerManager::new();
                             layer_names_ref.borrow_mut().clear();
@@ -3227,6 +3236,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_indices = point_style_indices.clone();
         let polygon_style_indices = polygon_style_indices.clone();
         let grid_settings = grid_settings.clone();
+        let point_label_style = point_label_style.clone();
         let point_styles = point_styles.clone();
         let line_styles = line_styles.clone();
         let dimensions = dimensions.clone();
@@ -3257,6 +3267,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         polygon_style_indices: polygon_style_indices.borrow().clone(),
                         grid: grid_settings.borrow().clone(),
                         crs_epsg: *workspace_crs.borrow(),
+                        point_label_font: point_label_style.borrow().text_style.font.clone(),
+                        point_label_offset: point_label_style.borrow().offset,
                     };
                     let base = Path::new(p);
                     let _ = save_layers(&base.with_extension("layers.json"), &layers_ref.borrow());
@@ -5587,6 +5599,10 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_group_header(headers.borrow()[4].clone());
             dlg.set_style_header(headers.borrow()[5].clone());
 
+            dlg.set_label_font(SharedString::from(point_label_style.borrow().text_style.font.clone()));
+            dlg.set_offset_x(SharedString::from(format!("{:.1}", point_label_style.borrow().offset[0])));
+            dlg.set_offset_y(SharedString::from(format!("{:.1}", point_label_style.borrow().offset[1])));
+
             let rename_in_model: Rc<dyn Fn(usize, SharedString)> = {
                 let groups_model = groups_model.clone();
                 Rc::new(move |idx: usize, name: SharedString| {
@@ -5738,11 +5754,51 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 });
             }
-            {
+            { 
                 let headers = headers.clone();
                 dlg.on_header_changed(move |col, text| {
                     if let Some(h) = headers.borrow_mut().get_mut(col as usize) {
                         *h = text.clone();
+                    }
+                });
+            }
+            {
+                let pls = point_label_style.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let backend_render = backend_render.clone();
+                dlg.on_label_font_changed(move |text| {
+                    pls.borrow_mut().text_style.font = text.to_string();
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+            {
+                let pls = point_label_style.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let backend_render = backend_render.clone();
+                dlg.on_offset_x_changed(move |val| {
+                    if let Ok(v) = val.parse::<f32>() {
+                        pls.borrow_mut().offset[0] = v;
+                        if let Some(app) = weak.upgrade() {
+                            refresh_workspace(&app, &render_image, &backend_render);
+                        }
+                    }
+                });
+            }
+            {
+                let pls = point_label_style.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let backend_render = backend_render.clone();
+                dlg.on_offset_y_changed(move |val| {
+                    if let Ok(v) = val.parse::<f32>() {
+                        pls.borrow_mut().offset[1] = v;
+                        if let Some(app) = weak.upgrade() {
+                            refresh_workspace(&app, &render_image, &backend_render);
+                        }
                     }
                 });
             }

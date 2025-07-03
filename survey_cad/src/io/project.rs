@@ -40,6 +40,10 @@ pub struct Project {
     pub grid: GridSettings,
     #[serde(default)]
     pub crs_epsg: u32,
+    #[serde(default)]
+    pub point_label_font: String,
+    #[serde(default)]
+    pub point_label_offset: [f32; 2],
 }
 
 impl Project {
@@ -58,6 +62,8 @@ impl Project {
             polygon_style_indices: Vec::new(),
             grid: GridSettings::default(),
             crs_epsg: 4326,
+            point_label_font: "DejaVuSans".to_string(),
+            point_label_offset: [5.0, 5.0],
         }
     }
 }

@@ -151,6 +151,12 @@ export component PointManager inherits Window {
     property <length> y_width: 60px;
     property <length> group_width: 80px;
     property <length> style_width: 80px;
+    in-out property <string> label_font: "DejaVuSans";
+    in-out property <string> offset_x: "5";
+    in-out property <string> offset_y: "5";
+    callback label_font_changed(string);
+    callback offset_x_changed(string);
+    callback offset_y_changed(string);
     title: "Point Manager";
     preferred-width: 600px;
     preferred-height: 400px;
@@ -189,6 +195,15 @@ export component PointManager inherits Window {
             Button { text: "Remove"; clicked => { root.remove_point(root.selected_index); } }
             Button { text: "New Group"; clicked => { root.create_group(); } }
             Button { text: "Rename Group"; clicked => { root.rename_group(); } }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Font:"; }
+            LineEdit { text <=> root.label_font; edited(text) => { root.label_font_changed(text); } width: 100px; }
+            Text { color: #FFFFFF; text: "Offset X:"; }
+            LineEdit { text <=> root.offset_x; edited(text) => { root.offset_x_changed(text); } width: 40px; }
+            Text { color: #FFFFFF; text: "Y:"; }
+            LineEdit { text <=> root.offset_y; edited(text) => { root.offset_y_changed(text); } width: 40px; }
         }
     }
 }
