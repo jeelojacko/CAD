@@ -14,7 +14,9 @@ pub struct Scene<'a> {
 pub struct SnapOptions {
     pub snap_points: bool,
     pub snap_endpoints: bool,
+    pub snap_midpoints: bool,
     pub snap_intersections: bool,
+    pub snap_nearest: bool,
 }
 
 pub fn resolve_snap(
@@ -29,7 +31,7 @@ pub fn resolve_snap(
             ents.push(DxfEntity::Point { point: *p, layer: None });
         }
     }
-    if opts.snap_endpoints || opts.snap_intersections {
+    if opts.snap_endpoints || opts.snap_midpoints || opts.snap_intersections || opts.snap_nearest {
         for (s, e) in scene.lines {
             ents.push(DxfEntity::Line { line: Line::new(*s, *e), layer: None });
         }
@@ -45,9 +47,9 @@ pub fn resolve_snap(
     }
     let settings = SnapSettings {
         endpoints: opts.snap_points || opts.snap_endpoints,
-        midpoints: false,
+        midpoints: opts.snap_midpoints,
         intersections: opts.snap_intersections,
-        nearest: false,
+        nearest: opts.snap_nearest,
     };
     if ents.is_empty() {
         return None;
