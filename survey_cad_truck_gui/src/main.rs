@@ -1300,8 +1300,8 @@ fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u3
     Image::from_rgba8_premultiplied(buffer)
 }
 
-fn read_line_csv(path: &str) -> std::io::Result<(Point, Point)> {
-    let pts = survey_cad::io::read_points_csv(path, None, None)?;
+fn read_line_csv(path: &str, dst_epsg: u32) -> std::io::Result<(Point, Point)> {
+    let pts = survey_cad::io::read_points_csv(path, Some(4326), Some(dst_epsg))?;
     if pts.len() != 2 {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
@@ -1311,8 +1311,8 @@ fn read_line_csv(path: &str) -> std::io::Result<(Point, Point)> {
     Ok((pts[0], pts[1]))
 }
 
-fn read_points_list(path: &str) -> std::io::Result<Vec<Point>> {
-    survey_cad::io::read_points_csv(path, None, None)
+fn read_points_list(path: &str, dst_epsg: u32) -> std::io::Result<Vec<Point>> {
+    survey_cad::io::read_points_csv(path, Some(4326), Some(dst_epsg))
 }
 
 fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
@@ -1510,6 +1510,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let zoom = Rc::new(RefCell::new(1.0_f32));
     let offset = Rc::new(RefCell::new(Vec2::default()));
     let grid_settings = Rc::new(RefCell::new(GridSettings::default()));
+    let workspace_crs = Rc::new(RefCell::new(4326u32));
     let pan_2d_flag = Rc::new(RefCell::new(false));
     let last_pos_2d = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let rotate_flag = Rc::new(RefCell::new(false));
@@ -1703,14 +1704,19 @@ fn main() -> Result<(), slint::PlatformError> {
 
     // basic CRS list as before
     let crs_entries = list_known_crs();
+    let crs_entries_rc = Rc::new(crs_entries);
     let crs_model = Rc::new(VecModel::from(
-        crs_entries
+        crs_entries_rc
             .iter()
             .map(|e| SharedString::from(format!("{} - {}", e.code, e.name)))
             .collect::<Vec<_>>(),
     ));
+    let default_idx = crs_entries_rc
+        .iter()
+        .position(|e| e.code == format!("EPSG:{}", *workspace_crs.borrow()))
+        .unwrap_or(0);
     app.set_crs_list(crs_model.into());
-    app.set_crs_index(0);
+    app.set_crs_index(default_idx as i32);
     app.set_workspace_mode(0); // start with 2D mode
     app.set_show_point_numbers(true);
 
@@ -2194,6 +2200,20 @@ fn main() -> Result<(), slint::PlatformError> {
                 if app.get_workspace_mode() == 0 {
                     app.set_workspace_image(render_image());
                     app.window().request_redraw();
+                }
+            }
+        });
+    }
+
+    {
+        let workspace_crs = workspace_crs.clone();
+        let crs_entries_rc = crs_entries_rc.clone();
+        app.on_crs_changed(move |idx| {
+            if let Some(entry) = crs_entries_rc.get(idx as usize) {
+                if let Some(code) = entry.code.split(':').nth(1) {
+                    if let Ok(epsg) = code.parse::<u32>() {
+                        *workspace_crs.borrow_mut() = epsg;
+                    }
                 }
             }
         });
@@ -2875,6 +2895,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
         let dimensions = dimensions.clone();
         let selected_dimensions = selected_dimensions.clone();
+        let workspace_crs = workspace_crs.clone();
+        let crs_entries_rc = crs_entries_rc.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -2894,6 +2916,13 @@ fn main() -> Result<(), slint::PlatformError> {
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
+                *workspace_crs.borrow_mut() = 4326;
+                if let Some(idx) = crs_entries_rc
+                    .iter()
+                    .position(|e| e.code == format!("EPSG:4326"))
+                {
+                    app.set_crs_index(idx as i32);
+                }
                 refresh_workspace(&app, &render_image, &backend_render);
             }
         });
@@ -2917,6 +2946,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let dimensions = dimensions.clone();
         let last_dir = last_folder.clone();
         let config_rc = config.clone();
+        let workspace_crs = workspace_crs.clone();
+        let crs_entries_rc = crs_entries_rc.clone();
         app.on_open_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -2929,6 +2960,15 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     match read_project_json(p) {
                         Ok(proj) => {
+                            *workspace_crs.borrow_mut() = proj.crs_epsg;
+                            if let Some(idx) = crs_entries_rc
+                                .iter()
+                                .position(|e| e.code == format!("EPSG:{}", proj.crs_epsg))
+                            {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_crs_index(idx as i32);
+                                }
+                            }
                             point_db.borrow_mut().clear();
                             point_db.borrow_mut().extend_from_slice(&proj.points);
                             lines.borrow_mut().clear();
@@ -3009,6 +3049,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let dimensions = dimensions.clone();
         let last_dir = last_folder.clone();
         let config_rc = config.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -3031,6 +3072,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
                         grid: grid_settings.borrow().clone(),
+                        crs_epsg: *workspace_crs.borrow(),
                     };
                     let base = Path::new(p);
                     let _ = save_layers(&base.with_extension("layers.json"), &layers_ref.borrow());
@@ -3062,6 +3104,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let command_stack_outer = command_stack.clone();
         let macro_playing_outer = macro_playing.clone();
         let macro_recorder_outer = macro_recorder.clone();
+        let workspace_crs_line = workspace_crs.clone();
         app.on_add_line(move || {
             let macro_playing = macro_playing_outer.clone();
             let macro_recorder = macro_recorder_outer.clone();
@@ -3073,6 +3116,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let workspace_crs = workspace_crs_line.clone();
                 let line_style_indices = line_style_indices.clone();
                 let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
                 let backend_render = backend_render.clone();
@@ -3085,7 +3129,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         .pick_file()
                     {
                         if let Some(p) = path.to_str() {
-                            match read_line_csv(p) {
+                            match read_line_csv(p, *workspace_crs.borrow()) {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
                                     let (s, e) = l;
@@ -3240,6 +3284,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let command_stack_outer = command_stack.clone();
         let macro_playing_outer = macro_playing.clone();
         let macro_recorder_outer = macro_recorder.clone();
+        let workspace_crs_point = workspace_crs.clone();
         app.on_add_point(move || {
             let macro_playing = macro_playing_outer.clone();
             let macro_recorder = macro_recorder_outer.clone();
@@ -3251,6 +3296,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
                 let point_style_indices = point_style_indices.clone();
+                let workspace_crs = workspace_crs_point.clone();
                 let backend_render = backend_render.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
@@ -3260,7 +3306,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         .pick_file()
                     {
                         if let Some(p) = path.to_str() {
-                            match survey_cad::io::read_points_csv(p, None, None) {
+                            match survey_cad::io::read_points_csv(p, Some(4326), Some(*workspace_crs.borrow())) {
                                 Ok(pts) => {
                                     let len = {
                                         let mut db = point_db.borrow_mut();
@@ -3394,6 +3440,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let polygons = polygons.clone();
         let render_image = render_image.clone();
+        let workspace_crs_polygon = workspace_crs.clone();
         app.on_add_polygon(move || {
             let dlg = AddPolygonDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -3402,6 +3449,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let workspace_crs = workspace_crs_polygon.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("DWG", &["dwg"])
@@ -3410,7 +3458,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         .pick_file()
                     {
                         if let Some(p) = path.to_str() {
-                            match read_points_list(p) {
+                            match read_points_list(p, *workspace_crs.borrow()) {
                                 Ok(pts) => {
                                     if pts.len() >= 3 {
                                         polygons.borrow_mut().push(pts);
@@ -3518,6 +3566,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let polylines = polylines.clone();
         let render_image = render_image.clone();
+        let workspace_crs_polyline = workspace_crs.clone();
         app.on_add_polyline(move || {
             let dlg = AddPolylineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -3526,13 +3575,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 let render_image = render_image.clone();
                 let weak = weak.clone();
                 let dlg_weak = dlg_weak.clone();
+                let workspace_crs = workspace_crs_polyline.clone();
                 dlg.on_from_file(move || {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("CSV", &["csv"])
                         .pick_file()
                     {
                         if let Some(p) = path.to_str() {
-                            match read_points_list(p) {
+                            match read_points_list(p, *workspace_crs.borrow()) {
                                 Ok(pts) => {
                                     if pts.len() >= 2 {
                                         polylines.borrow_mut().push(Polyline::new(pts));
@@ -3823,6 +3873,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let workspace_crs = workspace_crs.clone();
         app.on_traverse_area(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("DWG", &["dwg"])
@@ -3831,7 +3882,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let (Some(p), Some(app)) = (path.to_str(), weak.upgrade()) {
-                    match survey_cad::io::read_points_csv(p, None, None) {
+                    match survey_cad::io::read_points_csv(p, Some(4326), Some(*workspace_crs.borrow())) {
                         Ok(pts) => {
                             let trav = survey_cad::surveying::Traverse::new(pts);
                             app.set_status(SharedString::from(format!("Area: {:.3}", trav.area())));
@@ -4507,13 +4558,15 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_import_geojson(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("GeoJSON", &["geojson", "json"])
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
-                    match survey_cad::io::read_points_geojson(p, None, None) {
+                    let dst = *workspace_crs.borrow();
+                    match survey_cad::io::read_points_geojson(p, Some(4326), Some(dst)) {
                         Ok(pts) => {
                             let len = {
                                 let mut db = point_db.borrow_mut();
@@ -4706,6 +4759,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_import_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -4714,7 +4768,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
                     match survey_cad::io::shp::read_points_shp(p) {
-                        Ok((pts, _)) => {
+                        Ok((mut pts, _)) => {
+                            let dst = *workspace_crs.borrow();
+                            let src = survey_cad::crs::Crs::from_epsg(4326);
+                            let dst_crs = survey_cad::crs::Crs::from_epsg(dst);
+                            for p in &mut pts {
+                                if let Some((x, y)) = src.transform_point(&dst_crs, p.x, p.y) {
+                                    p.x = x;
+                                    p.y = y;
+                                }
+                            }
                             let len = {
                                 let mut db = point_db.borrow_mut();
                                 db.clear();
@@ -5947,6 +6010,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let grid_settings = grid_settings.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_settings(move || {
             let dlg = SettingsDialog::new().unwrap();
             let gs = grid_settings.borrow();
@@ -5955,12 +6019,14 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_color_g(SharedString::from(format!("{}", gs.color[1])));
             dlg.set_color_b(SharedString::from(format!("{}", gs.color[2])));
             dlg.set_show_grid(gs.visible);
+            dlg.set_crs_epsg(SharedString::from(format!("{}", *workspace_crs.borrow())));
             drop(gs);
             let dlg_weak = dlg.as_weak();
             let gs_ref = grid_settings.clone();
             let weak_app = weak.clone();
             let render_image = render_image.clone();
             let backend_render = backend_render.clone();
+            let crs_ref = workspace_crs.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(v) = d.get_spacing_value().parse::<f32>() {
@@ -5971,6 +6037,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     let b = d.get_color_b().parse::<u8>().unwrap_or(60);
                     gs_ref.borrow_mut().color = [r, g, b];
                     gs_ref.borrow_mut().visible = d.get_show_grid();
+                    if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
+                        *crs_ref.borrow_mut() = epsg;
+                    }
                     d.hide().unwrap();
                 }
                 if let Some(app) = weak_app.upgrade() {
