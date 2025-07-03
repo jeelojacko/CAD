@@ -6,7 +6,7 @@ pub enum HitObject {
     Point,
     Line,
     Surface(usize),
-    Handle,
+    Handle(usize),
 }
 
 struct SurfaceData {
@@ -331,19 +331,56 @@ impl TruckBackend {
         }
     }
 
+    /// Highlight or un-highlight a handle.
+    pub fn highlight_handle(&mut self, handle_idx: usize, on: bool) {
+        if let Some((_, ref handles)) = self.handles {
+            if let Some(id) = handles.get(handle_idx).copied() {
+                let color = if on {
+                    Vector4::new(1.0, 0.0, 0.0, 1.0)
+                } else {
+                    Vector4::new(1.0, 1.0, 1.0, 1.0)
+                };
+                self.engine.set_point_marker_color(id, color);
+            }
+        }
+    }
+
+    /// Get the world position of a handle.
+    pub fn handle_position(&self, handle_idx: usize) -> Option<Point3> {
+        self.handles.as_ref().and_then(|(_, handles)| {
+            handles
+                .get(handle_idx)
+                .copied()
+                .and_then(|id| self.engine.point_marker_position(id))
+        })
+    }
+
+    /// Convert screen coordinates to a point on the plane z.
+    pub fn screen_to_plane(&self, x: f64, y: f64, z: f64) -> Point3 {
+        let ray = self.engine.screen_ray(x, y);
+        let dir = ray.direction();
+        let orig = ray.origin();
+        let t = if dir.z.abs() < f64::EPSILON {
+            0.0
+        } else {
+            (z - orig.z) / dir.z
+        };
+        orig + dir * t
+    }
+
     /// Hit test screen coordinates against existing objects.
     pub fn hit_test(&self, x: f64, y: f64) -> Option<HitObject> {
         let mut result = None;
         let mut best_z = f64::INFINITY;
 
-        if let Some((surf, handles)) = &self.handles {
+        if let Some((_, handles)) = &self.handles {
             for (i, hid) in handles.iter().enumerate() {
                 if let Some(p) = self.engine.point_marker_position(*hid) {
                     if let Some((sx, sy, z)) = self.engine.project_point(p) {
                         let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                         if d2 < 64.0 && z < best_z {
                             best_z = z;
-                            result = Some(HitObject::Handle);
+                            result = Some(HitObject::Handle(i));
                         }
                     }
                 }
