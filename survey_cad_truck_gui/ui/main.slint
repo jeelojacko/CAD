@@ -661,6 +661,7 @@ export component MainWindow inherits Window {
     callback export_e57();
     callback export_landxml_surface();
     callback export_landxml_alignment();
+    callback export_landxml_sections();
     callback import_landxml_surface();
     callback import_landxml_alignment();
     callback tin_add_vertex();
@@ -719,6 +720,7 @@ export component MainWindow inherits Window {
                 MenuItem { title: "E57"; activated => { root.export_e57(); } }
                 MenuItem { title: "LandXML Surface"; activated => { root.export_landxml_surface(); } }
                 MenuItem { title: "LandXML Alignment"; activated => { root.export_landxml_alignment(); } }
+                MenuItem { title: "LandXML Sections"; activated => { root.export_landxml_sections(); } }
             }
         }
         Menu {
@@ -886,6 +888,10 @@ export component MainWindow inherits Window {
         Button {
                 text: "Export LandXML Alignment";
                 clicked => { root.export_landxml_alignment(); }
+            }
+        Button {
+                text: "Export LandXML Sections";
+                clicked => { root.export_landxml_sections(); }
             }
         Button {
                 text: "Corridor Volume";

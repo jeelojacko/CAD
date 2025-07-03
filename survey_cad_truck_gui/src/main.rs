@@ -8,7 +8,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
 
-use survey_cad::alignment::HorizontalAlignment;
+use survey_cad::alignment::{Alignment, VerticalAlignment, VerticalElement};
 use survey_cad::corridor;
 use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
@@ -66,7 +66,7 @@ struct WorkspaceRenderData<'a> {
     arcs: &'a [Arc],
     dimensions: &'a [LinearDimension],
     surfaces: &'a [Tin],
-    alignments: &'a [HorizontalAlignment],
+    alignments: &'a [Alignment],
 }
 
 #[derive(Default, Clone)]
@@ -910,8 +910,8 @@ fn render_workspace(
     }
 
     paint.set_color(Color::from_rgba8(0, 200, 255, 255));
-    for hal in data.alignments {
-        for elem in &hal.elements {
+    for al in data.alignments {
+        for elem in &al.horizontal.elements {
             match elem {
                 survey_cad::alignment::HorizontalElement::Tangent { start, end } => {
                     let mut pb = PathBuilder::new();
@@ -1412,6 +1412,28 @@ fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u3
     Image::from_rgba8_premultiplied(buffer)
 }
 
+fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
+    for elem in &profile.elements {
+        match *elem {
+            VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+                if station >= start_station && station <= end_station {
+                    if (end_station - start_station).abs() < f64::EPSILON {
+                        return Some(0.0);
+                    }
+                    return Some((end_elev - start_elev) / (end_station - start_station));
+                }
+            }
+            VerticalElement::Parabola { start_station, end_station, start_grade, end_grade, .. } => {
+                if station >= start_station && station <= end_station {
+                    let t = (station - start_station) / (end_station - start_station);
+                    return Some(start_grade + (end_grade - start_grade) * t);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn read_line_csv(path: &str, dst_epsg: u32) -> std::io::Result<(Point, Point)> {
     let pts = survey_cad::io::read_points_csv(path, Some(4326), Some(dst_epsg))?;
     if pts.len() != 2 {
@@ -1676,7 +1698,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let dimensions = Rc::new(RefCell::new(Vec::<LinearDimension>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
-    let alignments = Rc::new(RefCell::new(Vec::<HorizontalAlignment>::new()));
+    let alignments = Rc::new(RefCell::new(Vec::<Alignment>::new()));
     let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
     let layers = Rc::new(RefCell::new(ScLayerManager::new()));
     let layer_names = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -3213,6 +3235,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let config_rc = config.clone();
         let workspace_crs = workspace_crs.clone();
         let crs_entries_rc = crs_entries_rc.clone();
+        let alignments = alignments.clone();
         app.on_open_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -3248,6 +3271,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             dimensions.borrow_mut().extend(proj.dimensions.clone());
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
+                            alignments.borrow_mut().clear();
+                            alignments.borrow_mut().extend(proj.alignments.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
                             *polygon_style_indices.borrow_mut() = proj.polygon_style_indices.clone();
@@ -3323,6 +3348,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let last_dir = last_folder.clone();
         let config_rc = config.clone();
         let workspace_crs = workspace_crs.clone();
+        let alignments_save = alignments.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -3340,6 +3366,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         polylines: polylines.borrow().clone(),
                         arcs: arcs.borrow().clone(),
                         dimensions: dimensions.borrow().clone(),
+                        alignments: alignments_save.borrow().clone(),
                         surfaces: surfaces.borrow().clone(),
                         layers: layers_ref.borrow().iter().cloned().collect(),
                         point_style_indices: point_style_indices.borrow().clone(),
@@ -4233,15 +4260,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         let design = &surfs[0];
                         let ground = &surfs[1];
-                        let hal = &aligns[0];
-                        let len = hal.length();
-                        let val = survey_cad::alignment::VerticalAlignment::new(vec![
-                            (0.0, 0.0),
-                            (len, 0.0),
-                        ]);
-                        let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+                        let al = &aligns[0];
                         Some(survey_cad::corridor::corridor_volume(
-                            design, ground, &al, width, interval, step,
+                            design, ground, al, width, interval, step,
                         ))
                     })();
                     if let Some(app) = weak2.upgrade() {
@@ -4565,13 +4586,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         if aligns.is_empty() {
                             return None;
                         }
-                        let hal = &aligns[0];
-                        let len = hal.length();
-                        let val = survey_cad::alignment::VerticalAlignment::new(vec![
-                            (0.0, 0.0),
-                            (len, 0.0),
-                        ]);
-                        let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+                        let al = &aligns[0];
                         let lane = subassembly::lane(lane_w, lane_s);
                         let shoulder = subassembly::shoulder(sh_w, sh_s);
                         let sections = subassembly::symmetric_section(&[lane, shoulder]);
@@ -4630,10 +4645,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 return;
             }
-            let hal = &aligns[0];
-            let len = hal.length();
-            let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
-            let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+            let al = aligns[0].clone();
             let sections = corridor::extract_cross_sections(&surfs[0], &al, 10.0, 10.0, 1.0);
             if sections.is_empty() {
                 if let Some(app) = weak.upgrade() {
@@ -4647,6 +4659,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 "Station: {:.2}",
                 sections[0].station
             )));
+            let elev = al.vertical.elevation_at(sections[0].station).unwrap_or(0.0);
+            let grade = grade_at(&al.vertical, sections[0].station).unwrap_or(0.0);
+            viewer.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
+            viewer.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
             viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(sections);
@@ -4654,6 +4670,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let current = current.clone();
                 let secs = secs.clone();
                 let viewer_weak = viewer_weak.clone();
+                let al = al.clone();
                 viewer.on_prev(move || {
                     if *current.borrow() > 0 {
                         *current.borrow_mut() -= 1;
@@ -4663,6 +4680,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                 "Station: {:.2}",
                                 secs[i].station
                             )));
+                            let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
+                            let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
+                            v.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
+                            v.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -4672,6 +4693,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let current = current.clone();
                 let secs = secs.clone();
                 let viewer_weak = viewer_weak.clone();
+                let al = al.clone();
                 viewer.on_next(move || {
                     if *current.borrow() + 1 < secs.len() {
                         *current.borrow_mut() += 1;
@@ -4681,6 +4703,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                 "Station: {:.2}",
                                 secs[i].station
                             )));
+                            let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
+                            let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
+                            v.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
+                            v.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -5664,8 +5690,38 @@ fn main() -> Result<(), slint::PlatformError> {
                 .save_file()
             {
                 if let Some(p) = path.to_str() {
-                    let hal = &alignments.borrow()[0];
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, hal) {
+                    let al = &alignments.borrow()[0];
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, &al.horizontal) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let surfaces = surfaces.clone();
+        let alignments = alignments.clone();
+        app.on_export_landxml_sections(move || {
+            if surfaces.borrow().is_empty() || alignments.borrow().is_empty() {
+                if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("No sections to export"));
+                }
+                return;
+            }
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    let al = &alignments.borrow()[0];
+                    let secs = corridor::extract_cross_sections(&surfaces.borrow()[0], al, 10.0, 10.0, 1.0);
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(p, &secs) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6264,10 +6320,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     if alignments.borrow().is_empty() {
                         return;
                     }
-                    let hal = &alignments.borrow()[0];
-                    let len = hal.length();
-                    let val = survey_cad::alignment::VerticalAlignment::new(vec![(0.0, 0.0), (len, 0.0)]);
-                    let al = survey_cad::alignment::Alignment::new(hal.clone(), val);
+                    let al = &alignments.borrow()[0];
                     let lane = subassembly::lane(3.5, -0.02);
                     let shoulder = subassembly::shoulder(1.0, -0.04);
                     let subs = subassembly::symmetric_section(&[lane, shoulder]);
@@ -6549,8 +6602,10 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_alignment(p) {
-                        Ok(al) => {
-                            alignments.borrow_mut().push(al);
+                        Ok(hal) => {
+                            let val = survey_cad::io::landxml::read_landxml_profile(p)
+                                .unwrap_or_else(|_| VerticalAlignment::new(vec![(0.0, 0.0), (hal.length(), 0.0)]));
+                            alignments.borrow_mut().push(Alignment::new(hal, val));
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));
                                 if app.get_workspace_mode() == 0 {
