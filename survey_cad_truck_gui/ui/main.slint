@@ -603,6 +603,7 @@ export component MainWindow inherits Window {
     callback tin_delete_triangle();
     callback macro_record();
     callback macro_play();
+    callback run_python_script();
     callback undo();
     callback redo();
     callback move_entity();
@@ -704,6 +705,7 @@ export component MainWindow inherits Window {
             title: "Macro";
             MenuItem { title: "Record"; activated => { root.macro_record(); } }
             MenuItem { title: "Play"; activated => { root.macro_play(); } }
+            MenuItem { title: "Run Python Script"; activated => { root.run_python_script(); } }
         }
     }
 

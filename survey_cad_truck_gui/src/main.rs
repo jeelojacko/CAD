@@ -38,6 +38,9 @@ mod persistence;
 use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
 
 use once_cell::sync::Lazy;
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use survey_cad_python;
 use rusttype::{point, Font, Scale};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
@@ -1837,6 +1840,95 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.window().request_redraw();
                         }
                         refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let surfaces_ref = surfaces.clone();
+        app.on_run_python_script(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Python", &["py"])
+                .pick_file()
+            {
+                match std::fs::read_to_string(&path) {
+                    Ok(code) => {
+                        let result = Python::with_gil(|py| {
+                            let module = PyModule::new_bound(py, "survey_cad_python")?;
+                            survey_cad_python::init(py, &module)?;
+
+                            let pts: Vec<Py<survey_cad_python::Point>> = point_db
+                                .borrow()
+                                .iter()
+                                .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
+                                .collect::<PyResult<_>>()?;
+
+                            let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
+                                lines_ref
+                                    .borrow()
+                                    .iter()
+                                    .map(|(a, b)| {
+                                        Ok((
+                                            Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                            Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                                        ))
+                                    })
+                                    .collect::<PyResult<_>>()?;
+
+                            let surfs: Vec<Py<PyAny>> = surfaces_ref
+                                .borrow()
+                                .iter()
+                                .map(|s| {
+                                    let dict = PyDict::new(py);
+                                    let verts: Vec<(f64, f64, f64)> = s
+                                        .vertices
+                                        .iter()
+                                        .map(|v| (v.x, v.y, v.z))
+                                        .collect();
+                                    let tris: Vec<(usize, usize, usize)> = s
+                                        .triangles
+                                        .iter()
+                                        .map(|t| (t[0], t[1], t[2]))
+                                        .collect();
+                                    dict.set_item("vertices", verts)?;
+                                    dict.set_item("triangles", tris)?;
+                                    Ok(dict.into())
+                                })
+                                .collect::<PyResult<_>>()?;
+
+                            let globals = PyDict::new(py);
+                            globals.set_item("survey_cad_python", module)?;
+                            globals.set_item("points", pts)?;
+                            globals.set_item("lines", lines_py)?;
+                            globals.set_item("surfaces", surfs)?;
+
+                            py.run(&code, Some(globals), None)
+                        });
+
+                        match result {
+                            Ok(_) => {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from("Python script finished"));
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from(format!(
+                                        "Python error: {e}"
+                                    )));
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to read: {e}")));
+                        }
                     }
                 }
             }

@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "survey_cad_python"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 survey_cad = { path = "../survey_cad", default-features = false }
