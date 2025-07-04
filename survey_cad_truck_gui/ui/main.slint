@@ -52,6 +52,7 @@ component Workspace3D inherits Rectangle {
     callback mouse_exited();
     callback left_pressed(length, length);
     callback right_pressed(length, length);
+    callback middle_pressed(length, length);
     callback pointer_released();
     callback scrolled(length, length);
     background: #202020;
@@ -69,6 +70,8 @@ component Workspace3D inherits Rectangle {
                     root.left_pressed(self.mouse-x, self.mouse-y);
                 } else if event.button == PointerEventButton.right {
                     root.right_pressed(self.mouse-x, self.mouse-y);
+                } else if event.button == PointerEventButton.middle {
+                    root.middle_pressed(self.mouse-x, self.mouse-y);
                 }
             } else if event.kind == PointerEventKind.up {
                 root.pointer_released();
@@ -725,6 +728,7 @@ export component MainWindow inherits Window {
     callback settings();
     callback workspace_left_pressed(length, length);
     callback workspace_right_pressed(length, length);
+    callback workspace_middle_pressed(length, length);
     callback workspace_pointer_pressed(length, length, PointerEvent);
     callback workspace_pointer_released();
     callback workspace_scrolled(length, length);
@@ -1029,6 +1033,7 @@ export component MainWindow inherits Window {
                 mouse_exited() => { root.workspace_mouse_exited(); }
                 left_pressed(x, y) => { root.workspace_left_pressed(x, y); }
                 right_pressed(x, y) => { root.workspace_right_pressed(x, y); }
+                middle_pressed(x, y) => { root.workspace_middle_pressed(x, y); }
                 pointer_released() => { root.workspace_pointer_released(); }
                 scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }

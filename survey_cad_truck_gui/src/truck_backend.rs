@@ -30,6 +30,8 @@ pub struct TruckBackend {
     dimensions: Vec<(Point3, Point3)>,
     surfaces: Vec<SurfaceData>,
     handles: Option<(usize, Vec<usize>)>,
+    hover_surface: Option<usize>,
+    hover_handle: Option<usize>,
 }
 
 impl TruckBackend {
@@ -47,6 +49,8 @@ impl TruckBackend {
             dimensions: Vec::new(),
             surfaces: Vec::new(),
             handles: None,
+            hover_surface: None,
+            hover_handle: None,
         }
     }
 
@@ -422,7 +426,7 @@ impl TruckBackend {
     }
 
     /// Hit test screen coordinates against existing objects.
-    pub fn hit_test(&self, x: f64, y: f64) -> Option<HitObject> {
+    pub fn hit_test(&mut self, x: f64, y: f64) -> Option<HitObject> {
         let mut result = None;
         let mut best_z = f64::INFINITY;
 
@@ -567,6 +571,41 @@ impl TruckBackend {
                             result = Some(HitObject::Surface(i));
                         }
                     }
+                }
+            }
+        }
+
+        match result {
+            Some(HitObject::Handle(i)) => {
+                if self.hover_handle != Some(i) {
+                    if let Some(prev) = self.hover_handle.take() {
+                        self.highlight_handle(prev, false);
+                    }
+                    self.highlight_handle(i, true);
+                    self.hover_handle = Some(i);
+                }
+                if let Some(prev) = self.hover_surface.take() {
+                    self.highlight_surface(prev, false);
+                }
+            }
+            Some(HitObject::Surface(i)) => {
+                if self.hover_surface != Some(i) {
+                    if let Some(prev) = self.hover_surface.take() {
+                        self.highlight_surface(prev, false);
+                    }
+                    self.highlight_surface(i, true);
+                    self.hover_surface = Some(i);
+                }
+                if let Some(prev) = self.hover_handle.take() {
+                    self.highlight_handle(prev, false);
+                }
+            }
+            _ => {
+                if let Some(prev) = self.hover_surface.take() {
+                    self.highlight_surface(prev, false);
+                }
+                if let Some(prev) = self.hover_handle.take() {
+                    self.highlight_handle(prev, false);
                 }
             }
         }
