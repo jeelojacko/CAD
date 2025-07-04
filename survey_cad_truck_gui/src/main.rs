@@ -4591,7 +4591,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let shoulder = subassembly::shoulder(sh_w, sh_s);
                         let sections = subassembly::symmetric_section(&[lane, shoulder]);
                         let mut cs =
-                            corridor::extract_design_cross_sections(&al, &sections, None, interval);
+                            corridor::extract_design_cross_sections(al, &sections, None, interval);
                         cs.retain(|c| c.station >= start && c.station <= end);
                         for section in cs {
                             for pair in section.points.windows(2) {
@@ -4661,8 +4661,8 @@ fn main() -> Result<(), slint::PlatformError> {
             )));
             let elev = al.vertical.elevation_at(sections[0].station).unwrap_or(0.0);
             let grade = grade_at(&al.vertical, sections[0].station).unwrap_or(0.0);
-            viewer.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
-            viewer.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
+            viewer.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
+            viewer.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
             viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(sections);
@@ -4682,8 +4682,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             )));
                             let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
                             let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
-                            v.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
-                            v.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
+                            v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
+                            v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -4705,8 +4705,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             )));
                             let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
                             let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
-                            v.set_elevation_label(SharedString::from(format!("Elev: {:.2}", elev)));
-                            v.set_slope_label(SharedString::from(format!("Slope: {:.4}", grade)));
+                            v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
+                            v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
                             v.set_section_image(render_cross_section(&secs[i], 600, 300));
                         }
                     }
@@ -6325,7 +6325,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let shoulder = subassembly::shoulder(1.0, -0.04);
                     let subs = subassembly::symmetric_section(&[lane, shoulder]);
                     let tin = corridor::build_design_surface_dynamic(
-                        &al,
+                        al,
                         &subs,
                         Some(&sup_data.borrow()),
                         10.0,
