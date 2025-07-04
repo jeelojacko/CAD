@@ -2126,11 +2126,10 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_workspace_mode(0); // start with 2D mode
     app.set_show_point_numbers(true);
 
-    // show length of example line in the status bar so Line import is used
-    app.set_status(SharedString::from(format!(
-        "Example line length: {:.1}",
-        example_line.length()
-    )));
+    // show camera controls in the status bar
+    app.set_status(SharedString::from(
+        "Camera: Left drag orbit, middle drag pan, scroll zoom",
+    ));
 
     // prepare initial 2D workspace image and schedule continuous redraws
     app.set_workspace_image(render_image());
@@ -2612,9 +2611,15 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_zoom_level(*zoom.borrow());
                 if mode == 0 {
                     app.set_workspace_image(render_image());
+                    app.set_status(SharedString::from(
+                        "Camera: Middle drag pan, scroll zoom",
+                    ));
                 } else {
                     let image = backend_render.borrow_mut().render();
                     app.set_workspace_texture(image);
+                    app.set_status(SharedString::from(
+                        "Camera: Left drag orbit, middle drag pan, scroll zoom",
+                    ));
                 }
                 app.window().request_redraw();
             }
@@ -2777,7 +2782,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let active_handle_ref = active_handle.clone();
         app.on_workspace_left_pressed(move |x, y| {
             *last_pos.borrow_mut() = (x as f64, y as f64);
-            if let Some(HitObject::Handle(i)) = backend.borrow().hit_test(x as f64, y as f64) {
+            if let Some(HitObject::Handle(i)) = backend.borrow_mut().hit_test(x as f64, y as f64) {
                 *rotate_flag.borrow_mut() = false;
                 *active_handle_ref.borrow_mut() = Some(i);
                 backend.borrow_mut().highlight_handle(i, true);
@@ -2798,6 +2803,15 @@ fn main() -> Result<(), slint::PlatformError> {
         let pan_flag = pan_flag.clone();
         let last_pos = last_pos.clone();
         app.on_workspace_right_pressed(move |x, y| {
+            *pan_flag.borrow_mut() = true;
+            *last_pos.borrow_mut() = (x as f64, y as f64);
+        });
+    }
+
+    {
+        let pan_flag = pan_flag.clone();
+        let last_pos = last_pos.clone();
+        app.on_workspace_middle_pressed(move |x, y| {
             *pan_flag.borrow_mut() = true;
             *last_pos.borrow_mut() = (x as f64, y as f64);
         });
@@ -3147,7 +3161,7 @@ fn main() -> Result<(), slint::PlatformError> {
             } else if let Some(start) = click_pos.borrow_mut().take() {
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 1 {
-                        if let Some(hit) = backend_inner.borrow().hit_test(start.0, start.1) {
+                        if let Some(hit) = backend_inner.borrow_mut().hit_test(start.0, start.1) {
                             match hit {
                                 HitObject::Surface(i) => {
                                     if let Some(prev) = selected_surface_ref.replace(Some(i)) {
@@ -3198,6 +3212,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let active_handle_ref = active_handle.clone();
         let backend_move = backend.clone();
         app.on_workspace_mouse_moved(move |x, y| {
+            let _ = backend_move.borrow_mut().hit_test(x as f64, y as f64);
             let mut last = last_pos.borrow_mut();
             let dx = x as f64 - last.0;
             let dy = y as f64 - last.1;
@@ -3320,6 +3335,14 @@ fn main() -> Result<(), slint::PlatformError> {
                 pos: (x, y),
                 frame: 0,
             });
+
+            if let Some(app) = weak.upgrade() {
+                if app.get_workspace_mode() == 1 {
+                    let image = backend_move.borrow_mut().render();
+                    app.set_workspace_texture(image);
+                    app.window().request_redraw();
+                }
+            }
         });
     }
 
