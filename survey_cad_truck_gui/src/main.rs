@@ -5176,6 +5176,144 @@ fn main() -> Result<(), slint::PlatformError> {
     }
 
     {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_add_breakline(move || {
+            let dlg = TinBreaklineDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(a), Ok(b)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_v1().parse::<usize>(),
+                        d.get_v2().parse::<usize>(),
+                    ) {
+                        backend_inner.borrow_mut().add_breakline(surf, a, b);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_remove_breakline(move || {
+            let dlg = TinBreaklineDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let (Ok(surf), Ok(a), Ok(b)) = (
+                        d.get_surface_index().parse::<usize>(),
+                        d.get_v1().parse::<usize>(),
+                        d.get_v2().parse::<usize>(),
+                    ) {
+                        backend_inner.borrow_mut().remove_breakline(surf, a, b);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_set_boundary(move || {
+            let dlg = TinBoundaryDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let Ok(surf) = d.get_surface_index().parse::<usize>() {
+                        let verts: Vec<usize> = d
+                            .get_verts()
+                            .split(|c: char| c == ',' || c.is_whitespace())
+                            .filter_map(|s| s.parse().ok())
+                            .collect();
+                        backend_inner.borrow_mut().set_boundary(surf, verts);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let backend = backend.clone();
+        let weak = app.as_weak();
+        app.on_tin_clear_boundary(move || {
+            let dlg = TinBoundaryDialog::new().unwrap();
+            dlg.set_verts("".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let backend_inner = backend.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    if let Ok(surf) = d.get_surface_index().parse::<usize>() {
+                        backend_inner.borrow_mut().clear_boundary(surf);
+                        if let Some(app) = weak2.upgrade() {
+                            let image = backend_inner.borrow_mut().render();
+                            app.set_workspace_texture(image);
+                            app.window().request_redraw();
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
         let weak = app.as_weak();
         let point_db = point_db.clone();
         let render_image = render_image.clone();
