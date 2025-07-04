@@ -292,6 +292,44 @@ export component TinTriangleDialog inherits Window {
     }
 }
 
+export component TinBreaklineDialog inherits Window {
+    in-out property <string> surface_index;
+    in-out property <string> v1;
+    in-out property <string> v2;
+    callback accept();
+    callback cancel();
+    title: "TIN Breakline";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Surface:"; } LineEdit { text <=> root.surface_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "V1:"; } LineEdit { text <=> root.v1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "V2:"; } LineEdit { text <=> root.v2; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
+export component TinBoundaryDialog inherits Window {
+    in-out property <string> surface_index;
+    in-out property <string> verts;
+    callback accept();
+    callback cancel();
+    title: "TIN Boundary";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "Surface:"; } LineEdit { text <=> root.surface_index; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Vertices:"; } LineEdit { text <=> root.verts; } }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "OK"; clicked => { root.accept(); } }
+            Button { text: "Cancel"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component AddLineDialog inherits Window {
     callback from_file();
     callback manual();
@@ -669,6 +707,10 @@ export component MainWindow inherits Window {
     callback tin_delete_vertex();
     callback tin_add_triangle();
     callback tin_delete_triangle();
+    callback tin_add_breakline();
+    callback tin_remove_breakline();
+    callback tin_set_boundary();
+    callback tin_clear_boundary();
     callback macro_record();
     callback macro_play();
     callback run_python_script();
@@ -764,6 +806,10 @@ export component MainWindow inherits Window {
             MenuItem { title: "Delete Vertex"; activated => { root.tin_delete_vertex(); } }
             MenuItem { title: "Add Triangle"; activated => { root.tin_add_triangle(); } }
             MenuItem { title: "Delete Triangle"; activated => { root.tin_delete_triangle(); } }
+            MenuItem { title: "Add Breakline"; activated => { root.tin_add_breakline(); } }
+            MenuItem { title: "Remove Breakline"; activated => { root.tin_remove_breakline(); } }
+            MenuItem { title: "Set Boundary"; activated => { root.tin_set_boundary(); } }
+            MenuItem { title: "Clear Boundary"; activated => { root.tin_clear_boundary(); } }
         }
         Menu {
             title: "View";

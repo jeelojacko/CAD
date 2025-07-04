@@ -8,11 +8,15 @@ pub enum HitObject {
     Line,
     Surface(usize),
     Handle(usize),
+    Breakline(usize, usize),
+    Boundary(usize, usize),
 }
 
 struct SurfaceData {
     vertices: Vec<Point3>,
     triangles: Vec<[usize; 3]>,
+    breaklines: Vec<(usize, usize)>,
+    boundary: Option<Vec<usize>>,
 }
 
 pub struct TruckBackend {
@@ -190,6 +194,8 @@ impl TruckBackend {
         self.surfaces.push(SurfaceData {
             vertices: vertices.to_vec(),
             triangles: triangles.to_vec(),
+            breaklines: Vec::new(),
+            boundary: None,
         });
         self.surface_ids.len() - 1
     }
@@ -206,6 +212,8 @@ impl TruckBackend {
         if let Some(surf) = self.surfaces.get_mut(idx) {
             surf.vertices = vertices.to_vec();
             surf.triangles = triangles.to_vec();
+            surf.breaklines.clear();
+            surf.boundary = None;
         }
     }
 
@@ -267,6 +275,46 @@ impl TruckBackend {
             if tri_idx < surf.triangles.len() {
                 surf.triangles.remove(tri_idx);
             }
+        }
+    }
+
+    pub fn add_breakline(&mut self, surface: usize, a: usize, b: usize) {
+        if let Some(surf) = self.surfaces.get_mut(surface) {
+            if a < surf.vertices.len() && b < surf.vertices.len() {
+                if !surf
+                    .breaklines
+                    .iter()
+                    .any(|&(x, y)| (x == a && y == b) || (x == b && y == a))
+                {
+                    surf.breaklines.push((a, b));
+                }
+            }
+        }
+    }
+
+    pub fn remove_breakline(&mut self, surface: usize, a: usize, b: usize) {
+        if let Some(surf) = self.surfaces.get_mut(surface) {
+            if let Some(pos) = surf
+                .breaklines
+                .iter()
+                .position(|&(x, y)| (x == a && y == b) || (x == b && y == a))
+            {
+                surf.breaklines.remove(pos);
+            }
+        }
+    }
+
+    pub fn set_boundary(&mut self, surface: usize, boundary: Vec<usize>) {
+        if let Some(surf) = self.surfaces.get_mut(surface) {
+            if boundary.iter().all(|&i| i < surf.vertices.len()) && boundary.len() >= 3 {
+                surf.boundary = Some(boundary);
+            }
+        }
+    }
+
+    pub fn clear_boundary(&mut self, surface: usize) {
+        if let Some(surf) = self.surfaces.get_mut(surface) {
+            surf.boundary = None;
         }
     }
 
@@ -420,6 +468,73 @@ impl TruckBackend {
                     if d2 < 36.0 && lz < best_z {
                         best_z = lz;
                         result = Some(HitObject::Line);
+                    }
+                }
+            }
+        }
+
+        for (si, surf) in self.surfaces.iter().enumerate() {
+            for (bi, &(i1, i2)) in surf.breaklines.iter().enumerate() {
+                if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
+                    self.engine.project_point(surf.vertices[i1]),
+                    self.engine.project_point(surf.vertices[i2]),
+                ) {
+                    let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
+                        / ((bx - ax).powi(2) + (by - ay).powi(2));
+                    if (0.0..=1.0).contains(&t) {
+                        let lx = ax + t * (bx - ax);
+                        let ly = ay + t * (by - ay);
+                        let lz = az + t * (bz - az);
+                        let d2 = (x - lx).powi(2) + (y - ly).powi(2);
+                        if d2 < 36.0 && lz < best_z {
+                            best_z = lz;
+                            result = Some(HitObject::Breakline(si, bi));
+                        }
+                    }
+                }
+            }
+            if let Some(bound) = &surf.boundary {
+                for (bi, window) in bound.windows(2).enumerate() {
+                    let i1 = window[0];
+                    let i2 = window[1];
+                    if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
+                        self.engine.project_point(surf.vertices[i1]),
+                        self.engine.project_point(surf.vertices[i2]),
+                    ) {
+                        let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
+                            / ((bx - ax).powi(2) + (by - ay).powi(2));
+                        if (0.0..=1.0).contains(&t) {
+                            let lx = ax + t * (bx - ax);
+                            let ly = ay + t * (by - ay);
+                            let lz = az + t * (bz - az);
+                            let d2 = (x - lx).powi(2) + (y - ly).powi(2);
+                            if d2 < 36.0 && lz < best_z {
+                                best_z = lz;
+                                result = Some(HitObject::Boundary(si, bi));
+                            }
+                        }
+                    }
+                }
+                // close edge from last to first
+                if bound.len() > 1 {
+                    let i1 = bound[bound.len() - 1];
+                    let i2 = bound[0];
+                    if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
+                        self.engine.project_point(surf.vertices[i1]),
+                        self.engine.project_point(surf.vertices[i2]),
+                    ) {
+                        let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
+                            / ((bx - ax).powi(2) + (by - ay).powi(2));
+                        if (0.0..=1.0).contains(&t) {
+                            let lx = ax + t * (bx - ax);
+                            let ly = ay + t * (by - ay);
+                            let lz = az + t * (bz - az);
+                            let d2 = (x - lx).powi(2) + (y - ly).powi(2);
+                            if d2 < 36.0 && lz < best_z {
+                                best_z = lz;
+                                result = Some(HitObject::Boundary(si, bound.len() - 1));
+                            }
+                        }
                     }
                 }
             }
