@@ -58,23 +58,24 @@ pub fn read_points_csv(
         .enumerate()
         .filter(|(_, line)| !line.trim().is_empty())
         .map(|(idx, line)| {
+            let line_no = idx + 1;
             let parts: Vec<&str> = line.split(',').collect();
             if parts.len() != 2 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("line {}: expected two comma-separated values", idx + 1),
+                    format!("line {line_no}: expected two comma-separated values"),
                 ));
             }
             let x = parts[0].trim().parse::<f64>().map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("line {}: {}", idx + 1, e),
+                    format!("line {line_no}: {e}"),
                 )
             })?;
             let y = parts[1].trim().parse::<f64>().map_err(|e| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("line {}: {}", idx + 1, e),
+                    format!("line {line_no}: {e}"),
                 )
             })?;
             Ok(Point::new(x, y))

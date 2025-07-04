@@ -38,7 +38,10 @@ pub fn points_report_pdf(path: &str, points: &[Point]) -> std::io::Result<()> {
     let rows: Vec<String> = points
         .iter()
         .enumerate()
-        .map(|(i, p)| format!("{}: {}, {}", i + 1, p.x, p.y))
+        .map(|(i, p)| {
+            let idx = i + 1;
+            format!("{idx}: {x}, {y}", x = p.x, y = p.y)
+        })
         .collect();
     write_pdf(path, "Points Report", &rows)
 }
