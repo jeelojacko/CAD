@@ -33,6 +33,12 @@ pub struct Project {
     #[serde(default)]
     pub alignments: Vec<crate::alignment::Alignment>,
     pub surfaces: Vec<Tin>,
+    #[serde(default)]
+    pub surface_units: Vec<String>,
+    #[serde(default)]
+    pub surface_styles: Vec<String>,
+    #[serde(default)]
+    pub surface_descriptions: Vec<String>,
     pub layers: Vec<Layer>,
     pub point_style_indices: Vec<usize>,
     pub line_style_indices: Vec<usize>,
@@ -59,6 +65,9 @@ impl Project {
             dimensions: Vec::new(),
             alignments: Vec::new(),
             surfaces: Vec::new(),
+            surface_units: Vec::new(),
+            surface_styles: Vec::new(),
+            surface_descriptions: Vec::new(),
             layers: Vec::new(),
             point_style_indices: Vec::new(),
             line_style_indices: Vec::new(),

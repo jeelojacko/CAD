@@ -1772,6 +1772,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let dimensions = Rc::new(RefCell::new(Vec::<LinearDimension>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
+    let surface_units = Rc::new(RefCell::new(Vec::<String>::new()));
+    let surface_styles = Rc::new(RefCell::new(Vec::<String>::new()));
+    let surface_descriptions = Rc::new(RefCell::new(Vec::<String>::new()));
     let alignments = Rc::new(RefCell::new(Vec::<Alignment>::new()));
     let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
     let layers = Rc::new(RefCell::new(ScLayerManager::new()));
@@ -1926,6 +1929,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let surfaces = surfaces.clone();
+        let surface_units_ref = surface_units.clone();
+        let surface_styles_ref = surface_styles.clone();
+        let surface_descriptions_ref = surface_descriptions.clone();
         let alignments = alignments.clone();
         let zoom = zoom.clone();
         let offset = offset.clone();
@@ -3243,6 +3249,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let surfaces = surfaces.clone();
+        let surface_units_np = surface_units.clone();
+        let surface_styles_np = surface_styles.clone();
+        let surface_descriptions_np = surface_descriptions.clone();
         let alignments = alignments.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
@@ -3264,6 +3273,9 @@ fn main() -> Result<(), slint::PlatformError> {
             arcs.borrow_mut().clear();
             dimensions.borrow_mut().clear();
             surfaces.borrow_mut().clear();
+            surface_units_np.borrow_mut().clear();
+            surface_styles_np.borrow_mut().clear();
+            surface_descriptions_np.borrow_mut().clear();
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();
@@ -3295,6 +3307,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines = polylines.clone();
         let arcs = arcs.clone();
         let surfaces = surfaces.clone();
+        let surface_units_ref = surface_units.clone();
+        let surface_styles_ref = surface_styles.clone();
+        let surface_descriptions_ref = surface_descriptions.clone();
         let layers_ref = layers.clone();
         let layer_names_ref = layer_names.clone();
         let line_style_indices = line_style_indices.clone();
@@ -3345,6 +3360,14 @@ fn main() -> Result<(), slint::PlatformError> {
                             dimensions.borrow_mut().extend(proj.dimensions.clone());
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
+                            surface_units_ref.borrow_mut().clear();
+                            surface_units_ref.borrow_mut().extend(proj.surface_units.clone());
+                            surface_styles_ref.borrow_mut().clear();
+                            surface_styles_ref.borrow_mut().extend(proj.surface_styles.clone());
+                            surface_descriptions_ref.borrow_mut().clear();
+                            surface_descriptions_ref
+                                .borrow_mut()
+                                .extend(proj.surface_descriptions.clone());
                             alignments.borrow_mut().clear();
                             alignments.borrow_mut().extend(proj.alignments.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
@@ -3422,6 +3445,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let last_dir = last_folder.clone();
         let config_rc = config.clone();
         let workspace_crs = workspace_crs.clone();
+        let surface_units_ref = surface_units.clone();
+        let surface_styles_ref = surface_styles.clone();
+        let surface_descriptions_ref = surface_descriptions.clone();
         let alignments_save = alignments.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
@@ -3442,6 +3468,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         dimensions: dimensions.borrow().clone(),
                         alignments: alignments_save.borrow().clone(),
                         surfaces: surfaces.borrow().clone(),
+                        surface_units: surface_units_ref.borrow().clone(),
+                        surface_styles: surface_styles_ref.borrow().clone(),
+                        surface_descriptions: surface_descriptions_ref.borrow().clone(),
                         layers: layers_ref.borrow().iter().cloned().collect(),
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
@@ -5773,6 +5802,9 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let surfaces = surfaces.clone();
+        let surface_units_clone = surface_units.clone();
+        let surface_styles_clone = surface_styles.clone();
+        let surface_descriptions_clone = surface_descriptions.clone();
         app.on_export_landxml_surface(move || {
             if surfaces.borrow().is_empty() {
                 if let Some(app) = weak.upgrade() {
@@ -5786,7 +5818,12 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     let tin = &surfaces.borrow()[0];
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin) {
+                    let extras = survey_cad::io::landxml::LandxmlExtras {
+                        units: surface_units_clone.borrow().get(0).cloned(),
+                        style: surface_styles_clone.borrow().get(0).cloned(),
+                        description: surface_descriptions_clone.borrow().get(0).cloned(),
+                    };
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin, Some(&extras)) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -5814,7 +5851,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     let al = &alignments.borrow()[0];
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, &al.horizontal) {
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, &al.horizontal, None) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -5829,6 +5866,9 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let weak = app.as_weak();
         let surfaces = surfaces.clone();
+        let surface_units_clone = surface_units.clone();
+        let surface_styles_clone = surface_styles.clone();
+        let surface_descriptions_clone = surface_descriptions.clone();
         let alignments = alignments.clone();
         app.on_export_landxml_sections(move || {
             if surfaces.borrow().is_empty() || alignments.borrow().is_empty() {
@@ -5844,7 +5884,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     let al = &alignments.borrow()[0];
                     let secs = corridor::extract_cross_sections(&surfaces.borrow()[0], al, 10.0, 10.0, 1.0);
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(p, &secs) {
+                    let extras = survey_cad::io::landxml::LandxmlExtras {
+                        units: surface_units_clone.borrow().get(0).cloned(),
+                        style: surface_styles_clone.borrow().get(0).cloned(),
+                        description: surface_descriptions_clone.borrow().get(0).cloned(),
+                    };
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(p, &secs, Some(&extras)) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6672,6 +6717,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let surfaces = surfaces.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let surface_units = surface_units.clone();
+        let surface_styles = surface_styles.clone();
+        let surface_descriptions = surface_descriptions.clone();
         app.on_import_landxml_surface(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -6679,7 +6727,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_surface(p) {
-                        Ok(tin) => {
+                        Ok((tin, extras)) => {
                             let verts: Vec<Point3> = tin
                                 .vertices
                                 .iter()
@@ -6689,6 +6737,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .borrow_mut()
                                 .add_surface(&verts, &tin.triangles);
                             surfaces.borrow_mut().push(tin);
+                            surface_units.borrow_mut().push(extras.units.unwrap_or_default());
+                            surface_styles.borrow_mut().push(extras.style.unwrap_or_default());
+                            surface_descriptions.borrow_mut().push(extras.description.unwrap_or_default());
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
                                 if app.get_workspace_mode() == 0 {
@@ -6725,7 +6776,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_alignment(p) {
-                        Ok(hal) => {
+                        Ok((hal, _)) => {
                             let val = survey_cad::io::landxml::read_landxml_profile(p)
                                 .unwrap_or_else(|_| VerticalAlignment::new(vec![(0.0, 0.0), (hal.length(), 0.0)]));
                             alignments.borrow_mut().push(Alignment::new(hal, val));
@@ -6989,6 +7040,9 @@ fn main() -> Result<(), slint::PlatformError> {
             dimensions.borrow_mut().clear();
             point_style_indices.borrow_mut().clear();
             surfaces.borrow_mut().clear();
+            surface_units.borrow_mut().clear();
+            surface_styles.borrow_mut().clear();
+            surface_descriptions.borrow_mut().clear();
             alignments.borrow_mut().clear();
             selected_indices.borrow_mut().clear();
             selected_lines.borrow_mut().clear();

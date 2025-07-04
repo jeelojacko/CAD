@@ -821,7 +821,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_surface(p) {
-                        Ok(tin) => {
+                        Ok((tin, _)) => {
                             surfaces.borrow_mut().push(tin);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
@@ -853,7 +853,7 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     match survey_cad::io::landxml::read_landxml_alignment(p) {
-                        Ok(al) => {
+                        Ok((al, _)) => {
                             alignments.borrow_mut().push(al);
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));

@@ -304,7 +304,7 @@ fn write_polygons_csv(path: &str, polygons: &[Vec<Point>]) -> std::io::Result<()
 
 fn read_surface(path: &str) -> std::io::Result<Tin> {
     if path.to_ascii_lowercase().ends_with(".xml") {
-        read_landxml_surface(path)
+        read_landxml_surface(path).map(|(t, _)| t)
     } else {
         let lines = read_lines(path)?;
         let mut pts = Vec::new();

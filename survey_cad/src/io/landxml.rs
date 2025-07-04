@@ -11,8 +11,16 @@ use crate::superelevation::SuperelevationPoint;
 
 use super::{read_to_string, write_string};
 
-/// Reads a LandXML file containing a surface and returns it as a [`Tin`].
-pub fn read_landxml_surface(path: &str) -> io::Result<Tin> {
+/// Additional attributes found in LandXML files.
+#[derive(Debug, Default, Clone)]
+pub struct LandxmlExtras {
+    pub units: Option<String>,
+    pub style: Option<String>,
+    pub description: Option<String>,
+}
+
+/// Reads a LandXML file containing a surface and returns it and any extra metadata.
+pub fn read_landxml_surface(path: &str) -> io::Result<(Tin, LandxmlExtras)> {
     let xml = read_to_string(path)?;
     let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut vertices = Vec::new();
@@ -43,19 +51,52 @@ pub fn read_landxml_surface(path: &str) -> io::Result<Tin> {
             }
         }
     }
-    Ok(Tin {
-        vertices,
-        triangles,
-    })
+    let extras = LandxmlExtras {
+        units: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Units"))
+            .and_then(|n| n.attribute("linearUnit"))
+            .map(|s| s.to_string()),
+        style: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Surface"))
+            .and_then(|n| n.attribute("style"))
+            .map(|s| s.to_string()),
+        description: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Surface"))
+            .and_then(|n| n.attribute("desc"))
+            .map(|s| s.to_string()),
+    };
+    Ok((
+        Tin {
+            vertices,
+            triangles,
+        },
+        extras,
+    ))
 }
 
 /// Writes a [`Tin`] to a LandXML surface file.
-pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
+pub fn write_landxml_surface(path: &str, tin: &Tin, extras: Option<&LandxmlExtras>) -> io::Result<()> {
     let mut xml = String::new();
     writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
     writeln!(&mut xml, "<LandXML>").unwrap();
+    if let Some(ex) = extras {
+        if let Some(u) = &ex.units {
+            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+        }
+    }
     writeln!(&mut xml, "  <Surfaces>").unwrap();
-    writeln!(&mut xml, "    <Surface name=\"TIN\">").unwrap();
+    let style_attr = extras
+        .and_then(|e| e.style.as_deref())
+        .map(|s| format!(" style=\"{}\"", s))
+        .unwrap_or_default();
+    let desc_attr = extras
+        .and_then(|e| e.description.as_deref())
+        .map(|s| format!(" desc=\"{}\"", s))
+        .unwrap_or_default();
+    writeln!(&mut xml, "    <Surface name=\"TIN\"{}{}>", style_attr, desc_attr).unwrap();
     writeln!(&mut xml, "      <Definition surfType=\"TIN\">").unwrap();
     writeln!(&mut xml, "        <Pnts>").unwrap();
     for (i, v) in tin.vertices.iter().enumerate() {
@@ -90,7 +131,7 @@ pub fn write_landxml_surface(path: &str, tin: &Tin) -> io::Result<()> {
 }
 
 /// Reads a LandXML file containing an alignment represented by `<PntList2D>`.
-pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
+pub fn read_landxml_alignment(path: &str) -> io::Result<(HorizontalAlignment, LandxmlExtras)> {
     let xml = read_to_string(path)?;
     let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut elements = Vec::new();
@@ -268,16 +309,50 @@ pub fn read_landxml_alignment(path: &str) -> io::Result<HorizontalAlignment> {
             }
         }
     }
-    Ok(HorizontalAlignment { elements })
+    let extras = LandxmlExtras {
+        units: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Units"))
+            .and_then(|n| n.attribute("linearUnit"))
+            .map(|s| s.to_string()),
+        style: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Alignment"))
+            .and_then(|n| n.attribute("style"))
+            .map(|s| s.to_string()),
+        description: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Alignment"))
+            .and_then(|n| n.attribute("desc"))
+            .map(|s| s.to_string()),
+    };
+    Ok((HorizontalAlignment { elements }, extras))
 }
 
 /// Writes a [`HorizontalAlignment`] to a simple LandXML file using `<PntList2D>`.
-pub fn write_landxml_alignment(path: &str, alignment: &HorizontalAlignment) -> io::Result<()> {
+pub fn write_landxml_alignment(
+    path: &str,
+    alignment: &HorizontalAlignment,
+    extras: Option<&LandxmlExtras>,
+) -> io::Result<()> {
     let mut xml = String::new();
     writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
     writeln!(&mut xml, "<LandXML>").unwrap();
+    if let Some(ex) = extras {
+        if let Some(u) = &ex.units {
+            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+        }
+    }
     writeln!(&mut xml, "  <Alignments>").unwrap();
-    writeln!(&mut xml, "    <Alignment name=\"HAL\">").unwrap();
+    let style_attr = extras
+        .and_then(|e| e.style.as_deref())
+        .map(|s| format!(" style=\"{}\"", s))
+        .unwrap_or_default();
+    let desc_attr = extras
+        .and_then(|e| e.description.as_deref())
+        .map(|s| format!(" desc=\"{}\"", s))
+        .unwrap_or_default();
+    writeln!(&mut xml, "    <Alignment name=\"HAL\"{}{}>", style_attr, desc_attr).unwrap();
     writeln!(&mut xml, "      <CoordGeom>").unwrap();
     for elem in &alignment.elements {
         match elem {
@@ -437,7 +512,7 @@ pub fn write_landxml_profile(
 }
 
 /// Reads a LandXML file containing corridor cross sections.
-pub fn read_landxml_cross_sections(path: &str) -> io::Result<Vec<CrossSection>> {
+pub fn read_landxml_cross_sections(path: &str) -> io::Result<(Vec<CrossSection>, LandxmlExtras)> {
     let xml = read_to_string(path)?;
     let doc = Document::parse(&xml).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut sections = Vec::new();
@@ -463,14 +538,32 @@ pub fn read_landxml_cross_sections(path: &str) -> io::Result<Vec<CrossSection>> 
             }
         }
     }
-    Ok(sections)
+    let extras = LandxmlExtras {
+        units: doc
+            .descendants()
+            .find(|n| n.has_tag_name("Units"))
+            .and_then(|n| n.attribute("linearUnit"))
+            .map(|s| s.to_string()),
+        style: None,
+        description: None,
+    };
+    Ok((sections, extras))
 }
 
 /// Writes corridor cross sections to a LandXML file.
-pub fn write_landxml_cross_sections(path: &str, sections: &[CrossSection]) -> io::Result<()> {
+pub fn write_landxml_cross_sections(
+    path: &str,
+    sections: &[CrossSection],
+    extras: Option<&LandxmlExtras>,
+) -> io::Result<()> {
     let mut xml = String::new();
     writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
     writeln!(&mut xml, "<LandXML>").unwrap();
+    if let Some(ex) = extras {
+        if let Some(u) = &ex.units {
+            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+        }
+    }
     writeln!(&mut xml, "  <CrossSections>").unwrap();
     for sec in sections {
         writeln!(&mut xml, "    <CrossSection sta=\"{}\">", sec.station).unwrap();
