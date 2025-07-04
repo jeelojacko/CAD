@@ -8,8 +8,8 @@ pub enum HitObject {
     Line,
     Surface(usize),
     Handle(usize),
-    Breakline(usize, usize),
-    Boundary(usize, usize),
+    Breakline,
+    Boundary,
 }
 
 struct SurfaceData {
@@ -280,14 +280,14 @@ impl TruckBackend {
 
     pub fn add_breakline(&mut self, surface: usize, a: usize, b: usize) {
         if let Some(surf) = self.surfaces.get_mut(surface) {
-            if a < surf.vertices.len() && b < surf.vertices.len() {
-                if !surf
+            if a < surf.vertices.len()
+                && b < surf.vertices.len()
+                && !surf
                     .breaklines
                     .iter()
                     .any(|&(x, y)| (x == a && y == b) || (x == b && y == a))
-                {
-                    surf.breaklines.push((a, b));
-                }
+            {
+                surf.breaklines.push((a, b));
             }
         }
     }
@@ -488,7 +488,8 @@ impl TruckBackend {
                         let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                         if d2 < 36.0 && lz < best_z {
                             best_z = lz;
-                            result = Some(HitObject::Breakline(si, bi));
+                            let _ = (si, bi); // indices currently unused
+                            result = Some(HitObject::Breakline);
                         }
                     }
                 }
@@ -510,7 +511,8 @@ impl TruckBackend {
                             let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                             if d2 < 36.0 && lz < best_z {
                                 best_z = lz;
-                                result = Some(HitObject::Boundary(si, bi));
+                                let _ = (si, bi);
+                                result = Some(HitObject::Boundary);
                             }
                         }
                     }
@@ -532,7 +534,8 @@ impl TruckBackend {
                             let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                             if d2 < 36.0 && lz < best_z {
                                 best_z = lz;
-                                result = Some(HitObject::Boundary(si, bound.len() - 1));
+                                let _ = (si, bound.len() - 1);
+                                result = Some(HitObject::Boundary);
                             }
                         }
                     }
