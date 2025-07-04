@@ -237,6 +237,30 @@ pub fn extract_design_cross_sections(
     sections
 }
 
+/// Builds a surface by connecting consecutive cross sections with triangles.
+pub fn surface_from_cross_sections(sections: &[CrossSection]) -> Tin {
+    if sections.is_empty() {
+        return Tin { vertices: Vec::new(), triangles: Vec::new() };
+    }
+    let pts_per = sections[0].points.len();
+    let mut vertices = Vec::new();
+    for sec in sections {
+        vertices.extend_from_slice(&sec.points);
+    }
+    let mut triangles = Vec::new();
+    for i in 0..(sections.len() - 1) {
+        for j in 0..(pts_per - 1) {
+            let a = i * pts_per + j;
+            let b = a + 1;
+            let c = (i + 1) * pts_per + j;
+            let d = c + 1;
+            triangles.push([a, c, d]);
+            triangles.push([a, d, b]);
+        }
+    }
+    Tin { vertices, triangles }
+}
+
 /// Builds a design surface by applying cross-section subassemblies along an
 /// alignment at the specified station `interval`.
 pub fn build_design_surface(alignment: &Alignment, subs: &[Subassembly], interval: f64) -> Tin {
