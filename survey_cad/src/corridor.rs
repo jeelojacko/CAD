@@ -288,6 +288,66 @@ pub fn build_design_surface(alignment: &Alignment, subs: &[Subassembly], interva
     Tin::from_points(pts)
 }
 
+/// Builds a design surface while reporting progress through `progress`.
+pub fn build_design_surface_dynamic_with_progress<F>(
+    alignment: &Alignment,
+    subs: &[Subassembly],
+    superelevation: Option<&SuperelevationTable>,
+    interval: f64,
+    mut progress: F,
+) -> Tin
+where
+    F: FnMut(f32),
+{
+    let mut pts = Vec::new();
+    let length = alignment.horizontal.length();
+    let steps = (length / interval).ceil() as usize;
+    let mut station = 0.0;
+    let mut step = 0usize;
+    while station <= length {
+        if let (Some(center), Some(dir), Some(grade)) = (
+            alignment.horizontal.point_at(station),
+            alignment.horizontal.direction_at(station),
+            alignment.vertical.elevation_at(station),
+        ) {
+            let global_slopes = superelevation
+                .map(|t| slopes_at(t, station))
+                .unwrap_or((0.0, 0.0));
+            let normal = (-dir.1, dir.0);
+            for sub in subs {
+                let var_off = sub
+                    .offsets
+                    .as_ref()
+                    .map(|t| offset_at(t, station))
+                    .unwrap_or(0.0);
+                let profile = sub
+                    .profile_table
+                    .as_ref()
+                    .map(|t| profile_at(t, station))
+                    .unwrap_or_else(|| sub.profile.clone());
+                let slopes = sub
+                    .superelevation
+                    .as_ref()
+                    .map(|t| slopes_at(t, station))
+                    .unwrap_or(global_slopes);
+                for (offset, elev) in profile {
+                    let o = offset + var_off;
+                    let slope = if o < 0.0 { slopes.0 } else { slopes.1 };
+                    let x = center.x + o * normal.0;
+                    let y = center.y + o * normal.1;
+                    let z = grade + elev + o * slope;
+                    pts.push(Point3::new(x, y, z));
+                }
+            }
+        }
+        step += 1;
+        progress(step as f32 / steps as f32);
+        station += interval;
+    }
+    progress(1.0);
+    Tin::from_points(pts)
+}
+
 /// Corridor model that automatically rebuilds its design surface when modified.
 #[derive(Debug, Clone)]
 pub struct Corridor {
