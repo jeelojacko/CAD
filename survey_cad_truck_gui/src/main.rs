@@ -4825,7 +4825,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let drag_p = drag_index.clone();
                 viewer.on_pointer_pressed(move |x, y| {
                     let secs_b = secs_p.borrow();
-                    if let Some(idx) = nearest_point(&secs_b[*current_p.borrow()], x as f32, y as f32, 600.0, 300.0) {
+                    if let Some(idx) = nearest_point(&secs_b[*current_p.borrow()], x, y, 600.0, 300.0) {
                         *drag_p.borrow_mut() = Some(idx);
                     }
                 });
@@ -4836,7 +4836,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 let viewer_weak_m = viewer_weak.clone();
                 viewer.on_pointer_moved(move |x, y| {
                     if let Some(idx) = *drag_m.borrow() {
-                        if let Some(p) = screen_to_world(&secs_m.borrow()[*current_m.borrow()], x as f32, y as f32, 600.0, 300.0) {
+                        if let Some(p) = screen_to_world(&secs_m.borrow()[*current_m.borrow()], x, y, 600.0, 300.0) {
                             secs_m.borrow_mut()[*current_m.borrow()].points[idx] = p;
                             if let Some(v) = viewer_weak_m.upgrade() {
                                 v.set_section_image(render_cross_section(&secs_m.borrow()[*current_m.borrow()], 600, 300));
@@ -5819,9 +5819,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     let tin = &surfaces.borrow()[0];
                     let extras = survey_cad::io::landxml::LandxmlExtras {
-                        units: surface_units_clone.borrow().get(0).cloned(),
-                        style: surface_styles_clone.borrow().get(0).cloned(),
-                        description: surface_descriptions_clone.borrow().get(0).cloned(),
+                        units: surface_units_clone.borrow().first().cloned(),
+                        style: surface_styles_clone.borrow().first().cloned(),
+                        description: surface_descriptions_clone.borrow().first().cloned(),
                     };
                     if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin, Some(&extras)) {
                         if let Some(app) = weak.upgrade() {
@@ -5885,9 +5885,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     let al = &alignments.borrow()[0];
                     let secs = corridor::extract_cross_sections(&surfaces.borrow()[0], al, 10.0, 10.0, 1.0);
                     let extras = survey_cad::io::landxml::LandxmlExtras {
-                        units: surface_units_clone.borrow().get(0).cloned(),
-                        style: surface_styles_clone.borrow().get(0).cloned(),
-                        description: surface_descriptions_clone.borrow().get(0).cloned(),
+                        units: surface_units_clone.borrow().first().cloned(),
+                        style: surface_styles_clone.borrow().first().cloned(),
+                        description: surface_descriptions_clone.borrow().first().cloned(),
                     };
                     if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(p, &secs, Some(&extras)) {
                         if let Some(app) = weak.upgrade() {
