@@ -6741,11 +6741,26 @@ fn main() -> Result<(), slint::PlatformError> {
                     let lane = subassembly::lane(3.5, -0.02);
                     let shoulder = subassembly::shoulder(1.0, -0.04);
                     let subs = subassembly::symmetric_section(&[lane, shoulder]);
-                    let tin = corridor::build_design_surface_dynamic(
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Generating design surface... 0%"));
+                        app.window().request_redraw();
+                    }
+                    let mut last = 0f32;
+                    let tin = corridor::build_design_surface_dynamic_with_progress(
                         al,
                         &subs,
                         Some(&sup_data.borrow()),
                         10.0,
+                        |p| {
+                            let pct = (p * 100.0).round();
+                            if pct - last >= 1.0 {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from(format!("Generating design surface... {}%", pct as i32)));
+                                    app.window().request_redraw();
+                                }
+                                last = pct;
+                            }
+                        },
                     );
                     let verts: Vec<Point3> = tin
                         .vertices
@@ -6767,6 +6782,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_workspace_texture(image);
                         }
                         app.window().request_redraw();
+                        app.set_status(SharedString::from("Design surface updated"));
                     }
                 }
             };
