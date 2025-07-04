@@ -84,19 +84,19 @@ pub fn write_landxml_surface(path: &str, tin: &Tin, extras: Option<&LandxmlExtra
     writeln!(&mut xml, "<LandXML>").unwrap();
     if let Some(ex) = extras {
         if let Some(u) = &ex.units {
-            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+            writeln!(&mut xml, "  <Units linearUnit=\"{u}\"/>").unwrap();
         }
     }
     writeln!(&mut xml, "  <Surfaces>").unwrap();
     let style_attr = extras
         .and_then(|e| e.style.as_deref())
-        .map(|s| format!(" style=\"{}\"", s))
+        .map(|s| format!(" style=\"{s}\""))
         .unwrap_or_default();
     let desc_attr = extras
         .and_then(|e| e.description.as_deref())
-        .map(|s| format!(" desc=\"{}\"", s))
+        .map(|s| format!(" desc=\"{s}\""))
         .unwrap_or_default();
-    writeln!(&mut xml, "    <Surface name=\"TIN\"{}{}>", style_attr, desc_attr).unwrap();
+    writeln!(&mut xml, "    <Surface name=\"TIN\"{style_attr}{desc_attr}>").unwrap();
     writeln!(&mut xml, "      <Definition surfType=\"TIN\">").unwrap();
     writeln!(&mut xml, "        <Pnts>").unwrap();
     for (i, v) in tin.vertices.iter().enumerate() {
@@ -340,19 +340,19 @@ pub fn write_landxml_alignment(
     writeln!(&mut xml, "<LandXML>").unwrap();
     if let Some(ex) = extras {
         if let Some(u) = &ex.units {
-            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+            writeln!(&mut xml, "  <Units linearUnit=\"{u}\"/>").unwrap();
         }
     }
     writeln!(&mut xml, "  <Alignments>").unwrap();
     let style_attr = extras
         .and_then(|e| e.style.as_deref())
-        .map(|s| format!(" style=\"{}\"", s))
+        .map(|s| format!(" style=\"{s}\""))
         .unwrap_or_default();
     let desc_attr = extras
         .and_then(|e| e.description.as_deref())
-        .map(|s| format!(" desc=\"{}\"", s))
+        .map(|s| format!(" desc=\"{s}\""))
         .unwrap_or_default();
-    writeln!(&mut xml, "    <Alignment name=\"HAL\"{}{}>", style_attr, desc_attr).unwrap();
+    writeln!(&mut xml, "    <Alignment name=\"HAL\"{style_attr}{desc_attr}>").unwrap();
     writeln!(&mut xml, "      <CoordGeom>").unwrap();
     for elem in &alignment.elements {
         match elem {
@@ -561,7 +561,7 @@ pub fn write_landxml_cross_sections(
     writeln!(&mut xml, "<LandXML>").unwrap();
     if let Some(ex) = extras {
         if let Some(u) = &ex.units {
-            writeln!(&mut xml, "  <Units linearUnit=\"{}\"/>", u).unwrap();
+            writeln!(&mut xml, "  <Units linearUnit=\"{u}\"/>").unwrap();
         }
     }
     writeln!(&mut xml, "  <CrossSections>").unwrap();
@@ -570,7 +570,7 @@ pub fn write_landxml_cross_sections(
         let coords: Vec<String> = sec
             .points
             .iter()
-            .map(|p| format!("{} {} {}", p.x, p.y, p.z))
+            .map(|p| format!("{x} {y} {z}", x = p.x, y = p.y, z = p.z))
             .collect();
         writeln!(
             &mut xml,
