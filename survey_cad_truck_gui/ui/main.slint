@@ -794,127 +794,127 @@ export component MainWindow inherits Window {
             height: 30px;
             spacing: 6px;
             Button {
-                text: "New";
+                icon: @image-url("../assets/icons/new.png");
                 clicked => { root.new_project(); }
             }
             Button {
-                text: "Open";
+                icon: @image-url("../assets/icons/open.png");
                 clicked => { root.open_project(); }
             }
             Button {
-                text: "Save";
+                icon: @image-url("../assets/icons/save.png");
                 clicked => { root.save_project(); }
             }
             Button {
-                text: "Add Point";
+                icon: @image-url("../assets/icons/add_point.png");
                 clicked => { root.add_point(); }
             }
             Button {
-                text: "Point Manager...";
+                icon: @image-url("../assets/icons/point_manager.png");
                 clicked => { root.point_manager(); }
             }
             Button {
-                text: "Line Styles...";
+                icon: @image-url("../assets/icons/line_styles.png");
                 clicked => { root.line_style_manager(); }
             }
             Button {
-                text: "Layer Manager...";
+                icon: @image-url("../assets/icons/layer_manager.png");
                 clicked => { root.layer_manager(); }
             }
             Button {
-                text: "Inspector...";
+                icon: @image-url("../assets/icons/inspector.png");
                 clicked => { root.inspector(); }
             }
             Button {
-                text: "Add Line";
+                icon: @image-url("../assets/icons/add_line.png");
                 clicked => { root.add_line(); }
             }
         Button {
-                text: "Add Polygon";
+                icon: @image-url("../assets/icons/add_polygon.png");
                 clicked => { root.add_polygon(); }
             }
         Button {
-                text: "Add Polyline";
+                icon: @image-url("../assets/icons/add_polyline.png");
                 clicked => { root.add_polyline(); }
             }
         Button {
-                text: "Add Arc";
+                icon: @image-url("../assets/icons/add_arc.png");
                 clicked => { root.add_arc(); }
             }
         Button {
-                text: "Line Mode";
+                icon: @image-url("../assets/icons/line_mode.png");
                 clicked => { root.draw_line_mode(); }
             }
         Button {
-                text: "Polygon Mode";
+                icon: @image-url("../assets/icons/polygon_mode.png");
                 clicked => { root.draw_polygon_mode(); }
             }
         Button {
-                text: "Arc Mode";
+                icon: @image-url("../assets/icons/arc_mode.png");
                 clicked => { root.draw_arc_mode(); }
             }
         Button {
-                text: "Dimension Mode";
+                icon: @image-url("../assets/icons/dimension_mode.png");
                 clicked => { root.draw_dimension_mode(); }
             }
         Button {
-                text: "Move";
+                icon: @image-url("../assets/icons/move.png");
                 clicked => { root.move_entity(); }
             }
         Button {
-                text: "Rotate";
+                icon: @image-url("../assets/icons/rotate.png");
                 clicked => { root.rotate_entity(); }
             }
         Button {
-                text: "Create Polygon";
+                icon: @image-url("../assets/icons/create_polygon.png");
                 clicked => { root.create_polygon_from_selection(); }
             }
         Button {
-                text: "Create Surface";
+                icon: @image-url("../assets/icons/create_surface.png");
                 clicked => { root.create_surface_from_selection(); }
             }
         Button {
-                text: "Load LandXML Surface";
+                icon: @image-url("../assets/icons/load_surface.png");
                 clicked => { root.import_landxml_surface(); }
             }
         Button {
-                text: "Load LandXML Alignment";
+                icon: @image-url("../assets/icons/load_alignment.png");
                 clicked => { root.import_landxml_alignment(); }
             }
         Button {
-                text: "Export LandXML Surface";
+                icon: @image-url("../assets/icons/export_surface.png");
                 clicked => { root.export_landxml_surface(); }
             }
         Button {
-                text: "Export LandXML Alignment";
+                icon: @image-url("../assets/icons/export_alignment.png");
                 clicked => { root.export_landxml_alignment(); }
             }
         Button {
-                text: "Export LandXML Sections";
+                icon: @image-url("../assets/icons/export_sections.png");
                 clicked => { root.export_landxml_sections(); }
             }
         Button {
-                text: "Corridor Volume";
+                icon: @image-url("../assets/icons/corridor_volume.png");
                 clicked => { root.corridor_volume(); }
             }
         Button {
-                text: "Superelevation...";
+                icon: @image-url("../assets/icons/superelevation.png");
                 clicked => { root.superelevation_editor(); }
             }
         Button {
-                text: "Design Sections";
+                icon: @image-url("../assets/icons/design_sections.png");
                 clicked => { root.design_cross_sections(); }
             }
         Button {
-                text: "Cross Sections";
+                icon: @image-url("../assets/icons/cross_sections.png");
                 clicked => { root.view_cross_sections(); }
             }
         Button {
-                text: "Extrude Polyline";
+                icon: @image-url("../assets/icons/extrude_polyline.png");
                 clicked => { root.extrude_polyline(); }
             }
         Button {
-                text: "Clear";
+                icon: @image-url("../assets/icons/clear.png");
                 clicked => { root.clear_workspace(); }
             }
         Text { color: #FFFFFF; text: "View:"; }
@@ -957,8 +957,8 @@ export component MainWindow inherits Window {
                 checked <=> root.show_point_numbers;
                 toggled => { root.point_numbers_changed(root.show_point_numbers); }
             }
-            Button { text: "Settings..."; clicked => { root.settings(); } }
-            Button { text: "Snap..."; clicked => { root.snap_settings(); } }
+            Button { icon: @image-url("../assets/icons/settings.png"); clicked => { root.settings(); } }
+            Button { icon: @image-url("../assets/icons/snap.png"); clicked => { root.snap_settings(); } }
         }
 
         Rectangle {
