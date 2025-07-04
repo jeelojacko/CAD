@@ -1584,6 +1584,10 @@ fn show_inspector_for_point(
     layers: &Rc<RefCell<Vec<usize>>>,
     styles: &Rc<RefCell<Vec<usize>>>,
     metadata: &Rc<RefCell<Vec<String>>>,
+    elevation: &Rc<RefCell<Vec<String>>>,
+    measurement: &Rc<RefCell<Vec<String>>>,
+    data_sets: &Rc<RefCell<Vec<usize>>>,
+    data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
     render_image: Rc<dyn Fn() -> Image>,
     backend: &Rc<RefCell<TruckBackend>>,
@@ -1591,6 +1595,9 @@ fn show_inspector_for_point(
     while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
     while styles.borrow().len() <= idx { styles.borrow_mut().push(0); }
     while metadata.borrow().len() <= idx { metadata.borrow_mut().push(String::new()); }
+    while elevation.borrow().len() <= idx { elevation.borrow_mut().push(String::new()); }
+    while measurement.borrow().len() <= idx { measurement.borrow_mut().push(String::new()); }
+    while data_sets.borrow().len() <= idx { data_sets.borrow_mut().push(0); }
 
     let layer_model = Rc::new(VecModel::from(
         layer_names
@@ -1601,6 +1608,14 @@ fn show_inspector_for_point(
             .collect::<Vec<_>>(),
     ));
     let style_model = Rc::new(VecModel::from(style_names.to_vec()));
+    let data_set_model = Rc::new(VecModel::from(
+        data_set_names
+            .borrow()
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    ));
 
     let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
         w
@@ -1612,10 +1627,14 @@ fn show_inspector_for_point(
 
     dlg.set_layers_model(layer_model.into());
     dlg.set_styles_model(style_model.into());
+    dlg.set_data_set_model(data_set_model.into());
     dlg.set_entity_type(SharedString::from("Point"));
     dlg.set_layer_index(layers.borrow()[idx] as i32);
     dlg.set_style_index(styles.borrow()[idx] as i32);
     dlg.set_metadata(SharedString::from(metadata.borrow()[idx].clone()));
+    dlg.set_elevation(SharedString::from(elevation.borrow()[idx].clone()));
+    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].clone()));
+    dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
         let layers = layers.clone();
@@ -1656,6 +1675,45 @@ fn show_inspector_for_point(
         });
     }
 
+    {
+        let elev_ref = elevation.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_elevation_changed(move |text| {
+            if let Some(e) = elev_ref.borrow_mut().get_mut(idx) { *e = text.to_string(); }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let meas_ref = measurement.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_measurement_changed(move |text| {
+            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let ds_ref = data_sets.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_data_set_changed(move |val| {
+            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) { *d = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
     dlg.show().unwrap();
 }
 
@@ -1667,12 +1725,17 @@ fn show_inspector_for_polygon(
     hatch_names: &[SharedString],
     layers: &Rc<RefCell<Vec<usize>>>,
     hatches: &Rc<RefCell<Vec<usize>>>,
+    measurement: &Rc<RefCell<Vec<String>>>,
+    data_sets: &Rc<RefCell<Vec<usize>>>,
+    data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
     render_image: Rc<dyn Fn() -> Image>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
     while hatches.borrow().len() <= idx { hatches.borrow_mut().push(0); }
+    while measurement.borrow().len() <= idx { measurement.borrow_mut().push(String::new()); }
+    while data_sets.borrow().len() <= idx { data_sets.borrow_mut().push(0); }
 
     let layer_model = Rc::new(VecModel::from(
         layer_names
@@ -1683,6 +1746,14 @@ fn show_inspector_for_polygon(
             .collect::<Vec<_>>(),
     ));
     let hatch_model = Rc::new(VecModel::from(hatch_names.to_vec()));
+    let data_set_model = Rc::new(VecModel::from(
+        data_set_names
+            .borrow()
+            .iter()
+            .cloned()
+            .map(SharedString::from)
+            .collect::<Vec<_>>(),
+    ));
 
     let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
         w
@@ -1695,10 +1766,13 @@ fn show_inspector_for_polygon(
     dlg.set_layers_model(layer_model.into());
     dlg.set_styles_model(Rc::new(VecModel::from(Vec::<SharedString>::new())).into());
     dlg.set_hatch_model(hatch_model.into());
+    dlg.set_data_set_model(data_set_model.into());
     dlg.set_entity_type(SharedString::from("Polygon"));
     dlg.set_layer_index(layers.borrow()[idx] as i32);
     dlg.set_hatch_index(hatches.borrow()[idx] as i32);
     dlg.set_metadata(SharedString::from(""));
+    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].clone()));
+    dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
         let layers = layers.clone();
@@ -1720,6 +1794,32 @@ fn show_inspector_for_polygon(
         let render_image = render_image.clone();
         dlg.on_hatch_changed(move |val| {
             if let Some(h) = h_ref.borrow_mut().get_mut(idx) { *h = val as usize; }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let meas_ref = measurement.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_measurement_changed(move |text| {
+            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(a) = app_weak.upgrade() {
+                refresh_workspace(&a, &*render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let ds_ref = data_sets.clone();
+        let app_weak = app.as_weak();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        dlg.on_data_set_changed(move |val| {
+            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) { *d = val as usize; }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1821,6 +1921,10 @@ fn main() -> Result<(), slint::PlatformError> {
     let polygon_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
     let line_metadata = Rc::new(RefCell::new(Vec::<String>::new()));
+    let point_elevation = Rc::new(RefCell::new(Vec::<String>::new()));
+    let point_measurement = Rc::new(RefCell::new(Vec::<String>::new()));
+    let point_data_sets = Rc::new(RefCell::new(Vec::<usize>::new()));
+    let data_set_names = Rc::new(RefCell::new(vec![String::from("Default")]));
     let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> = Rc::new(RefCell::new(None));
     let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
         point_styles: survey_cad::styles::default_point_styles(),
@@ -2383,6 +2487,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         &point_layers,
                         &point_style_indices,
                         &point_metadata,
+                        &point_elevation,
+                        &point_measurement,
+                        &point_data_sets,
+                        &data_set_names,
                         &inspector_ref,
                         Rc::new(render_image.clone()),
                         &backend_render,
@@ -2395,6 +2503,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         &polygon_style_names,
                         &polygon_layers,
                         &polygon_style_indices,
+                        &point_measurement,
+                        &point_data_sets,
+                        &data_set_names,
                         &inspector_ref,
                         Rc::new(render_image.clone()),
                         &backend_render,
