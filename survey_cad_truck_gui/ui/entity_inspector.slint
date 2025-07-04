@@ -1,19 +1,52 @@
 import { VerticalBox, HorizontalBox, ComboBox, LineEdit } from "std-widgets.slint";
 
+// Simple collapsible section used to group editor fields
+component CollapsibleSection {
+    in property <string> title;
+    in-out property <bool> open: true;
+
+    VerticalBox {
+        spacing: 4px;
+        header := Rectangle {
+            background: #404040;
+            height: 20px;
+            width: 100%;
+            Text { text: (root.open ? "▼ " : "▶ ") + root.title; color: #FFFFFF; }
+            TouchArea { clicked => { root.open = !root.open; } }
+        }
+        content := VerticalBox {
+            padding-left: 8px;
+            @children
+        }
+        states [
+            closed when !root.open : {
+                content.visible: false;
+            }
+        ]
+    }
+}
+
 export component EntityInspector inherits Window {
     in-out property <[string]> layers_model;
     in-out property <[string]> styles_model;
     in-out property <[string]> hatch_model;
+    in-out property <[string]> data_set_model;
     in-out property <int> layer_index;
     in-out property <int> style_index;
     in-out property <int> hatch_index;
+    in-out property <int> data_set_index;
     in-out property <string> metadata;
+    in-out property <string> elevation;
+    in-out property <string> measurement;
     in-out property <string> entity_type;
 
     callback layer_changed(int);
     callback style_changed(int);
     callback hatch_changed(int);
+    callback data_set_changed(int);
     callback metadata_changed(string);
+    callback elevation_changed(string);
+    callback measurement_changed(string);
 
     title: "Inspector";
     width: 300px;
@@ -21,26 +54,49 @@ export component EntityInspector inherits Window {
 
     VerticalBox {
         spacing: 6px;
-        Text { color: #FFFFFF; text: "Type: " + root.entity_type; }
-        HorizontalBox {
-            spacing: 6px;
-            Text { color: #FFFFFF; text: "Layer:"; width: 60px; }
-            ComboBox { model: root.layers_model; current-index: root.layer_index; selected => { root.layer_changed(self.current-index); } }
+        CollapsibleSection { title: "General"; open: true;
+            Text { color: #FFFFFF; text: "Type: " + root.entity_type; }
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Layer:"; width: 60px; }
+                ComboBox { model: root.layers_model; current-index: root.layer_index; selected => { root.layer_changed(self.current-index); } }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Style:"; width: 60px; }
+                ComboBox { model: root.styles_model; current-index: root.style_index; selected => { root.style_changed(self.current-index); } }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Hatch:"; width: 60px; }
+                ComboBox { model: root.hatch_model; current-index: root.hatch_index; selected => { root.hatch_changed(self.current-index); } }
+            }
         }
-        HorizontalBox {
-            spacing: 6px;
-            Text { color: #FFFFFF; text: "Style:"; width: 60px; }
-            ComboBox { model: root.styles_model; current-index: root.style_index; selected => { root.style_changed(self.current-index); } }
+
+        CollapsibleSection { title: "Geometry";
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Elevation:"; width: 80px; }
+                LineEdit { text <=> root.elevation; edited(text) => { root.elevation_changed(text); } }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Length/Area:"; width: 80px; }
+                LineEdit { text <=> root.measurement; edited(text) => { root.measurement_changed(text); } }
+            }
         }
-        HorizontalBox {
-            spacing: 6px;
-            Text { color: #FFFFFF; text: "Hatch:"; width: 60px; }
-            ComboBox { model: root.hatch_model; current-index: root.hatch_index; selected => { root.hatch_changed(self.current-index); } }
-        }
-        HorizontalBox {
-            spacing: 6px;
-            Text { color: #FFFFFF; text: "Meta:"; width: 60px; }
-            LineEdit { text <=> root.metadata; edited(text) => { root.metadata_changed(text); } }
+
+        CollapsibleSection { title: "Data";
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Set:"; width: 60px; }
+                ComboBox { model: root.data_set_model; current-index: root.data_set_index; selected => { root.data_set_changed(self.current-index); } }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "Meta:"; width: 60px; }
+                LineEdit { text <=> root.metadata; edited(text) => { root.metadata_changed(text); } }
+            }
         }
     }
 }
