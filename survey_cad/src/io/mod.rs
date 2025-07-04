@@ -755,8 +755,8 @@ mod tests {
             ],
             triangles: vec![[0, 1, 2]],
         };
-        landxml::write_landxml_surface(path.to_str().unwrap(), &tin).unwrap();
-        let read = landxml::read_landxml_surface(path.to_str().unwrap()).unwrap();
+        landxml::write_landxml_surface(path.to_str().unwrap(), &tin, None).unwrap();
+        let (read, _extras) = landxml::read_landxml_surface(path.to_str().unwrap()).unwrap();
         assert_eq!(read.vertices.len(), 3);
         assert_eq!(read.triangles.len(), 1);
         std::fs::remove_file(path).ok();
@@ -766,8 +766,8 @@ mod tests {
     fn write_and_read_landxml_alignment() {
         let path = std::env::temp_dir().join("align.xml");
         let hal = HorizontalAlignment::new(vec![Point::new(0.0, 0.0), Point::new(1.0, 1.0)]);
-        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal).unwrap();
-        let read = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
+        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal, None).unwrap();
+        let (read, _extras) = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
         assert_eq!(read.elements.len(), 1);
         std::fs::remove_file(path).ok();
     }
@@ -784,8 +784,8 @@ mod tests {
         let arc = Arc::new(Point::new(10.0, 5.0), 5.0, -PI / 2.0, 0.0);
         elements.push(HorizontalElement::Curve { arc });
         let hal = HorizontalAlignment { elements };
-        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal).unwrap();
-        let read = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
+        landxml::write_landxml_alignment(path.to_str().unwrap(), &hal, None).unwrap();
+        let (read, _extras) = landxml::read_landxml_alignment(path.to_str().unwrap()).unwrap();
         assert_eq!(read.elements.len(), 2);
         std::fs::remove_file(path).ok();
     }
@@ -829,8 +829,8 @@ mod tests {
                 vec![Point3::new(0.0, 1.0, 0.0), Point3::new(1.0, 1.0, 0.0)],
             ),
         ];
-        landxml::write_landxml_cross_sections(path.to_str().unwrap(), &secs).unwrap();
-        let read = landxml::read_landxml_cross_sections(path.to_str().unwrap()).unwrap();
+        landxml::write_landxml_cross_sections(path.to_str().unwrap(), &secs, None).unwrap();
+        let (read, _extras) = landxml::read_landxml_cross_sections(path.to_str().unwrap()).unwrap();
         assert_eq!(read.len(), 2);
         std::fs::remove_file(path).ok();
     }

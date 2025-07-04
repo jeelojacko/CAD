@@ -3140,7 +3140,7 @@ fn handle_open_button(
                     }
                 }
             } else if lower.ends_with(".xml") {
-                if let Ok(tin) = landxml::read_landxml_surface(path_str) {
+                if let Ok((tin, _)) = landxml::read_landxml_surface(path_str) {
                     let mesh = build_surface_mesh(&tin);
                     let handle = meshes.add(mesh);
                     let mat = materials.add(StandardMaterial {
@@ -3152,7 +3152,7 @@ fn handle_open_button(
                         .insert(SurfaceMesh);
                     surface_tin.0.push(tin);
                     surface_data.set_changed();
-                } else if let Ok(hal) = landxml::read_landxml_alignment(path_str) {
+                } else if let Ok((hal, _)) = landxml::read_landxml_alignment(path_str) {
                     for elem in hal.elements {
                         use survey_cad::alignment::HorizontalElement::*;
                         match elem {
@@ -3232,7 +3232,7 @@ fn handle_save_button(
                 let _ = write_points_csv(path_str, &pts, None, None);
             } else if lower.ends_with(".xml") {
                 if let Some(tin) = tin_res.0.last() {
-                    let _ = landxml::write_landxml_surface(path_str, tin);
+                    let _ = landxml::write_landxml_surface(path_str, tin, None);
                 } else if alignment.points.len() > 1 {
                     let mut pts = Vec::new();
                     for e in &alignment.points {
@@ -3241,7 +3241,7 @@ fn handle_save_button(
                         }
                     }
                     let hal = survey_cad::alignment::HorizontalAlignment::new(pts);
-                    let _ = landxml::write_landxml_alignment(path_str, &hal);
+                    let _ = landxml::write_landxml_alignment(path_str, &hal, None);
                 }
             } else if lower.ends_with(".shp") {
                 #[cfg(feature = "shapefile")]
