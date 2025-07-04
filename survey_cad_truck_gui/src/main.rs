@@ -1412,6 +1412,80 @@ fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u3
     Image::from_rgba8_premultiplied(buffer)
 }
 
+struct SectionParams {
+    dir: (f64, f64),
+    center: ScPoint3,
+    scale: f32,
+    ox: f32,
+    oy: f32,
+}
+
+fn calc_section_params(section: &corridor::CrossSection, width: f32, height: f32) -> Option<SectionParams> {
+    if section.points.len() < 2 {
+        return None;
+    }
+    let first = section.points.first().unwrap();
+    let last = section.points.last().unwrap();
+    let dx = last.x - first.x;
+    let dy = last.y - first.y;
+    let len = (dx * dx + dy * dy).sqrt();
+    let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+    let center = section.points[section.points.len() / 2];
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+    for p in &section.points {
+        let off = ((p.x - center.x) * dir.0 + (p.y - center.y) * dir.1) as f32;
+        let elev = (p.z - center.z) as f32;
+        min_x = min_x.min(off);
+        max_x = max_x.max(off);
+        min_y = min_y.min(elev);
+        max_y = max_y.max(elev);
+    }
+    if (max_x - min_x).abs() < f32::EPSILON {
+        max_x += 1.0;
+    }
+    if (max_y - min_y).abs() < f32::EPSILON {
+        max_y += 1.0;
+    }
+    let scale = ((width * 0.8) / (max_x - min_x)).min((height * 0.8) / (max_y - min_y));
+    let ox = width / 2.0 - scale * (min_x + max_x) / 2.0;
+    let oy = height / 2.0 + scale * (min_y + max_y) / 2.0;
+    Some(SectionParams { dir, center, scale, ox, oy })
+}
+
+fn screen_to_world(section: &corridor::CrossSection, x: f32, y: f32, width: f32, height: f32) -> Option<ScPoint3> {
+    let params = calc_section_params(section, width, height)?;
+    let off = (x - params.ox) / params.scale;
+    let elev = (params.oy - y) / params.scale;
+    Some(ScPoint3::new(
+        params.center.x + off as f64 * params.dir.0,
+        params.center.y + off as f64 * params.dir.1,
+        params.center.z + elev as f64,
+    ))
+}
+
+fn nearest_point(section: &corridor::CrossSection, x: f32, y: f32, width: f32, height: f32) -> Option<usize> {
+    let params = calc_section_params(section, width, height)?;
+    let mut best = None;
+    let mut best_dist = f32::MAX;
+    for (i, p) in section.points.iter().enumerate() {
+        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1) as f32;
+        let elev = (p.z - params.center.z) as f32;
+        let sx = params.ox + off * params.scale;
+        let sy = params.oy - elev * params.scale;
+        let dx = sx - x;
+        let dy = sy - y;
+        let dist = dx * dx + dy * dy;
+        if dist < best_dist {
+            best_dist = dist;
+            best = Some(i);
+        }
+    }
+    if best_dist.sqrt() <= 10.0 { best } else { None }
+}
+
 fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
     for elem in &profile.elements {
         match *elem {
@@ -4636,6 +4710,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let alignments = alignments.clone();
+        let backend = backend.clone();
         app.on_view_cross_sections(move || {
             let surfs = surfaces.borrow();
             let aligns = alignments.borrow();
@@ -4665,7 +4740,8 @@ fn main() -> Result<(), slint::PlatformError> {
             viewer.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
             viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
             let viewer_weak = viewer.as_weak();
-            let secs = Rc::new(sections);
+            let secs = Rc::new(RefCell::new(sections));
+            let drag_index = Rc::new(RefCell::new(None::<usize>));
             {
                 let current = current.clone();
                 let secs = secs.clone();
@@ -4676,15 +4752,16 @@ fn main() -> Result<(), slint::PlatformError> {
                         *current.borrow_mut() -= 1;
                         let i = *current.borrow();
                         if let Some(v) = viewer_weak.upgrade() {
+                            let secs_b = secs.borrow();
                             v.set_station_label(SharedString::from(format!(
                                 "Station: {:.2}",
-                                secs[i].station
+                                secs_b[i].station
                             )));
-                            let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
-                            let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
+                            let elev = al.vertical.elevation_at(secs_b[i].station).unwrap_or(0.0);
+                            let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            v.set_section_image(render_cross_section(&secs[i], 600, 300));
+                            v.set_section_image(render_cross_section(&secs_b[i], 600, 300));
                         }
                     }
                 });
@@ -4695,19 +4772,65 @@ fn main() -> Result<(), slint::PlatformError> {
                 let viewer_weak = viewer_weak.clone();
                 let al = al.clone();
                 viewer.on_next(move || {
-                    if *current.borrow() + 1 < secs.len() {
+                    if *current.borrow() + 1 < secs.borrow().len() {
                         *current.borrow_mut() += 1;
                         let i = *current.borrow();
                         if let Some(v) = viewer_weak.upgrade() {
+                            let secs_b = secs.borrow();
                             v.set_station_label(SharedString::from(format!(
                                 "Station: {:.2}",
-                                secs[i].station
+                                secs_b[i].station
                             )));
-                            let elev = al.vertical.elevation_at(secs[i].station).unwrap_or(0.0);
-                            let grade = grade_at(&al.vertical, secs[i].station).unwrap_or(0.0);
+                            let elev = al.vertical.elevation_at(secs_b[i].station).unwrap_or(0.0);
+                            let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            v.set_section_image(render_cross_section(&secs[i], 600, 300));
+                            v.set_section_image(render_cross_section(&secs_b[i], 600, 300));
+                        }
+                    }
+                });
+            }
+            {
+                let secs_p = secs.clone();
+                let current_p = current.clone();
+                let drag_p = drag_index.clone();
+                viewer.on_pointer_pressed(move |x, y| {
+                    let secs_b = secs_p.borrow();
+                    if let Some(idx) = nearest_point(&secs_b[*current_p.borrow()], x as f32, y as f32, 600.0, 300.0) {
+                        *drag_p.borrow_mut() = Some(idx);
+                    }
+                });
+
+                let secs_m = secs.clone();
+                let current_m = current.clone();
+                let drag_m = drag_index.clone();
+                let viewer_weak_m = viewer_weak.clone();
+                viewer.on_pointer_moved(move |x, y| {
+                    if let Some(idx) = *drag_m.borrow() {
+                        if let Some(p) = screen_to_world(&secs_m.borrow()[*current_m.borrow()], x as f32, y as f32, 600.0, 300.0) {
+                            secs_m.borrow_mut()[*current_m.borrow()].points[idx] = p;
+                            if let Some(v) = viewer_weak_m.upgrade() {
+                                v.set_section_image(render_cross_section(&secs_m.borrow()[*current_m.borrow()], 600, 300));
+                            }
+                        }
+                    }
+                });
+
+                let secs_r = secs.clone();
+                let surfaces_r = surfaces.clone();
+                let backend_r = backend.clone();
+                let drag_r = drag_index.clone();
+                viewer.on_pointer_released(move || {
+                    if drag_r.borrow().is_some() {
+                        *drag_r.borrow_mut() = None;
+                        let tin = corridor::surface_from_cross_sections(&secs_r.borrow());
+                        let verts: Vec<Point3> = tin.vertices.iter().map(|p| Point3::new(p.x, p.y, p.z)).collect();
+                        if surfaces_r.borrow().is_empty() {
+                            backend_r.borrow_mut().add_surface(&verts, &tin.triangles);
+                            surfaces_r.borrow_mut().push(tin);
+                        } else {
+                            backend_r.borrow_mut().update_surface(0, &verts, &tin.triangles);
+                            surfaces_r.borrow_mut()[0] = tin;
                         }
                     }
                 });

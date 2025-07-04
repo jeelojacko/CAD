@@ -5,6 +5,9 @@ export component CrossSectionViewer inherits Window {
     in-out property <string> station_label;
     in-out property <string> elevation_label;
     in-out property <string> slope_label;
+    callback pointer_pressed(length, length);
+    callback pointer_moved(length, length);
+    callback pointer_released();
     callback prev();
     callback next();
     title: "Cross Section Viewer";
@@ -26,6 +29,19 @@ export component CrossSectionViewer inherits Window {
             image-fit: fill;
             width: 100%;
             height: 100%;
+        }
+        TouchArea {
+            width: 100%;
+            height: 100%;
+            pointer-event(event) => {
+                if event.kind == PointerEventKind.down {
+                    root.pointer_pressed(self.mouse-x, self.mouse-y);
+                } else if event.kind == PointerEventKind.up {
+                    root.pointer_released();
+                } else if event.kind == PointerEventKind.move {
+                    root.pointer_moved(self.mouse-x, self.mouse-y);
+                }
+            }
         }
     }
 }
