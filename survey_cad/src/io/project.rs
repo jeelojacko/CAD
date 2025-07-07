@@ -40,6 +40,8 @@ pub struct Project {
     #[serde(default)]
     pub surface_descriptions: Vec<String>,
     pub layers: Vec<Layer>,
+    #[serde(default)]
+    pub layer_order: Vec<String>,
     pub point_style_indices: Vec<usize>,
     pub line_style_indices: Vec<usize>,
     #[serde(default)]
@@ -69,6 +71,7 @@ impl Project {
             surface_styles: Vec::new(),
             surface_descriptions: Vec::new(),
             layers: Vec::new(),
+            layer_order: Vec::new(),
             point_style_indices: Vec::new(),
             line_style_indices: Vec::new(),
             polygon_style_indices: Vec::new(),
@@ -94,7 +97,6 @@ pub fn read_project_json(path: &str) -> std::io::Result<Project> {
 }
 
 pub fn write_project_json(path: &str, project: &Project) -> std::io::Result<()> {
-    let json = serde_json::to_string_pretty(project)
-        .map_err(std::io::Error::other)?;
+    let json = serde_json::to_string_pretty(project).map_err(std::io::Error::other)?;
     crate::io::write_string(path, &json)
 }

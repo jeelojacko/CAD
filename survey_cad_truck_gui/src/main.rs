@@ -2,9 +2,9 @@
 
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
-use slint::{Image, Model, SharedString, VecModel, PhysicalSize};
-use std::io::Write;
+use slint::{Image, Model, PhysicalSize, SharedString, VecModel};
 use std::cell::RefCell;
+use std::io::Write;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -14,15 +14,15 @@ use survey_cad::crs::list_known_crs;
 use survey_cad::dtm::Tin;
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
-    Arc, Line, LineAnnotation, LineStyle, LineType, Point, PointSymbol, Polyline,
-    convex_hull, Point3 as ScPoint3, LinearDimension,
+    convex_hull, Arc, Line, LineAnnotation, LineStyle, LineType, LinearDimension, Point,
+    Point3 as ScPoint3, PointSymbol, Polyline,
 };
+use survey_cad::io::project::{read_project_json, write_project_json, GridSettings, Project};
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
-use survey_cad::io::project::{read_project_json, write_project_json, Project, GridSettings};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
-    format_dms, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
-    TextStyle as ScTextStyle, HatchPattern,
+    format_dms, HatchPattern, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
+    TextStyle as ScTextStyle,
 };
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
@@ -30,16 +30,16 @@ mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use truck_modeling::base::InnerSpace;
 use truck_modeling::base::Point3;
 use truck_modeling::base::Vector3;
 use truck_modeling::builder;
 use truck_modeling::topology::{Solid, Wire};
-use truck_modeling::base::InnerSpace;
 
 const MACRO_DIR: &str = "macros";
 
 mod truck_backend;
-use truck_backend::{TruckBackend, HitObject};
+use truck_backend::{HitObject, TruckBackend};
 mod persistence;
 use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
 
@@ -47,7 +47,7 @@ use once_cell::sync::Lazy;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusttype::{point, Font, Scale};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform, FillRule};
+use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::include_modules!();
 
@@ -166,7 +166,6 @@ fn save_config(cfg: &Config) {
     }
 }
 
-
 #[derive(Default, Clone, PartialEq)]
 enum DrawingMode {
     #[default]
@@ -194,19 +193,47 @@ enum DrawingMode {
         end: Option<Point>,
         radius: Option<f64>,
     },
-    Dimension { start: Option<Point> },
+    Dimension {
+        start: Option<Point>,
+    },
 }
 
 #[derive(Clone)]
 enum Command {
-    RemovePoint { index: usize, point: Point },
-    AddPoint { index: usize, point: Point },
-    RemoveLine { index: usize, line: (Point, Point) },
-    AddLine { index: usize, line: (Point, Point) },
-    RemoveDimension { index: usize, dim: LinearDimension },
-    AddDimension { index: usize, dim: LinearDimension },
-    TinDeleteVertex { surface: usize, index: usize, point: Point3 },
-    TinAddVertex { surface: usize, index: usize, point: Point3 },
+    RemovePoint {
+        index: usize,
+        point: Point,
+    },
+    AddPoint {
+        index: usize,
+        point: Point,
+    },
+    RemoveLine {
+        index: usize,
+        line: (Point, Point),
+    },
+    AddLine {
+        index: usize,
+        line: (Point, Point),
+    },
+    RemoveDimension {
+        index: usize,
+        dim: LinearDimension,
+    },
+    AddDimension {
+        index: usize,
+        dim: LinearDimension,
+    },
+    TinDeleteVertex {
+        surface: usize,
+        index: usize,
+        point: Point3,
+    },
+    TinAddVertex {
+        surface: usize,
+        index: usize,
+        point: Point3,
+    },
 }
 
 struct CommandStack {
@@ -230,7 +257,10 @@ fn record_macro(rec: &mut MacroRecorder, line: &str) {
 
 impl CommandStack {
     fn new() -> Self {
-        Self { undo: Vec::new(), redo: Vec::new() }
+        Self {
+            undo: Vec::new(),
+            redo: Vec::new(),
+        }
     }
 
     fn push(&mut self, cmd: Command) {
@@ -268,21 +298,28 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
             ctx.points.borrow_mut().remove(*index);
             ctx.point_styles.borrow_mut().remove(*index);
             ctx.backend.borrow_mut().remove_point(*index);
-            Command::AddPoint { index: *index, point: *point }
+            Command::AddPoint {
+                index: *index,
+                point: *point,
+            }
         }
         Command::AddPoint { index, point } => {
             ctx.points.borrow_mut().insert(*index, *point);
             ctx.point_styles.borrow_mut().insert(*index, 0);
-            ctx.backend
-                .borrow_mut()
-                .add_point(point.x, point.y, 0.0);
-            Command::RemovePoint { index: *index, point: *point }
+            ctx.backend.borrow_mut().add_point(point.x, point.y, 0.0);
+            Command::RemovePoint {
+                index: *index,
+                point: *point,
+            }
         }
         Command::RemoveLine { index, line } => {
             ctx.lines.borrow_mut().remove(*index);
             ctx.line_styles.borrow_mut().remove(*index);
             ctx.backend.borrow_mut().remove_line(*index);
-            Command::AddLine { index: *index, line: *line }
+            Command::AddLine {
+                index: *index,
+                line: *line,
+            }
         }
         Command::AddLine { index, line } => {
             ctx.lines.borrow_mut().insert(*index, *line);
@@ -293,7 +330,10 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
                 [1.0, 1.0, 1.0, 1.0],
                 1.0,
             );
-            Command::RemoveLine { index: *index, line: *line }
+            Command::RemoveLine {
+                index: *index,
+                line: *line,
+            }
         }
         Command::RemoveDimension { index, dim } => {
             ctx.backend.borrow_mut().remove_dimension(*index);
@@ -305,20 +345,22 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
         }
         Command::AddDimension { index, dim } => {
             ctx.dimensions.borrow_mut().insert(*index, dim.clone());
-            ctx.backend
-                .borrow_mut()
-                .add_dimension(
-                    [dim.start.x, dim.start.y, 0.0],
-                    [dim.end.x, dim.end.y, 0.0],
-                    [1.0, 1.0, 1.0, 1.0],
-                    1.0,
-                );
+            ctx.backend.borrow_mut().add_dimension(
+                [dim.start.x, dim.start.y, 0.0],
+                [dim.end.x, dim.end.y, 0.0],
+                [1.0, 1.0, 1.0, 1.0],
+                1.0,
+            );
             Command::RemoveDimension {
                 index: *index,
                 dim: dim.clone(),
             }
         }
-        Command::TinDeleteVertex { surface, index, point } => {
+        Command::TinDeleteVertex {
+            surface,
+            index,
+            point,
+        } => {
             ctx.backend.borrow_mut().delete_vertex(*surface, *index);
             Command::TinAddVertex {
                 surface: *surface,
@@ -326,10 +368,12 @@ fn apply_command(cmd: &Command, ctx: &Context) -> Command {
                 point: *point,
             }
         }
-        Command::TinAddVertex { surface, index, point } => {
-            ctx.backend
-                .borrow_mut()
-                .add_vertex(*surface, *point);
+        Command::TinAddVertex {
+            surface,
+            index,
+            point,
+        } => {
+            ctx.backend.borrow_mut().add_vertex(*surface, *point);
             Command::TinDeleteVertex {
                 surface: *surface,
                 index: *index,
@@ -366,7 +410,15 @@ struct RenderStyles<'a> {
     show_point_numbers: bool,
 }
 
-fn draw_text(pixmap: &mut Pixmap, text: &str, font: &Font, x: f32, y: f32, color: Color, size: f32) {
+fn draw_text(
+    pixmap: &mut Pixmap,
+    text: &str,
+    font: &Font,
+    x: f32,
+    y: f32,
+    color: Color,
+    size: f32,
+) {
     let scale = Scale::uniform(size);
     let v_metrics = font.v_metrics(scale);
     let mut cursor = x;
@@ -599,16 +651,10 @@ fn run_python_file(
                     .iter()
                     .map(|s| {
                         let dict = PyDict::new_bound(py);
-                        let verts: Vec<(f64, f64, f64)> = s
-                            .vertices
-                            .iter()
-                            .map(|v| (v.x, v.y, v.z))
-                            .collect();
-                        let tris: Vec<(usize, usize, usize)> = s
-                            .triangles
-                            .iter()
-                            .map(|t| (t[0], t[1], t[2]))
-                            .collect();
+                        let verts: Vec<(f64, f64, f64)> =
+                            s.vertices.iter().map(|v| (v.x, v.y, v.z)).collect();
+                        let tris: Vec<(usize, usize, usize)> =
+                            s.triangles.iter().map(|t| (t[0], t[1], t[2])).collect();
                         dict.set_item("vertices", verts)?;
                         dict.set_item("triangles", tris)?;
                         Ok(dict.into())
@@ -881,7 +927,13 @@ fn render_workspace(
                 pstyle.fill_color[2],
                 255,
             ));
-            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+            pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
 
             if pstyle.hatch_pattern != HatchPattern::None {
                 paint.set_color(Color::from_rgba8(
@@ -890,18 +942,30 @@ fn render_workspace(
                     pstyle.hatch_color[2],
                     255,
                 ));
-                let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                let stroke = Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                };
                 {
                     let bb = path.bounds();
                     let step = 10.0;
-                    if matches!(pstyle.hatch_pattern, HatchPattern::Cross | HatchPattern::Grid) {
+                    if matches!(
+                        pstyle.hatch_pattern,
+                        HatchPattern::Cross | HatchPattern::Grid
+                    ) {
                         let mut x = bb.left();
                         while x <= bb.right() {
                             let mut pb = PathBuilder::new();
                             pb.move_to(x, bb.top());
                             pb.line_to(x, bb.bottom());
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             x += step;
                         }
@@ -911,7 +975,13 @@ fn render_workspace(
                             pb.move_to(bb.left(), y);
                             pb.line_to(bb.right(), y);
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             y += step;
                         }
@@ -923,7 +993,13 @@ fn render_workspace(
                             pb.move_to(x, bb.bottom());
                             pb.line_to(x + bb.height(), bb.top());
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             x += step;
                         }
@@ -934,7 +1010,13 @@ fn render_workspace(
                             pb.move_to(x, bb.top());
                             pb.line_to(x - bb.height(), bb.bottom());
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             x += step;
                         }
@@ -948,7 +1030,10 @@ fn render_workspace(
             } else {
                 paint.set_color(Color::from_rgba8(255, 0, 0, 255));
             }
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -968,7 +1053,10 @@ fn render_workspace(
             if selected {
                 paint.set_color(Color::from_rgba8(255, 255, 0, 255));
             }
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
             if selected {
                 paint.set_color(Color::from_rgba8(255, 0, 0, 255));
@@ -996,7 +1084,10 @@ fn render_workspace(
             if selected {
                 paint.set_color(Color::from_rgba8(255, 255, 0, 255));
             }
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
             if selected {
                 paint.set_color(Color::from_rgba8(255, 0, 0, 255));
@@ -1016,12 +1107,19 @@ fn render_workspace(
         pb.move_to(tx(dim.start.x as f32), ty(dim.start.y as f32));
         pb.line_to(tx(dim.end.x as f32), ty(dim.end.y as f32));
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
         let line = Line::new(dim.start, dim.end);
         let mid = line.midpoint();
-        let text = if let Some(t) = &dim.text { t.clone() } else { format!("{:.2}", line.length()) };
+        let text = if let Some(t) = &dim.text {
+            t.clone()
+        } else {
+            format!("{:.2}", line.length())
+        };
         draw_text(
             &mut pixmap,
             &text,
@@ -1242,7 +1340,10 @@ fn render_workspace(
                     pixmap.stroke_path(
                         &path,
                         &paint,
-                        &Stroke { width: 1.0, ..Stroke::default() },
+                        &Stroke {
+                            width: 1.0,
+                            ..Stroke::default()
+                        },
                         Transform::identity(),
                         None,
                     );
@@ -1421,7 +1522,10 @@ fn render_workspace(
             pixmap.stroke_path(
                 &path,
                 &paint,
-                &Stroke { width: 1.0, ..Stroke::default() },
+                &Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                },
                 Transform::identity(),
                 None,
             );
@@ -1565,7 +1669,11 @@ struct SectionParams {
     oy: f32,
 }
 
-fn calc_section_params(section: &corridor::CrossSection, width: f32, height: f32) -> Option<SectionParams> {
+fn calc_section_params(
+    section: &corridor::CrossSection,
+    width: f32,
+    height: f32,
+) -> Option<SectionParams> {
     if section.points.len() < 2 {
         return None;
     }
@@ -1574,7 +1682,11 @@ fn calc_section_params(section: &corridor::CrossSection, width: f32, height: f32
     let dx = last.x - first.x;
     let dy = last.y - first.y;
     let len = (dx * dx + dy * dy).sqrt();
-    let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+    let dir = if len.abs() < f64::EPSILON {
+        (1.0, 0.0)
+    } else {
+        (dx / len, dy / len)
+    };
     let center = section.points[section.points.len() / 2];
     let mut min_x = f32::MAX;
     let mut max_x = f32::MIN;
@@ -1597,10 +1709,22 @@ fn calc_section_params(section: &corridor::CrossSection, width: f32, height: f32
     let scale = ((width * 0.8) / (max_x - min_x)).min((height * 0.8) / (max_y - min_y));
     let ox = width / 2.0 - scale * (min_x + max_x) / 2.0;
     let oy = height / 2.0 + scale * (min_y + max_y) / 2.0;
-    Some(SectionParams { dir, center, scale, ox, oy })
+    Some(SectionParams {
+        dir,
+        center,
+        scale,
+        ox,
+        oy,
+    })
 }
 
-fn screen_to_world(section: &corridor::CrossSection, x: f32, y: f32, width: f32, height: f32) -> Option<ScPoint3> {
+fn screen_to_world(
+    section: &corridor::CrossSection,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> Option<ScPoint3> {
     let params = calc_section_params(section, width, height)?;
     let off = (x - params.ox) / params.scale;
     let elev = (params.oy - y) / params.scale;
@@ -1611,12 +1735,19 @@ fn screen_to_world(section: &corridor::CrossSection, x: f32, y: f32, width: f32,
     ))
 }
 
-fn nearest_point(section: &corridor::CrossSection, x: f32, y: f32, width: f32, height: f32) -> Option<usize> {
+fn nearest_point(
+    section: &corridor::CrossSection,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> Option<usize> {
     let params = calc_section_params(section, width, height)?;
     let mut best = None;
     let mut best_dist = f32::MAX;
     for (i, p) in section.points.iter().enumerate() {
-        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1) as f32;
+        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1)
+            as f32;
         let elev = (p.z - params.center.z) as f32;
         let sx = params.ox + off * params.scale;
         let sy = params.oy - elev * params.scale;
@@ -1628,13 +1759,22 @@ fn nearest_point(section: &corridor::CrossSection, x: f32, y: f32, width: f32, h
             best = Some(i);
         }
     }
-    if best_dist.sqrt() <= 10.0 { best } else { None }
+    if best_dist.sqrt() <= 10.0 {
+        best
+    } else {
+        None
+    }
 }
 
 fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
     for elem in &profile.elements {
         match *elem {
-            VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+            VerticalElement::Grade {
+                start_station,
+                end_station,
+                start_elev,
+                end_elev,
+            } => {
                 if station >= start_station && station <= end_station {
                     if (end_station - start_station).abs() < f64::EPSILON {
                         return Some(0.0);
@@ -1642,7 +1782,13 @@ fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
                     return Some((end_elev - start_elev) / (end_station - start_station));
                 }
             }
-            VerticalElement::Parabola { start_station, end_station, start_grade, end_grade, .. } => {
+            VerticalElement::Parabola {
+                start_station,
+                end_station,
+                start_grade,
+                end_grade,
+                ..
+            } => {
                 if station >= start_station && station <= end_station {
                     let t = (station - start_station) / (end_station - start_station);
                     return Some(start_grade + (end_grade - start_grade) * t);
@@ -1737,12 +1883,24 @@ fn show_inspector_for_point(
     render_image: Rc<dyn Fn() -> Image>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
-    while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
-    while styles.borrow().len() <= idx { styles.borrow_mut().push(0); }
-    while metadata.borrow().len() <= idx { metadata.borrow_mut().push(String::new()); }
-    while elevation.borrow().len() <= idx { elevation.borrow_mut().push(String::new()); }
-    while measurement.borrow().len() <= idx { measurement.borrow_mut().push(String::new()); }
-    while data_sets.borrow().len() <= idx { data_sets.borrow_mut().push(0); }
+    while layers.borrow().len() <= idx {
+        layers.borrow_mut().push(0);
+    }
+    while styles.borrow().len() <= idx {
+        styles.borrow_mut().push(0);
+    }
+    while metadata.borrow().len() <= idx {
+        metadata.borrow_mut().push(String::new());
+    }
+    while elevation.borrow().len() <= idx {
+        elevation.borrow_mut().push(String::new());
+    }
+    while measurement.borrow().len() <= idx {
+        measurement.borrow_mut().push(String::new());
+    }
+    while data_sets.borrow().len() <= idx {
+        data_sets.borrow_mut().push(0);
+    }
 
     let layer_model = Rc::new(VecModel::from(
         layer_names
@@ -1787,7 +1945,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_layer_changed(move |val| {
-            if let Some(l) = layers.borrow_mut().get_mut(idx) { *l = val as usize; }
+            if let Some(l) = layers.borrow_mut().get_mut(idx) {
+                *l = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1800,7 +1960,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_style_changed(move |val| {
-            if let Some(s) = styles_ref.borrow_mut().get_mut(idx) { *s = val as usize; }
+            if let Some(s) = styles_ref.borrow_mut().get_mut(idx) {
+                *s = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1813,7 +1975,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_metadata_changed(move |text| {
-            if let Some(m) = meta_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(m) = meta_ref.borrow_mut().get_mut(idx) {
+                *m = text.to_string();
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1826,7 +1990,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_elevation_changed(move |text| {
-            if let Some(e) = elev_ref.borrow_mut().get_mut(idx) { *e = text.to_string(); }
+            if let Some(e) = elev_ref.borrow_mut().get_mut(idx) {
+                *e = text.to_string();
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1839,7 +2005,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_measurement_changed(move |text| {
-            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) {
+                *m = text.to_string();
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1852,7 +2020,9 @@ fn show_inspector_for_point(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_data_set_changed(move |val| {
-            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) { *d = val as usize; }
+            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) {
+                *d = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1877,10 +2047,18 @@ fn show_inspector_for_polygon(
     render_image: Rc<dyn Fn() -> Image>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
-    while layers.borrow().len() <= idx { layers.borrow_mut().push(0); }
-    while hatches.borrow().len() <= idx { hatches.borrow_mut().push(0); }
-    while measurement.borrow().len() <= idx { measurement.borrow_mut().push(String::new()); }
-    while data_sets.borrow().len() <= idx { data_sets.borrow_mut().push(0); }
+    while layers.borrow().len() <= idx {
+        layers.borrow_mut().push(0);
+    }
+    while hatches.borrow().len() <= idx {
+        hatches.borrow_mut().push(0);
+    }
+    while measurement.borrow().len() <= idx {
+        measurement.borrow_mut().push(String::new());
+    }
+    while data_sets.borrow().len() <= idx {
+        data_sets.borrow_mut().push(0);
+    }
 
     let layer_model = Rc::new(VecModel::from(
         layer_names
@@ -1925,7 +2103,9 @@ fn show_inspector_for_polygon(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_layer_changed(move |val| {
-            if let Some(l) = layers.borrow_mut().get_mut(idx) { *l = val as usize; }
+            if let Some(l) = layers.borrow_mut().get_mut(idx) {
+                *l = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1938,7 +2118,9 @@ fn show_inspector_for_polygon(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_hatch_changed(move |val| {
-            if let Some(h) = h_ref.borrow_mut().get_mut(idx) { *h = val as usize; }
+            if let Some(h) = h_ref.borrow_mut().get_mut(idx) {
+                *h = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1951,7 +2133,9 @@ fn show_inspector_for_polygon(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_measurement_changed(move |text| {
-            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) { *m = text.to_string(); }
+            if let Some(m) = meas_ref.borrow_mut().get_mut(idx) {
+                *m = text.to_string();
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -1964,7 +2148,9 @@ fn show_inspector_for_polygon(
         let backend = backend.clone();
         let render_image = render_image.clone();
         dlg.on_data_set_changed(move |val| {
-            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) { *d = val as usize; }
+            if let Some(d) = ds_ref.borrow_mut().get_mut(idx) {
+                *d = val as usize;
+            }
             if let Some(a) = app_weak.upgrade() {
                 refresh_workspace(&a, &*render_image, &backend);
             }
@@ -2073,7 +2259,8 @@ fn main() -> Result<(), slint::PlatformError> {
     let point_measurement = Rc::new(RefCell::new(Vec::<String>::new()));
     let point_data_sets = Rc::new(RefCell::new(Vec::<usize>::new()));
     let data_set_names = Rc::new(RefCell::new(vec![String::from("Default")]));
-    let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> = Rc::new(RefCell::new(None));
+    let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> =
+        Rc::new(RefCell::new(None));
     let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
         point_styles: survey_cad::styles::default_point_styles(),
         line_styles: survey_cad::styles::default_line_styles(),
@@ -2143,11 +2330,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 sx = s.x,
                                 sy = s.y
                             )),
-                            end: SharedString::from(format!(
-                                "{ex:.2},{ey:.2}",
-                                ex = e.x,
-                                ey = e.y
-                            )),
+                            end: SharedString::from(format!("{ex:.2},{ey:.2}", ex = e.x, ey = e.y)),
                             style_index: *s_idx as i32,
                         }
                     } else {
@@ -2373,8 +2556,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         match parts[0].as_str() {
                             "point" if parts.len() >= 3 => {
-                                if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
-                                    spawn_point(&point_db, &point_styles, &backend_render, Point::new(x, y));
+                                if let (Ok(x), Ok(y)) =
+                                    (parts[1].parse::<f64>(), parts[2].parse::<f64>())
+                                {
+                                    spawn_point(
+                                        &point_db,
+                                        &point_styles,
+                                        &backend_render,
+                                        Point::new(x, y),
+                                    );
                                 }
                             }
                             "line" if parts.len() >= 5 => {
@@ -2435,33 +2625,29 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
                                 .collect::<PyResult<_>>()?;
 
-                            let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
-                                lines_ref
-                                    .borrow()
-                                    .iter()
-                                    .map(|(a, b)| {
-                                        Ok((
-                                            Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
-                                            Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
-                                        ))
-                                    })
-                                    .collect::<PyResult<_>>()?;
+                            let lines_py: Vec<(
+                                Py<survey_cad_python::Point>,
+                                Py<survey_cad_python::Point>,
+                            )> = lines_ref
+                                .borrow()
+                                .iter()
+                                .map(|(a, b)| {
+                                    Ok((
+                                        Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                        Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                                    ))
+                                })
+                                .collect::<PyResult<_>>()?;
 
                             let surfs: Vec<Py<PyAny>> = surfaces_ref
                                 .borrow()
                                 .iter()
                                 .map(|s| {
                                     let dict = PyDict::new_bound(py);
-                                    let verts: Vec<(f64, f64, f64)> = s
-                                        .vertices
-                                        .iter()
-                                        .map(|v| (v.x, v.y, v.z))
-                                        .collect();
-                                    let tris: Vec<(usize, usize, usize)> = s
-                                        .triangles
-                                        .iter()
-                                        .map(|t| (t[0], t[1], t[2]))
-                                        .collect();
+                                    let verts: Vec<(f64, f64, f64)> =
+                                        s.vertices.iter().map(|v| (v.x, v.y, v.z)).collect();
+                                    let tris: Vec<(usize, usize, usize)> =
+                                        s.triangles.iter().map(|t| (t[0], t[1], t[2])).collect();
                                     dict.set_item("vertices", verts)?;
                                     dict.set_item("triangles", tris)?;
                                     Ok(dict.into())
@@ -2562,7 +2748,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         );
                     }
                 }
-                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                if let Some(d) = dlg_weak.upgrade() {
+                    let _ = d.hide();
+                }
             });
 
             let cfg_assign = cfg.clone();
@@ -2574,7 +2762,9 @@ fn main() -> Result<(), slint::PlatformError> {
             });
 
             dlg.on_cancel(move || {
-                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                if let Some(d) = dlg_weak.upgrade() {
+                    let _ = d.hide();
+                }
             });
 
             dlg.show().unwrap();
@@ -2886,9 +3076,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_zoom_level(*zoom.borrow());
                 if mode == 0 {
                     app.set_workspace_image(render_image());
-                    app.set_status(SharedString::from(
-                        "Camera: Middle drag pan, scroll zoom",
-                    ));
+                    app.set_status(SharedString::from("Camera: Middle drag pan, scroll zoom"));
                 } else {
                     let image = backend_render.borrow_mut().render();
                     app.set_workspace_texture(image);
@@ -2967,8 +3155,6 @@ fn main() -> Result<(), slint::PlatformError> {
             save_config(&cfg.borrow());
         });
     }
-
-
 
     {
         let prefs = snap_prefs.clone();
@@ -3172,26 +3358,24 @@ fn main() -> Result<(), slint::PlatformError> {
                                 if start.is_none() {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
-                                lines_ref.borrow_mut().push((s, p));
-                                backend_render
-                                    .borrow_mut()
-                                    .add_line(
+                                    lines_ref.borrow_mut().push((s, p));
+                                    backend_render.borrow_mut().add_line(
                                         [s.x, s.y, 0.0],
                                         [p.x, p.y, 0.0],
                                         [1.0, 1.0, 1.0, 1.0],
                                         1.0,
                                     );
-                                if !macro_playing.borrow().0 {
-                                    let sx = s.x;
-                                    let sy = s.y;
-                                    let px = p.x;
-                                    let py = p.y;
-                                    record_macro(
-                                        &mut macro_recorder.borrow_mut(),
-                                        &format!("line {sx} {sy} {px} {py}"),
-                                    );
-                                }
-                                *mode = DrawingMode::None;
+                                    if !macro_playing.borrow().0 {
+                                        let sx = s.x;
+                                        let sy = s.y;
+                                        let px = p.x;
+                                        let py = p.y;
+                                        record_macro(
+                                            &mut macro_recorder.borrow_mut(),
+                                            &format!("line {sx} {sy} {px} {py}"),
+                                        );
+                                    }
+                                    *mode = DrawingMode::None;
                                 } else {
                                     if let Some(app) = weak.upgrade() {
                                         app.set_status(SharedString::from(
@@ -3207,14 +3391,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     *start = Some(p);
                                 } else if let Some(s) = start.take() {
                                     dimensions.borrow_mut().push(LinearDimension::new(s, p));
-                                    backend_render
-                                        .borrow_mut()
-                                        .add_dimension(
-                                            [s.x, s.y, 0.0],
-                                            [p.x, p.y, 0.0],
-                                            [1.0, 1.0, 1.0, 1.0],
-                                            1.0,
-                                        );
+                                    backend_render.borrow_mut().add_dimension(
+                                        [s.x, s.y, 0.0],
+                                        [p.x, p.y, 0.0],
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        1.0,
+                                    );
                                     command_stack.borrow_mut().push(Command::RemoveDimension {
                                         index: dimensions.borrow().len() - 1,
                                         dim: LinearDimension::new(s, p),
@@ -3399,12 +3581,16 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                         }
                         for (i, poly) in polygons_ref.borrow().iter().enumerate() {
-                            if poly.iter().all(|p| p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y) {
+                            if poly.iter().all(|p| {
+                                p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y
+                            }) {
                                 selected_polygons.borrow_mut().push(i);
                             }
                         }
                         for (i, pl) in polylines.borrow().iter().enumerate() {
-                            if pl.vertices.iter().all(|p| p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y) {
+                            if pl.vertices.iter().all(|p| {
+                                p.x >= min_x && p.x <= max_x && p.y >= min_y && p.y <= max_y
+                            }) {
                                 selected_polylines.borrow_mut().push(i);
                             }
                         }
@@ -3413,7 +3599,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             let max_ax = arc.center.x + arc.radius;
                             let min_ay = arc.center.y - arc.radius;
                             let max_ay = arc.center.y + arc.radius;
-                            if min_ax >= min_x && max_ax <= max_x && min_ay >= min_y && max_ay <= max_y {
+                            if min_ax >= min_x
+                                && max_ax <= max_x
+                                && min_ay >= min_y
+                                && max_ay <= max_y
+                            {
                                 selected_arcs.borrow_mut().push(i);
                             }
                         }
@@ -3422,7 +3612,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             let max_dx = dim.start.x.max(dim.end.x);
                             let min_dy = dim.start.y.min(dim.end.y);
                             let max_dy = dim.start.y.max(dim.end.y);
-                            if min_dx >= min_x && max_dx <= max_x && min_dy >= min_y && max_dy <= max_y {
+                            if min_dx >= min_x
+                                && max_dx <= max_x
+                                && min_dy >= min_y
+                                && max_dy <= max_y
+                            {
                                 selected_dimensions.borrow_mut().push(i);
                             }
                         }
@@ -3703,10 +3897,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
                 *workspace_crs.borrow_mut() = 4326;
-                if let Some(idx) = crs_entries_rc
-                    .iter()
-                    .position(|e| e.code == "EPSG:4326")
-                {
+                if let Some(idx) = crs_entries_rc.iter().position(|e| e.code == "EPSG:4326") {
                     app.set_crs_index(idx as i32);
                 }
                 refresh_workspace(&app, &render_image, &backend_render);
@@ -3764,7 +3955,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             point_db.borrow_mut().clear();
                             point_db.borrow_mut().extend_from_slice(&proj.points);
                             lines.borrow_mut().clear();
-                            lines.borrow_mut().extend(proj.lines.iter().map(|l| (l.start, l.end)));
+                            lines
+                                .borrow_mut()
+                                .extend(proj.lines.iter().map(|l| (l.start, l.end)));
                             polygons.borrow_mut().clear();
                             polygons.borrow_mut().extend(proj.polygons.clone());
                             polylines.borrow_mut().clear();
@@ -3776,9 +3969,13 @@ fn main() -> Result<(), slint::PlatformError> {
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
                             surface_units_ref.borrow_mut().clear();
-                            surface_units_ref.borrow_mut().extend(proj.surface_units.clone());
+                            surface_units_ref
+                                .borrow_mut()
+                                .extend(proj.surface_units.clone());
                             surface_styles_ref.borrow_mut().clear();
-                            surface_styles_ref.borrow_mut().extend(proj.surface_styles.clone());
+                            surface_styles_ref
+                                .borrow_mut()
+                                .extend(proj.surface_styles.clone());
                             surface_descriptions_ref.borrow_mut().clear();
                             surface_descriptions_ref
                                 .borrow_mut()
@@ -3787,7 +3984,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             alignments.borrow_mut().extend(proj.alignments.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
-                            *polygon_style_indices.borrow_mut() = proj.polygon_style_indices.clone();
+                            *polygon_style_indices.borrow_mut() =
+                                proj.polygon_style_indices.clone();
                             *grid_settings.borrow_mut() = proj.grid.clone();
                             {
                                 let mut pls = point_label_style.borrow_mut();
@@ -3797,9 +3995,16 @@ fn main() -> Result<(), slint::PlatformError> {
 
                             let mut mgr = ScLayerManager::new();
                             layer_names_ref.borrow_mut().clear();
-                            for l in proj.layers {
-                                layer_names_ref.borrow_mut().push(l.name.clone());
-                                mgr.add_layer(l);
+                            let order = if !proj.layer_order.is_empty() {
+                                proj.layer_order.clone()
+                            } else {
+                                proj.layers.iter().map(|l| l.name.clone()).collect()
+                            };
+                            for name in &order {
+                                if let Some(l) = proj.layers.iter().find(|x| x.name == *name) {
+                                    layer_names_ref.borrow_mut().push(name.clone());
+                                    mgr.add_layer(l.clone());
+                                }
                             }
                             *layers_ref.borrow_mut() = mgr;
 
@@ -3813,7 +4018,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                     .iter()
                                     .map(|p| Point3::new(p.x, p.y, p.z))
                                     .collect();
-                                backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                                backend_render
+                                    .borrow_mut()
+                                    .add_surface(&verts, &tin.triangles);
                             }
                             for dim in dimensions.borrow().iter() {
                                 backend_render.borrow_mut().add_dimension(
@@ -3886,7 +4093,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         surface_units: surface_units_ref.borrow().clone(),
                         surface_styles: surface_styles_ref.borrow().clone(),
                         surface_descriptions: surface_descriptions_ref.borrow().clone(),
-                        layers: layers_ref.borrow().iter().cloned().collect(),
+                        layers: layer_names
+                            .borrow()
+                            .iter()
+                            .filter_map(|n| layers_ref.borrow().layer(n).cloned())
+                            .collect(),
+                        layer_order: layer_names.borrow().clone(),
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
                         polygon_style_indices: polygon_style_indices.borrow().clone(),
@@ -3955,14 +4167,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                 Ok(l) => {
                                     lines.borrow_mut().push(l);
                                     let (s, e) = l;
-                                    backend_render
-                                        .borrow_mut()
-                                        .add_line(
-                                            [s.x, s.y, 0.0],
-                                            [e.x, e.y, 0.0],
-                                            [1.0, 1.0, 1.0, 1.0],
-                                            1.0,
-                                        );
+                                    backend_render.borrow_mut().add_line(
+                                        [s.x, s.y, 0.0],
+                                        [e.x, e.y, 0.0],
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        1.0,
+                                    );
                                     command_stack.borrow_mut().push(Command::RemoveLine {
                                         index: lines.borrow().len() - 1,
                                         line: (s, e),
@@ -4020,34 +4230,32 @@ fn main() -> Result<(), slint::PlatformError> {
                     let kd_weak = kd.as_weak();
                     let kd_weak2 = kd.as_weak();
                     {
-                let lines = lines.clone();
-                let render_image = render_image.clone();
-                let weak = weak.clone();
-                let line_style_indices = line_style_indices.clone();
-                let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
-                let backend_render = backend_render.clone();
-                let command_stack = command_stack_outer.clone();
-                let macro_playing = macro_playing.clone();
-                let macro_recorder = macro_recorder.clone();
-                kd.on_accept(move || {
-                    if let Some(dlg) = kd_weak2.upgrade() {
-                        if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
-                            dlg.get_x1().parse::<f64>(),
-                            dlg.get_y1().parse::<f64>(),
+                        let lines = lines.clone();
+                        let render_image = render_image.clone();
+                        let weak = weak.clone();
+                        let line_style_indices = line_style_indices.clone();
+                        let refresh_line_style_dialogs = refresh_line_style_dialogs.clone();
+                        let backend_render = backend_render.clone();
+                        let command_stack = command_stack_outer.clone();
+                        let macro_playing = macro_playing.clone();
+                        let macro_recorder = macro_recorder.clone();
+                        kd.on_accept(move || {
+                            if let Some(dlg) = kd_weak2.upgrade() {
+                                if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                                    dlg.get_x1().parse::<f64>(),
+                                    dlg.get_y1().parse::<f64>(),
                                     dlg.get_x2().parse::<f64>(),
                                     dlg.get_y2().parse::<f64>(),
                                 ) {
                                     lines
                                         .borrow_mut()
                                         .push((Point::new(x1, y1), Point::new(x2, y2)));
-                                    backend_render
-                                        .borrow_mut()
-                                        .add_line(
-                                            [x1, y1, 0.0],
-                                            [x2, y2, 0.0],
-                                            [1.0, 1.0, 1.0, 1.0],
-                                            1.0,
-                                        );
+                                    backend_render.borrow_mut().add_line(
+                                        [x1, y1, 0.0],
+                                        [x2, y2, 0.0],
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        1.0,
+                                    );
                                     if !macro_playing.borrow().0 {
                                         record_macro(
                                             &mut macro_recorder.borrow_mut(),
@@ -4128,7 +4336,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         .pick_file()
                     {
                         if let Some(p) = path.to_str() {
-                            match survey_cad::io::read_points_csv(p, Some(4326), Some(*workspace_crs.borrow())) {
+                            match survey_cad::io::read_points_csv(
+                                p,
+                                Some(4326),
+                                Some(*workspace_crs.borrow()),
+                            ) {
                                 Ok(pts) => {
                                     let len = {
                                         let mut db = point_db.borrow_mut();
@@ -4191,10 +4403,10 @@ fn main() -> Result<(), slint::PlatformError> {
                         let render_image = render_image.clone();
                         let weak = weak.clone();
                         let psi = point_style_indices.clone();
-                let backend_render = backend_render.clone();
-                let command_stack = cs_inner.clone();
-                let macro_playing = macro_playing.clone();
-                let macro_recorder = macro_recorder.clone();
+                        let backend_render = backend_render.clone();
+                        let command_stack = cs_inner.clone();
+                        let macro_playing = macro_playing.clone();
+                        let macro_recorder = macro_recorder.clone();
                         key_dlg.on_accept(move || {
                             if let Some(dlg) = key_weak2.upgrade() {
                                 if let (Ok(x), Ok(y)) = (
@@ -4704,7 +4916,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let (Some(p), Some(app)) = (path.to_str(), weak.upgrade()) {
-                    match survey_cad::io::read_points_csv(p, Some(4326), Some(*workspace_crs.borrow())) {
+                    match survey_cad::io::read_points_csv(
+                        p,
+                        Some(4326),
+                        Some(*workspace_crs.borrow()),
+                    ) {
                         Ok(pts) => {
                             let trav = survey_cad::surveying::Traverse::new(pts);
                             app.set_status(SharedString::from(format!("Area: {:.3}", trav.area())));
@@ -4847,11 +5063,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     for (i, line) in lines.borrow_mut().iter_mut().enumerate() {
-                        if selected_lines
-                            .borrow()
-                            .iter()
-                            .any(|(s, e)| (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0))
-                        {
+                        if selected_lines.borrow().iter().any(|(s, e)| {
+                            (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0)
+                        }) {
                             line.0.x += dx;
                             line.0.y += dy;
                             line.1.x += dx;
@@ -4937,7 +5151,11 @@ fn main() -> Result<(), slint::PlatformError> {
             let render_image = render_image.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
-                    let ang = d.get_angle_value().parse::<f64>().unwrap_or(0.0).to_radians();
+                    let ang = d
+                        .get_angle_value()
+                        .parse::<f64>()
+                        .unwrap_or(0.0)
+                        .to_radians();
                     let cos_a = ang.cos();
                     let sin_a = ang.sin();
                     for &idx in selected_indices.borrow().iter() {
@@ -4950,11 +5168,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     for (i, line) in lines.borrow_mut().iter_mut().enumerate() {
-                        if selected_lines
-                            .borrow()
-                            .iter()
-                            .any(|(s, e)| (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0))
-                        {
+                        if selected_lines.borrow().iter().any(|(s, e)| {
+                            (*s == line.0 && *e == line.1) || (*s == line.1 && *e == line.0)
+                        }) {
                             for pt in [&mut line.0, &mut line.1] {
                                 let x = pt.x * cos_a - pt.y * sin_a;
                                 let y = pt.x * sin_a + pt.y * cos_a;
@@ -5240,7 +5456,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 let drag_p = drag_index.clone();
                 viewer.on_pointer_pressed(move |x, y| {
                     let secs_b = secs_p.borrow();
-                    if let Some(idx) = nearest_point(&secs_b[*current_p.borrow()], x, y, 600.0, 300.0) {
+                    if let Some(idx) =
+                        nearest_point(&secs_b[*current_p.borrow()], x, y, 600.0, 300.0)
+                    {
                         *drag_p.borrow_mut() = Some(idx);
                     }
                 });
@@ -5251,10 +5469,20 @@ fn main() -> Result<(), slint::PlatformError> {
                 let viewer_weak_m = viewer_weak.clone();
                 viewer.on_pointer_moved(move |x, y| {
                     if let Some(idx) = *drag_m.borrow() {
-                        if let Some(p) = screen_to_world(&secs_m.borrow()[*current_m.borrow()], x, y, 600.0, 300.0) {
+                        if let Some(p) = screen_to_world(
+                            &secs_m.borrow()[*current_m.borrow()],
+                            x,
+                            y,
+                            600.0,
+                            300.0,
+                        ) {
                             secs_m.borrow_mut()[*current_m.borrow()].points[idx] = p;
                             if let Some(v) = viewer_weak_m.upgrade() {
-                                v.set_section_image(render_cross_section(&secs_m.borrow()[*current_m.borrow()], 600, 300));
+                                v.set_section_image(render_cross_section(
+                                    &secs_m.borrow()[*current_m.borrow()],
+                                    600,
+                                    300,
+                                ));
                             }
                         }
                     }
@@ -5268,12 +5496,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     if drag_r.borrow().is_some() {
                         *drag_r.borrow_mut() = None;
                         let tin = corridor::surface_from_cross_sections(&secs_r.borrow());
-                        let verts: Vec<Point3> = tin.vertices.iter().map(|p| Point3::new(p.x, p.y, p.z)).collect();
+                        let verts: Vec<Point3> = tin
+                            .vertices
+                            .iter()
+                            .map(|p| Point3::new(p.x, p.y, p.z))
+                            .collect();
                         if surfaces_r.borrow().is_empty() {
                             backend_r.borrow_mut().add_surface(&verts, &tin.triangles);
                             surfaces_r.borrow_mut().push(tin);
                         } else {
-                            backend_r.borrow_mut().update_surface(0, &verts, &tin.triangles);
+                            backend_r
+                                .borrow_mut()
+                                .update_surface(0, &verts, &tin.triangles);
                             surfaces_r.borrow_mut()[0] = tin;
                         }
                     }
@@ -6170,7 +6404,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     let ents: Vec<survey_cad::io::DxfEntity> = point_db
                         .borrow()
                         .iter()
-                        .map(|pt| survey_cad::io::DxfEntity::Point { point: *pt, layer: None })
+                        .map(|pt| survey_cad::io::DxfEntity::Point {
+                            point: *pt,
+                            layer: None,
+                        })
                         .collect();
                     match survey_cad::io::write_dwg(p, &ents) {
                         Ok(()) => {
@@ -6241,7 +6478,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         out.extend(polylines_ref.borrow().iter().cloned());
                         if let Err(e) = survey_cad::io::shp::write_polylines_shp(p, &out, None) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {e}")));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {e}"
+                                )));
                             }
                         } else if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from("Exported"));
@@ -6266,7 +6505,9 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
-                    if let Err(e) = survey_cad::io::shp::write_polygons_shp(p, &polygons_ref.borrow(), None) {
+                    if let Err(e) =
+                        survey_cad::io::shp::write_polygons_shp(p, &polygons_ref.borrow(), None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6376,7 +6617,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         style: surface_styles_clone.borrow().first().cloned(),
                         description: surface_descriptions_clone.borrow().first().cloned(),
                     };
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_surface(p, tin, Some(&extras)) {
+                    if let Err(e) =
+                        survey_cad::io::landxml::write_landxml_surface(p, tin, Some(&extras))
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6404,7 +6647,9 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     let al = &alignments.borrow()[0];
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_alignment(p, &al.horizontal, None) {
+                    if let Err(e) =
+                        survey_cad::io::landxml::write_landxml_alignment(p, &al.horizontal, None)
+                    {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6436,13 +6681,23 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     let al = &alignments.borrow()[0];
-                    let secs = corridor::extract_cross_sections(&surfaces.borrow()[0], al, 10.0, 10.0, 1.0);
+                    let secs = corridor::extract_cross_sections(
+                        &surfaces.borrow()[0],
+                        al,
+                        10.0,
+                        10.0,
+                        1.0,
+                    );
                     let extras = survey_cad::io::landxml::LandxmlExtras {
                         units: surface_units_clone.borrow().first().cloned(),
                         style: surface_styles_clone.borrow().first().cloned(),
                         description: surface_descriptions_clone.borrow().first().cloned(),
                     };
-                    if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(p, &secs, Some(&extras)) {
+                    if let Err(e) = survey_cad::io::landxml::write_landxml_cross_sections(
+                        p,
+                        &secs,
+                        Some(&extras),
+                    ) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6512,9 +6767,17 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_group_header(headers.borrow()[4].clone());
             dlg.set_style_header(headers.borrow()[5].clone());
 
-            dlg.set_label_font(SharedString::from(point_label_style.borrow().text_style.font.clone()));
-            dlg.set_offset_x(SharedString::from(format!("{:.1}", point_label_style.borrow().offset[0])));
-            dlg.set_offset_y(SharedString::from(format!("{:.1}", point_label_style.borrow().offset[1])));
+            dlg.set_label_font(SharedString::from(
+                point_label_style.borrow().text_style.font.clone(),
+            ));
+            dlg.set_offset_x(SharedString::from(format!(
+                "{:.1}",
+                point_label_style.borrow().offset[0]
+            )));
+            dlg.set_offset_y(SharedString::from(format!(
+                "{:.1}",
+                point_label_style.borrow().offset[1]
+            )));
 
             let rename_in_model: Rc<dyn Fn(usize, SharedString)> = {
                 let groups_model = groups_model.clone();
@@ -6667,7 +6930,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 });
             }
-            { 
+            {
                 let headers = headers.clone();
                 dlg.on_header_changed(move |col, text| {
                     if let Some(h) = headers.borrow_mut().get_mut(col as usize) {
@@ -6844,8 +7107,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     })
                     .collect::<Vec<_>>()
             };
-            let model = Rc::new(VecModel::<LayerRow>::from(rows));
+            let all_rows = Rc::new(RefCell::new(rows));
+            let model = Rc::new(VecModel::<LayerRow>::from(all_rows.borrow().clone()));
             dlg.set_layers_model(model.clone().into());
+            dlg.set_search_text(SharedString::default());
             dlg.set_selected_index(-1);
 
             {
@@ -6867,6 +7132,20 @@ fn main() -> Result<(), slint::PlatformError> {
                     if let Some(app) = weak.upgrade() {
                         refresh_workspace(&app, &render_image, &backend_render);
                     }
+                });
+            }
+            {
+                let model = model.clone();
+                let rows = all_rows.clone();
+                dlg.on_search_changed(move |text| {
+                    let text = text.to_lowercase();
+                    let filtered: Vec<LayerRow> = rows
+                        .borrow()
+                        .iter()
+                        .cloned()
+                        .filter(|r| r.name.to_lowercase().contains(&text))
+                        .collect();
+                    model.set_vec(filtered);
                 });
             }
             {
@@ -7003,6 +7282,103 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
 
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                dlg.on_freeze_all(move || {
+                    for n in names.borrow().iter() {
+                        layers.borrow_mut().set_layer_state(n, false);
+                    }
+                    for i in 0..model.row_count() {
+                        if let Some(row) = model.row_data(i) {
+                            let mut r = row.clone();
+                            r.on = false;
+                            model.set_row_data(i, r);
+                        }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                dlg.on_thaw_all(move || {
+                    for n in names.borrow().iter() {
+                        layers.borrow_mut().set_layer_state(n, true);
+                    }
+                    for i in 0..model.row_count() {
+                        if let Some(row) = model.row_data(i) {
+                            let mut r = row.clone();
+                            r.on = true;
+                            model.set_row_data(i, r);
+                        }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                dlg.on_lock_all(move || {
+                    for n in names.borrow().iter() {
+                        if let Some(l) = layers.borrow_mut().layer_mut(n) {
+                            l.is_locked = true;
+                        }
+                    }
+                    for i in 0..model.row_count() {
+                        if let Some(row) = model.row_data(i) {
+                            let mut r = row.clone();
+                            r.locked = true;
+                            model.set_row_data(i, r);
+                        }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+            {
+                let model = model.clone();
+                let layers = layers_ref.clone();
+                let names = layer_names_ref.clone();
+                let backend_render = backend_render.clone();
+                let render_image = render_image.clone();
+                let weak = weak.clone();
+                dlg.on_unlock_all(move || {
+                    for n in names.borrow().iter() {
+                        if let Some(l) = layers.borrow_mut().layer_mut(n) {
+                            l.is_locked = false;
+                        }
+                    }
+                    for i in 0..model.row_count() {
+                        if let Some(row) = model.row_data(i) {
+                            let mut r = row.clone();
+                            r.locked = false;
+                            model.set_row_data(i, r);
+                        }
+                    }
+                    if let Some(app) = weak.upgrade() {
+                        refresh_workspace(&app, &render_image, &backend_render);
+                    }
+                });
+            }
+
             dlg.show().unwrap();
         });
     }
@@ -7059,7 +7435,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             let pct = (p * 100.0).round();
                             if pct - last >= 1.0 {
                                 if let Some(app) = weak.upgrade() {
-                                    app.set_status(SharedString::from(format!("Generating design surface... {}%", pct as i32)));
+                                    app.set_status(SharedString::from(format!(
+                                        "Generating design surface... {}%",
+                                        pct as i32
+                                    )));
                                     app.window().request_redraw();
                                 }
                                 last = pct;
@@ -7072,10 +7451,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         .map(|p| Point3::new(p.x, p.y, p.z))
                         .collect();
                     if surfaces.borrow().is_empty() {
-                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                        backend_render
+                            .borrow_mut()
+                            .add_surface(&verts, &tin.triangles);
                         surfaces.borrow_mut().push(tin);
                     } else {
-                        backend_render.borrow_mut().update_surface(0, &verts, &tin.triangles);
+                        backend_render
+                            .borrow_mut()
+                            .update_surface(0, &verts, &tin.triangles);
                         surfaces.borrow_mut()[0] = tin;
                     }
                     if let Some(app) = weak.upgrade() {
@@ -7096,8 +7479,16 @@ fn main() -> Result<(), slint::PlatformError> {
                 let sup_data = sup_data.clone();
                 let update_design = update_design.clone();
                 dlg.on_add_row(move || {
-                    sup_data.borrow_mut().push(SuperelevationPoint { station: 0.0, left_slope: 0.0, right_slope: 0.0 });
-                    model.push(SuperelevationRow { station: "0.0".into(), left: "0.0000".into(), right: "0.0000".into() });
+                    sup_data.borrow_mut().push(SuperelevationPoint {
+                        station: 0.0,
+                        left_slope: 0.0,
+                        right_slope: 0.0,
+                    });
+                    model.push(SuperelevationRow {
+                        station: "0.0".into(),
+                        left: "0.0000".into(),
+                        right: "0.0000".into(),
+                    });
                     update_design();
                 });
             }
@@ -7306,9 +7697,15 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .borrow_mut()
                                 .add_surface(&verts, &tin.triangles);
                             surfaces.borrow_mut().push(tin);
-                            surface_units.borrow_mut().push(extras.units.unwrap_or_default());
-                            surface_styles.borrow_mut().push(extras.style.unwrap_or_default());
-                            surface_descriptions.borrow_mut().push(extras.description.unwrap_or_default());
+                            surface_units
+                                .borrow_mut()
+                                .push(extras.units.unwrap_or_default());
+                            surface_styles
+                                .borrow_mut()
+                                .push(extras.style.unwrap_or_default());
+                            surface_descriptions
+                                .borrow_mut()
+                                .push(extras.description.unwrap_or_default());
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
                                 if app.get_workspace_mode() == 0 {
@@ -7347,7 +7744,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     match survey_cad::io::landxml::read_landxml_alignment(p) {
                         Ok((hal, _)) => {
                             let val = survey_cad::io::landxml::read_landxml_profile(p)
-                                .unwrap_or_else(|_| VerticalAlignment::new(vec![(0.0, 0.0), (hal.length(), 0.0)]));
+                                .unwrap_or_else(|_| {
+                                    VerticalAlignment::new(vec![(0.0, 0.0), (hal.length(), 0.0)])
+                                });
                             alignments.borrow_mut().push(Alignment::new(hal, val));
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));
