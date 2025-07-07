@@ -1884,8 +1884,8 @@ fn show_context_menu(
         let _ = m.hide();
     }
     let menu = ContextMenu::new().unwrap();
-    menu.set_pos_x(x.into());
-    menu.set_pos_y(y.into());
+    menu.set_pos_x(x);
+    menu.set_pos_y(y);
     {
         let weak = app.as_weak();
         menu.on_mov(move || {
@@ -6573,7 +6573,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 let dweak = dlg_weak.clone();
                                 let _ = slint::invoke_from_event_loop(move || {
                                     if let Some(d) = dweak.upgrade() {
-                                        d.set_progress(prog.into());
+                                        d.set_progress(prog);
                                     }
                                 });
                                 !cancel.load(Ordering::SeqCst)
@@ -6684,7 +6684,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 let dweak = dlg_weak.clone();
                                 let _ = slint::invoke_from_event_loop(move || {
                                     if let Some(d) = dweak.upgrade() {
-                                        d.set_progress(prog.into());
+                                        d.set_progress(prog);
                                     }
                                 });
                                 !cancel.load(Ordering::SeqCst)
