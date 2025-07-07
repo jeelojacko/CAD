@@ -15,8 +15,6 @@ pub enum HitObject {
 enum HandleTarget {
     Point(usize),
     Line(usize),
-    Polyline(usize),
-    Arc(usize),
     Surface(usize),
 }
 
@@ -423,28 +421,25 @@ impl TruckBackend {
                     }
                 }
                 HandleTarget::Line(idx) => {
-                    if let Some(line) = self.lines.get_mut(idx) {
+                    let (p0, p1, col, weight) = if let Some(line) = self.lines.get_mut(idx) {
                         if handle_idx == 0 {
                             line.0 = new_pos;
                         } else if handle_idx == 1 {
                             line.1 = new_pos;
                         }
-                        let p0 = line.0;
-                        let p1 = line.1;
-                        let col = line.2;
-                        let weight = line.3;
-                        // drop mutable borrow before calling update_line
-                        drop(line);
-                        self.update_line(
-                            idx,
-                            [p0.x, p0.y, p0.z],
-                            [p1.x, p1.y, p1.z],
-                            [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
-                            weight,
-                        );
-                    }
+                        (line.0, line.1, line.2, line.3)
+                    } else {
+                        return;
+                    };
+
+                    self.update_line(
+                        idx,
+                        [p0.x, p0.y, p0.z],
+                        [p1.x, p1.y, p1.z],
+                        [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
+                        weight,
+                    );
                 }
-                _ => {}
             }
         }
     }
