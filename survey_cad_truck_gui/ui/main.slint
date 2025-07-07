@@ -6,6 +6,137 @@ export { SuperelevationEditor } from "superelevation_editor.slint";
 export { EntityInspector } from "entity_inspector.slint";
 export { ImportProgressDialog } from "import_progress.slint";
 
+component Ribbon inherits TabWidget {
+    in property <[string]> crs_list;
+    in-out property <int> crs_index;
+    in property <[string]> cogo_list;
+    in-out property <int> cogo_index;
+    in-out property <int> workspace_mode;
+    in-out property <bool> snap_to_grid;
+    in-out property <bool> snap_to_entities;
+    in-out property <bool> snap_points;
+    in-out property <bool> snap_endpoints;
+    in-out property <bool> snap_intersections;
+    in-out property <bool> show_point_numbers;
+
+    callback new_project();
+    callback open_project();
+    callback save_project();
+    callback point_manager();
+    callback line_style_manager();
+    callback layer_manager();
+    callback inspector();
+    callback add_point();
+    callback add_line();
+    callback add_polygon();
+    callback add_polyline();
+    callback add_arc();
+    callback draw_line_mode();
+    callback draw_polygon_mode();
+    callback draw_arc_mode();
+    callback draw_dimension_mode();
+    callback move_entity();
+    callback rotate_entity();
+    callback create_polygon_from_selection();
+    callback create_surface_from_selection();
+    callback corridor_volume();
+    callback superelevation_editor();
+    callback design_cross_sections();
+    callback view_cross_sections();
+    callback extrude_polyline();
+    callback clear_workspace();
+    callback view_changed(int);
+    callback cogo_selected(int);
+    callback crs_changed(int);
+    callback settings();
+    callback snap_settings();
+    callback snap_grid_changed(bool);
+    callback snap_objects_changed(bool);
+    callback snap_points_changed(bool);
+    callback snap_endpoints_changed(bool);
+    callback snap_intersections_changed(bool);
+    callback point_numbers_changed(bool);
+
+    Tab {
+        title: "Home";
+        HorizontalBox {
+            spacing: 6px;
+            Button { icon: @image-url("../assets/icons/new.png"); clicked => { root.new_project(); } }
+            Button { icon: @image-url("../assets/icons/open.png"); clicked => { root.open_project(); } }
+            Button { icon: @image-url("../assets/icons/save.png"); clicked => { root.save_project(); } }
+            Button { icon: @image-url("../assets/icons/point_manager.png"); clicked => { root.point_manager(); } }
+            Button { icon: @image-url("../assets/icons/line_styles.png"); clicked => { root.line_style_manager(); } }
+            Button { icon: @image-url("../assets/icons/layer_manager.png"); clicked => { root.layer_manager(); } }
+            Button { icon: @image-url("../assets/icons/inspector.png"); clicked => { root.inspector(); } }
+            Button { icon: @image-url("../assets/icons/move.png"); clicked => { root.move_entity(); } }
+            Button { icon: @image-url("../assets/icons/rotate.png"); clicked => { root.rotate_entity(); } }
+            Button { icon: @image-url("../assets/icons/clear.png"); clicked => { root.clear_workspace(); } }
+        }
+    }
+
+    Tab {
+        title: "Insert";
+        HorizontalBox {
+            spacing: 6px;
+            Button { icon: @image-url("../assets/icons/add_point.png"); clicked => { root.add_point(); } }
+            Button { icon: @image-url("../assets/icons/add_line.png"); clicked => { root.add_line(); } }
+            Button { icon: @image-url("../assets/icons/add_polygon.png"); clicked => { root.add_polygon(); } }
+            Button { icon: @image-url("../assets/icons/add_polyline.png"); clicked => { root.add_polyline(); } }
+            Button { icon: @image-url("../assets/icons/add_arc.png"); clicked => { root.add_arc(); } }
+            Button { icon: @image-url("../assets/icons/line_mode.png"); clicked => { root.draw_line_mode(); } }
+            Button { icon: @image-url("../assets/icons/polygon_mode.png"); clicked => { root.draw_polygon_mode(); } }
+            Button { icon: @image-url("../assets/icons/arc_mode.png"); clicked => { root.draw_arc_mode(); } }
+            Button { icon: @image-url("../assets/icons/dimension_mode.png"); clicked => { root.draw_dimension_mode(); } }
+            Button { icon: @image-url("../assets/icons/extrude_polyline.png"); clicked => { root.extrude_polyline(); } }
+            Button { icon: @image-url("../assets/icons/create_polygon.png"); clicked => { root.create_polygon_from_selection(); } }
+            Button { icon: @image-url("../assets/icons/create_surface.png"); clicked => { root.create_surface_from_selection(); } }
+            Button { icon: @image-url("../assets/icons/corridor_volume.png"); clicked => { root.corridor_volume(); } }
+            Button { icon: @image-url("../assets/icons/superelevation.png"); clicked => { root.superelevation_editor(); } }
+            Button { icon: @image-url("../assets/icons/design_sections.png"); clicked => { root.design_cross_sections(); } }
+            Button { icon: @image-url("../assets/icons/cross_sections.png"); clicked => { root.view_cross_sections(); } }
+        }
+    }
+
+    Tab {
+        title: "View";
+        VerticalBox {
+            spacing: 6px;
+            HorizontalBox {
+                spacing: 6px;
+                Text { color: #FFFFFF; text: "View:"; }
+                ComboBox {
+                    model: ["2D", "3D"];
+                    current-index <=> root.workspace_mode;
+                    selected => { root.view_changed(root.workspace_mode); }
+                }
+                Text { color: #FFFFFF; text: "Cogo:"; }
+                ComboBox {
+                    model: root.cogo_list;
+                    current-index <=> root.cogo_index;
+                    selected => { root.cogo_selected(root.cogo_index); }
+                }
+                Text { color: #FFFFFF; text: "CRS:"; }
+                ComboBox {
+                    model: root.crs_list;
+                    current-index <=> root.crs_index;
+                    selected => { root.crs_changed(root.crs_index); }
+                }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; toggled => { root.snap_grid_changed(root.snap_to_grid); } }
+                CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; toggled => { root.snap_objects_changed(root.snap_to_entities); } }
+                CheckBox { text: "Points"; checked <=> root.snap_points; toggled => { root.snap_points_changed(root.snap_points); } }
+                CheckBox { text: "Endpoints"; checked <=> root.snap_endpoints; toggled => { root.snap_endpoints_changed(root.snap_endpoints); } }
+                CheckBox { text: "Intersections"; checked <=> root.snap_intersections; toggled => { root.snap_intersections_changed(root.snap_intersections); } }
+                CheckBox { text: "Point Numbers"; checked <=> root.show_point_numbers; toggled => { root.point_numbers_changed(root.show_point_numbers); } }
+                Button { icon: @image-url("../assets/icons/settings.png"); clicked => { root.settings(); } }
+                Button { icon: @image-url("../assets/icons/snap.png"); clicked => { root.snap_settings(); } }
+            }
+        }
+    }
+}
+
 component CommandLine inherits VerticalBox {
     in-out property <[string]> history;
     in-out property <string> text;
@@ -107,7 +238,7 @@ component Workspace3D inherits Rectangle {
     }
 }
 
-import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox, Palette } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox, LineEdit, ListView, CheckBox, TabWidget, Palette } from "std-widgets.slint";
 
 export component AddPointDialog inherits Window {
     callback from_file();
@@ -923,180 +1054,56 @@ export component MainWindow inherits Window {
         height: 100%;
         spacing: 0px;
 
-        toolbar1 := HorizontalBox {
-            width: 100%;
-            height: 30px;
-            spacing: 6px;
-            Button {
-                icon: @image-url("../assets/icons/new.png");
-                clicked => { root.new_project(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/open.png");
-                clicked => { root.open_project(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/save.png");
-                clicked => { root.save_project(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/add_point.png");
-                clicked => { root.add_point(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/point_manager.png");
-                clicked => { root.point_manager(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/line_styles.png");
-                clicked => { root.line_style_manager(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/layer_manager.png");
-                clicked => { root.layer_manager(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/inspector.png");
-                clicked => { root.inspector(); }
-            }
-            Button {
-                icon: @image-url("../assets/icons/add_line.png");
-                clicked => { root.add_line(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/add_polygon.png");
-                clicked => { root.add_polygon(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/add_polyline.png");
-                clicked => { root.add_polyline(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/add_arc.png");
-                clicked => { root.add_arc(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/line_mode.png");
-                clicked => { root.draw_line_mode(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/polygon_mode.png");
-                clicked => { root.draw_polygon_mode(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/arc_mode.png");
-                clicked => { root.draw_arc_mode(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/dimension_mode.png");
-                clicked => { root.draw_dimension_mode(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/move.png");
-                clicked => { root.move_entity(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/rotate.png");
-                clicked => { root.rotate_entity(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/create_polygon.png");
-                clicked => { root.create_polygon_from_selection(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/create_surface.png");
-                clicked => { root.create_surface_from_selection(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/load_surface.png");
-                clicked => { root.import_landxml_surface(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/load_alignment.png");
-                clicked => { root.import_landxml_alignment(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/export_surface.png");
-                clicked => { root.export_landxml_surface(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/export_alignment.png");
-                clicked => { root.export_landxml_alignment(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/export_sections.png");
-                clicked => { root.export_landxml_sections(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/corridor_volume.png");
-                clicked => { root.corridor_volume(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/superelevation.png");
-                clicked => { root.superelevation_editor(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/design_sections.png");
-                clicked => { root.design_cross_sections(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/cross_sections.png");
-                clicked => { root.view_cross_sections(); }
-            }
-        Button {
-                icon: @image-url("../assets/icons/extrude_polyline.png");
-                clicked => { root.extrude_polyline(); }
-            }
-        Button { text: "Scripts"; clicked => { root.show_macro_list(); } }
-        Button { text: "S1"; clicked => { root.run_quick_script(0); } }
-        Button { text: "S2"; clicked => { root.run_quick_script(1); } }
-        Button { text: "S3"; clicked => { root.run_quick_script(2); } }
-        Button {
-                icon: @image-url("../assets/icons/clear.png");
-                clicked => { root.clear_workspace(); }
-            }
-        Text { color: #FFFFFF; text: "View:"; }
-        ComboBox {
-            model: ["2D", "3D"];
-            current-index <=> root.workspace_mode;
-            selected => { root.view_changed(root.workspace_mode); }
-        }
-        Text { color: #FFFFFF; text: "Cogo:"; }
-        ComboBox {
-            model: root.cogo_list;
-            current-index <=> root.cogo_index;
-            selected => { root.cogo_selected(root.cogo_index); }
-        }
-        }
-
-        toolbar2 := HorizontalBox {
-            width: 100%;
-            height: 30px;
-            spacing: 6px;
-        Text { color: #FFFFFF; text: "CRS:"; }
-        ComboBox {
-            model: root.crs_list;
-            current-index <=> root.crs_index;
-            selected => { root.crs_changed(root.crs_index); }
-        }
-        }
-
-        toolbar3 := HorizontalBox {
-            width: 100%;
-            height: 30px;
-            spacing: 6px;
-            CheckBox { text: "Snap Grid"; checked <=> root.snap_to_grid; toggled => { root.snap_grid_changed(root.snap_to_grid); } }
-            CheckBox { text: "Snap Objects"; checked <=> root.snap_to_entities; toggled => { root.snap_objects_changed(root.snap_to_entities); } }
-            CheckBox { text: "Points"; checked <=> root.snap_points; toggled => { root.snap_points_changed(root.snap_points); } }
-            CheckBox { text: "Endpoints"; checked <=> root.snap_endpoints; toggled => { root.snap_endpoints_changed(root.snap_endpoints); } }
-            CheckBox { text: "Intersections"; checked <=> root.snap_intersections; toggled => { root.snap_intersections_changed(root.snap_intersections); } }
-            CheckBox {
-                text: "Point Numbers";
-                checked <=> root.show_point_numbers;
-                toggled => { root.point_numbers_changed(root.show_point_numbers); }
-            }
-            Button { icon: @image-url("../assets/icons/settings.png"); clicked => { root.settings(); } }
-            Button { icon: @image-url("../assets/icons/snap.png"); clicked => { root.snap_settings(); } }
+        // replaced old toolbars with the ribbon component
+        ribbon := Ribbon {
+            crs_list <=> root.crs_list;
+            crs_index <=> root.crs_index;
+            cogo_list <=> root.cogo_list;
+            cogo_index <=> root.cogo_index;
+            workspace_mode <=> root.workspace_mode;
+            snap_to_grid <=> root.snap_to_grid;
+            snap_to_entities <=> root.snap_to_entities;
+            snap_points <=> root.snap_points;
+            snap_endpoints <=> root.snap_endpoints;
+            snap_intersections <=> root.snap_intersections;
+            show_point_numbers <=> root.show_point_numbers;
+            new_project => { root.new_project(); }
+            open_project => { root.open_project(); }
+            save_project => { root.save_project(); }
+            point_manager => { root.point_manager(); }
+            line_style_manager => { root.line_style_manager(); }
+            layer_manager => { root.layer_manager(); }
+            inspector => { root.inspector(); }
+            add_point => { root.add_point(); }
+            add_line => { root.add_line(); }
+            add_polygon => { root.add_polygon(); }
+            add_polyline => { root.add_polyline(); }
+            add_arc => { root.add_arc(); }
+            draw_line_mode => { root.draw_line_mode(); }
+            draw_polygon_mode => { root.draw_polygon_mode(); }
+            draw_arc_mode => { root.draw_arc_mode(); }
+            draw_dimension_mode => { root.draw_dimension_mode(); }
+            move_entity => { root.move_entity(); }
+            rotate_entity => { root.rotate_entity(); }
+            create_polygon_from_selection => { root.create_polygon_from_selection(); }
+            create_surface_from_selection => { root.create_surface_from_selection(); }
+            corridor_volume => { root.corridor_volume(); }
+            superelevation_editor => { root.superelevation_editor(); }
+            design_cross_sections => { root.design_cross_sections(); }
+            view_cross_sections => { root.view_cross_sections(); }
+            extrude_polyline => { root.extrude_polyline(); }
+            clear_workspace => { root.clear_workspace(); }
+            view_changed(i) => { root.view_changed(i); }
+            cogo_selected(i) => { root.cogo_selected(i); }
+            crs_changed(i) => { root.crs_changed(i); }
+            settings => { root.settings(); }
+            snap_settings => { root.snap_settings(); }
+            snap_grid_changed(b) => { root.snap_grid_changed(b); }
+            snap_objects_changed(b) => { root.snap_objects_changed(b); }
+            snap_points_changed(b) => { root.snap_points_changed(b); }
+            snap_endpoints_changed(b) => { root.snap_endpoints_changed(b); }
+            snap_intersections_changed(b) => { root.snap_intersections_changed(b); }
+            point_numbers_changed(b) => { root.point_numbers_changed(b); }
         }
 
         Rectangle {
