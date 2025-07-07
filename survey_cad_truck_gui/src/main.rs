@@ -36,6 +36,8 @@ use truck_modeling::builder;
 use truck_modeling::topology::{Solid, Wire};
 use truck_modeling::base::InnerSpace;
 
+const MACRO_DIR: &str = "macros";
+
 mod truck_backend;
 use truck_backend::{TruckBackend, HitObject};
 mod persistence;
@@ -121,6 +123,8 @@ struct Config {
     window_height: u32,
     last_open_dir: Option<String>,
     snap: SnapPrefs,
+    #[serde(default)]
+    quick_scripts: [String; 3],
 }
 
 impl Default for Config {
@@ -130,6 +134,7 @@ impl Default for Config {
             window_height: 600,
             last_open_dir: None,
             snap: SnapPrefs::default(),
+            quick_scripts: Default::default(),
         }
     }
 }
@@ -498,6 +503,146 @@ fn spawn_line(
     backend
         .borrow_mut()
         .add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0], [1.0, 1.0, 1.0, 1.0], 1.0);
+}
+
+fn play_macro_file(
+    path: &Path,
+    playing: &Rc<RefCell<MacroPlaying>>,
+    recorder: &Rc<RefCell<MacroRecorder>>,
+    point_db: &Rc<RefCell<PointDatabase>>,
+    point_styles: &Rc<RefCell<Vec<usize>>>,
+    lines: &Rc<RefCell<Vec<(Point, Point)>>>,
+    line_styles: &Rc<RefCell<Vec<usize>>>,
+    backend: &Rc<RefCell<TruckBackend>>,
+    render_image: &dyn Fn() -> Image,
+    weak: &slint::Weak<MainWindow>,
+) {
+    if let Ok(content) = std::fs::read_to_string(path) {
+        playing.borrow_mut().0 = true;
+        for line in content.lines() {
+            let parts = shell_words::split(line).unwrap_or_default();
+            if parts.is_empty() {
+                continue;
+            }
+            match parts[0].as_str() {
+                "point" if parts.len() >= 3 => {
+                    if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
+                        spawn_point(point_db, point_styles, backend, Point::new(x, y));
+                    }
+                }
+                "line" if parts.len() >= 5 => {
+                    if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                        parts[1].parse::<f64>(),
+                        parts[2].parse::<f64>(),
+                        parts[3].parse::<f64>(),
+                        parts[4].parse::<f64>(),
+                    ) {
+                        spawn_line(
+                            point_db,
+                            lines,
+                            point_styles,
+                            line_styles,
+                            backend,
+                            Point::new(x1, y1),
+                            Point::new(x2, y2),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        playing.borrow_mut().0 = false;
+        recorder.borrow_mut().file = None;
+        if let Some(app) = weak.upgrade() {
+            if app.get_workspace_mode() == 0 {
+                app.set_workspace_image(render_image());
+                app.window().request_redraw();
+            }
+            refresh_workspace(&app, &render_image, backend);
+        }
+    }
+}
+
+fn run_python_file(
+    path: &Path,
+    weak: &slint::Weak<MainWindow>,
+    point_db: &Rc<RefCell<PointDatabase>>,
+    lines_ref: &Rc<RefCell<Vec<(Point, Point)>>>,
+    surfaces_ref: &Rc<RefCell<Vec<Tin>>>,
+) {
+    match std::fs::read_to_string(path) {
+        Ok(code) => {
+            let result = Python::with_gil(|py| {
+                let module = PyModule::new_bound(py, "survey_cad_python")?;
+                survey_cad_python::init(py, &module)?;
+
+                let pts: Vec<Py<survey_cad_python::Point>> = point_db
+                    .borrow()
+                    .iter()
+                    .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
+                    .collect::<PyResult<_>>()?;
+
+                let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
+                    lines_ref
+                        .borrow()
+                        .iter()
+                        .map(|(a, b)| {
+                            Ok((
+                                Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                            ))
+                        })
+                        .collect::<PyResult<_>>()?;
+
+                let surfs: Vec<Py<PyAny>> = surfaces_ref
+                    .borrow()
+                    .iter()
+                    .map(|s| {
+                        let dict = PyDict::new_bound(py);
+                        let verts: Vec<(f64, f64, f64)> = s
+                            .vertices
+                            .iter()
+                            .map(|v| (v.x, v.y, v.z))
+                            .collect();
+                        let tris: Vec<(usize, usize, usize)> = s
+                            .triangles
+                            .iter()
+                            .map(|t| (t[0], t[1], t[2]))
+                            .collect();
+                        dict.set_item("vertices", verts)?;
+                        dict.set_item("triangles", tris)?;
+                        Ok(dict.into())
+                    })
+                    .collect::<PyResult<_>>()?;
+
+                let globals = PyDict::new_bound(py);
+                globals.set_item("survey_cad_python", module)?;
+                globals.set_item("points", pts)?;
+                globals.set_item("lines", lines_py)?;
+                globals.set_item("surfaces", surfs)?;
+
+                py.run_bound(&code, Some(&globals), None)
+            });
+
+            match result {
+                Ok(_) => {
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Python script finished"));
+                    }
+                }
+                Err(e) => {
+                    if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from(format!("Python error: {e}")));
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from(format!("Failed to read: {e}")));
+            }
+        }
+    }
 }
 
 fn polyline_to_solid(pl: &Polyline, vector: Vector3) -> Option<Solid> {
@@ -1832,6 +1977,9 @@ fn show_inspector_for_polygon(
 fn main() -> Result<(), slint::PlatformError> {
     let cfg = load_config();
     let config = Rc::new(RefCell::new(cfg));
+
+    let _ = fs::create_dir_all(MACRO_DIR);
+
     let backend = Rc::new(RefCell::new(TruckBackend::new(
         config.borrow().window_width,
         config.borrow().window_height,
@@ -2188,7 +2336,11 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_macro_record(move || {
             if recorder.borrow().file.is_some() {
                 recorder.borrow_mut().file = None;
-            } else if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).save_file() {
+            } else if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Text", &["txt"])
+                .set_directory(MACRO_DIR)
+                .save_file()
+            {
                 if let Ok(f) = std::fs::File::create(&path) {
                     recorder.borrow_mut().file = Some(f);
                 }
@@ -2207,7 +2359,11 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let weak = app.as_weak();
         app.on_macro_play(move || {
-            if let Some(path) = rfd::FileDialog::new().add_filter("Text", &["txt"]).pick_file() {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Text", &["txt"])
+                .set_directory(MACRO_DIR)
+                .pick_file()
+            {
                 if let Ok(content) = std::fs::read_to_string(&path) {
                     playing.borrow_mut().0 = true;
                     for line in content.lines() {
@@ -2264,6 +2420,7 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_run_python_script(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Python", &["py"])
+                .set_directory(MACRO_DIR)
                 .pick_file()
             {
                 match std::fs::read_to_string(&path) {
@@ -2340,6 +2497,124 @@ fn main() -> Result<(), slint::PlatformError> {
                             app.set_status(SharedString::from(format!("Failed to read: {e}")));
                         }
                     }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let surfaces_ref = surfaces.clone();
+        let playing = macro_playing.clone();
+        let recorder = macro_recorder.clone();
+        let point_styles = point_style_indices.clone();
+        let line_styles = line_style_indices.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        let cfg = config.clone();
+        app.on_show_macro_list(move || {
+            let mut items = Vec::new();
+            if let Ok(rd) = fs::read_dir(MACRO_DIR) {
+                for ent in rd.flatten() {
+                    if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
+                        if ext == "txt" || ext == "py" {
+                            if let Some(n) = ent.file_name().to_str() {
+                                items.push(SharedString::from(n.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            let dlg = MacroListDialog::new().unwrap();
+            dlg.set_files(Rc::new(VecModel::from(items.clone())).into());
+            dlg.set_selected_index(0);
+            let dlg_weak = dlg.as_weak();
+            let weak_run = weak.clone();
+            let point_db_run = point_db.clone();
+            let lines_run = lines_ref.clone();
+            let surfaces_run = surfaces_ref.clone();
+            let playing_run = playing.clone();
+            let recorder_run = recorder.clone();
+            let point_styles_run = point_styles.clone();
+            let line_styles_run = line_styles.clone();
+            let backend_run = backend_render.clone();
+            let render_image_run = render_image.clone();
+            dlg.on_run(move |idx| {
+                if let Some(name) = items.get(idx as usize) {
+                    let path = Path::new(MACRO_DIR).join(name.as_str());
+                    if name.ends_with(".py") {
+                        run_python_file(&path, &weak_run, &point_db_run, &lines_run, &surfaces_run);
+                    } else {
+                        play_macro_file(
+                            &path,
+                            &playing_run,
+                            &recorder_run,
+                            &point_db_run,
+                            &point_styles_run,
+                            &lines_run,
+                            &line_styles_run,
+                            &backend_run,
+                            &render_image_run,
+                            &weak_run,
+                        );
+                    }
+                }
+                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+            });
+
+            let cfg_assign = cfg.clone();
+            dlg.on_assign(move |idx, slot| {
+                if let Some(name) = items.get(idx as usize) {
+                    cfg_assign.borrow_mut().quick_scripts[slot as usize] = name.to_string();
+                    save_config(&cfg_assign.borrow());
+                }
+            });
+
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+            });
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let cfg = config.clone();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let surfaces_ref = surfaces.clone();
+        let playing = macro_playing.clone();
+        let recorder = macro_recorder.clone();
+        let point_styles = point_style_indices.clone();
+        let line_styles = line_style_indices.clone();
+        let backend_render = backend.clone();
+        let render_image = render_image.clone();
+        app.on_run_quick_script(move |slot| {
+            let scripts = &cfg.borrow().quick_scripts;
+            if let Some(name) = scripts.get(slot as usize) {
+                if name.is_empty() {
+                    return;
+                }
+                let path = Path::new(MACRO_DIR).join(name);
+                if name.ends_with(".py") {
+                    run_python_file(&path, &weak, &point_db, &lines_ref, &surfaces_ref);
+                } else {
+                    play_macro_file(
+                        &path,
+                        &playing,
+                        &recorder,
+                        &point_db,
+                        &point_styles,
+                        &lines_ref,
+                        &line_styles,
+                        &backend_render,
+                        &render_image,
+                        &weak,
+                    );
                 }
             }
         });
@@ -2768,6 +3043,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         app.window().request_redraw();
                     }
                 }
+            } else if key.as_str() == "F5" {
+                app.invoke_run_quick_script(0);
+            } else if key.as_str() == "F6" {
+                app.invoke_run_quick_script(1);
+            } else if key.as_str() == "F7" {
+                app.invoke_run_quick_script(2);
             }
         });
     }

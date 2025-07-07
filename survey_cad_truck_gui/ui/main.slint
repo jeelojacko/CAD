@@ -609,6 +609,38 @@ export component SnapSettingsDialog inherits Window {
     }
 }
 
+export component MacroListDialog inherits Window {
+    in-out property <[string]> files;
+    in-out property <int> selected_index;
+    callback run(int);
+    callback assign(int, int);
+    callback cancel();
+    title: "Run Script";
+    preferred-width: 300px;
+    preferred-height: 300px;
+    VerticalBox {
+        spacing: 4px;
+        ListView {
+            vertical-stretch: 1;
+            for f[i] in root.files : Rectangle {
+                property <bool> selected: root.selected_index == i;
+                background: selected ? #404040 : transparent;
+                height: 24px;
+                Text { color: #FFFFFF; text: f; }
+                TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
+            }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "Run"; clicked => { root.run(root.selected_index); } }
+            Button { text: "Slot 1"; clicked => { root.assign(root.selected_index, 0); } }
+            Button { text: "Slot 2"; clicked => { root.assign(root.selected_index, 1); } }
+            Button { text: "Slot 3"; clicked => { root.assign(root.selected_index, 2); } }
+            Button { text: "Close"; clicked => { root.cancel(); } }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     preferred-width: 800px;
     preferred-height: 600px;
@@ -717,6 +749,8 @@ export component MainWindow inherits Window {
     callback macro_record();
     callback macro_play();
     callback run_python_script();
+    callback show_macro_list();
+    callback run_quick_script(int);
     callback undo();
     callback redo();
     callback move_entity();
@@ -829,6 +863,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Record"; activated => { root.macro_record(); } }
             MenuItem { title: "Play"; activated => { root.macro_play(); } }
             MenuItem { title: "Run Python Script"; activated => { root.run_python_script(); } }
+            MenuItem { title: "Scripts..."; activated => { root.show_macro_list(); } }
         }
     }
 
@@ -963,6 +998,10 @@ export component MainWindow inherits Window {
                 icon: @image-url("../assets/icons/extrude_polyline.png");
                 clicked => { root.extrude_polyline(); }
             }
+        Button { text: "Scripts"; clicked => { root.show_macro_list(); } }
+        Button { text: "S1"; clicked => { root.run_quick_script(0); } }
+        Button { text: "S2"; clicked => { root.run_quick_script(1); } }
+        Button { text: "S3"; clicked => { root.run_quick_script(2); } }
         Button {
                 icon: @image-url("../assets/icons/clear.png");
                 clicked => { root.clear_workspace(); }
