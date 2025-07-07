@@ -537,6 +537,29 @@ export component RotateEntityDialog inherits Window {
     }
 }
 
+export component ContextMenu inherits Window {
+    in property <length> pos_x;
+    in property <length> pos_y;
+    callback delete();
+    callback mov();
+    callback rot();
+    callback properties();
+    x: root.pos_x;
+    y: root.pos_y;
+    no-frame: true;
+    Rectangle {
+        background: #404040;
+        padding: 4px;
+        VerticalBox {
+            spacing: 2px;
+            Button { text: "Delete"; clicked => { root.delete(); } }
+            Button { text: "Move"; clicked => { root.mov(); } }
+            Button { text: "Rotate"; clicked => { root.rot(); } }
+            Button { text: "Properties"; clicked => { root.properties(); } }
+        }
+    }
+}
+
 export component ExtrudePolylineDialog inherits Window {
     in-out property <string> distance_value;
     in-out property <string> dx_value;
@@ -780,6 +803,7 @@ export component MainWindow inherits Window {
     callback redo();
     callback move_entity();
     callback rotate_entity();
+    callback delete_selected();
     callback extrude_polyline();
     callback zoom_in();
     callback zoom_out();

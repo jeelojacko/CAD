@@ -1874,6 +1874,70 @@ fn refresh_workspace(
     app.window().request_redraw();
 }
 
+fn show_context_menu(
+    app: &MainWindow,
+    state: &Rc<RefCell<Option<slint::Weak<ContextMenu>>>>,
+    x: f32,
+    y: f32,
+) {
+    if let Some(m) = state.borrow_mut().take().and_then(|w| w.upgrade()) {
+        let _ = m.hide();
+    }
+    let menu = ContextMenu::new().unwrap();
+    menu.set_pos_x(x.into());
+    menu.set_pos_y(y.into());
+    {
+        let weak = app.as_weak();
+        menu.on_mov(move || {
+            if let Some(a) = weak.upgrade() {
+                a.invoke_move_entity();
+            }
+        });
+    }
+    {
+        let weak = app.as_weak();
+        menu.on_rot(move || {
+            if let Some(a) = weak.upgrade() {
+                a.invoke_rotate_entity();
+            }
+        });
+    }
+    {
+        let weak = app.as_weak();
+        menu.on_properties(move || {
+            if let Some(a) = weak.upgrade() {
+                a.invoke_inspector();
+            }
+        });
+    }
+    {
+        let weak = app.as_weak();
+        menu.on_delete(move || {
+            if let Some(a) = weak.upgrade() {
+                a.invoke_delete_selected();
+            }
+        });
+    }
+    menu.show().unwrap();
+    *state.borrow_mut() = Some(menu.as_weak());
+}
+
+fn has_selection(
+    pts: &Rc<RefCell<Vec<usize>>>,
+    lines: &Rc<RefCell<Vec<(Point, Point)>>>,
+    polys: &Rc<RefCell<Vec<usize>>>,
+    plines: &Rc<RefCell<Vec<usize>>>,
+    arcs: &Rc<RefCell<Vec<usize>>>,
+    dims: &Rc<RefCell<Vec<usize>>>,
+) -> bool {
+    !pts.borrow().is_empty()
+        || !lines.borrow().is_empty()
+        || !polys.borrow().is_empty()
+        || !plines.borrow().is_empty()
+        || !arcs.borrow().is_empty()
+        || !dims.borrow().is_empty()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn show_inspector_for_point(
     idx: usize,
@@ -2256,6 +2320,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let selected_surface = Rc::new(RefCell::new(None::<usize>));
     let click_pos_3d = Rc::new(RefCell::new(None::<(f64, f64)>));
     let active_handle = Rc::new(RefCell::new(None::<usize>));
+    let context_menu = Rc::new(RefCell::new(None::<slint::Weak<ContextMenu>>));
     let current_line: Rc<RefCell<Option<Polyline>>> = Rc::new(RefCell::new(None));
     let point_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
     let point_layers = Rc::new(RefCell::new(Vec::<usize>::new()));
@@ -3362,9 +3427,30 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let pan_flag = pan_flag.clone();
         let last_pos = last_pos.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
+        let selected_dimensions = selected_dimensions.clone();
+        let menu_state = context_menu.clone();
+        let weak = app.as_weak();
         app.on_workspace_right_pressed(move |x, y| {
-            *pan_flag.borrow_mut() = true;
-            *last_pos.borrow_mut() = (x as f64, y as f64);
+            if has_selection(
+                &selected_indices,
+                &selected_lines,
+                &selected_polygons,
+                &selected_polylines,
+                &selected_arcs,
+                &selected_dimensions,
+            ) {
+                if let Some(app) = weak.upgrade() {
+                    show_context_menu(&app, &menu_state, x, y);
+                }
+            } else {
+                *pan_flag.borrow_mut() = true;
+                *last_pos.borrow_mut() = (x as f64, y as f64);
+            }
         });
     }
 
@@ -3390,15 +3476,40 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let arcs_ref = arcs.clone();
         let dimensions = dimensions.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
+        let selected_dimensions = selected_dimensions.clone();
         let last_click = last_click.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         let command_stack = command_stack.clone();
         let weak = app.as_weak();
+        let context_menu = context_menu.clone();
         let macro_playing = macro_playing.clone();
         let macro_recorder = macro_recorder.clone();
         let snap_target = snap_target.clone();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
+            if ev.button == PointerEventButton::Right && *drawing_mode.borrow() == DrawingMode::None {
+                if has_selection(
+                    &selected_indices,
+                    &selected_lines,
+                    &selected_polygons,
+                    &selected_polylines,
+                    &selected_arcs,
+                    &selected_dimensions,
+                ) {
+                    if let Some(app) = weak.upgrade() {
+                        show_context_menu(&app, &context_menu, x, y);
+                    }
+                } else {
+                    *pan_2d_flag.borrow_mut() = true;
+                    *last_pos_2d.borrow_mut() = (x as f64, y as f64);
+                }
+                return;
+            }
             if *drawing_mode.borrow() != DrawingMode::None {
                 if ev.button == PointerEventButton::Left {
                     if let Some(app) = weak.upgrade() {
@@ -5324,6 +5435,114 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let polygons_ref = polygons.clone();
+        let polylines_ref = polylines.clone();
+        let arcs_ref = arcs.clone();
+        let dimensions_ref = dimensions.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let selected_polygons = selected_polygons.clone();
+        let selected_polylines = selected_polylines.clone();
+        let selected_arcs = selected_arcs.clone();
+        let selected_dimensions = selected_dimensions.clone();
+        let backend_render = backend.clone();
+        let command_stack = command_stack.clone();
+        let psi = point_style_indices.clone();
+        let lsi = line_style_indices.clone();
+        let render_image = render_image.clone();
+        app.on_delete_selected(move || {
+            {
+                let mut inds = selected_indices.borrow_mut();
+                inds.sort();
+                let mut points = point_db.borrow_mut();
+                let mut styles = psi.borrow_mut();
+                for &idx in inds.iter().rev() {
+                    if idx < points.len() {
+                        let pt = points.remove(idx);
+                        if idx < styles.len() {
+                            styles.remove(idx);
+                        }
+                        backend_render.borrow_mut().remove_point(idx);
+                        command_stack
+                            .borrow_mut()
+                            .push(Command::AddPoint { index: idx, point: pt });
+                    }
+                }
+                inds.clear();
+            }
+            {
+                let mut lines = lines_ref.borrow_mut();
+                let mut styles = lsi.borrow_mut();
+                for i in (0..lines.len()).rev() {
+                    let l = lines[i];
+                    if selected_lines.borrow().iter().any(|(s, e)| {
+                        (l.0 == *s && l.1 == *e) || (l.0 == *e && l.1 == *s)
+                    }) {
+                        lines.remove(i);
+                        if i < styles.len() {
+                            styles.remove(i);
+                        }
+                        backend_render.borrow_mut().remove_line(i);
+                    }
+                }
+                selected_lines.borrow_mut().clear();
+            }
+            {
+                let mut polys = polygons_ref.borrow_mut();
+                let mut idxs = selected_polygons.borrow_mut();
+                idxs.sort();
+                for &i in idxs.iter().rev() {
+                    if i < polys.len() {
+                        polys.remove(i);
+                    }
+                }
+                idxs.clear();
+            }
+            {
+                let mut plines = polylines_ref.borrow_mut();
+                let mut idxs = selected_polylines.borrow_mut();
+                idxs.sort();
+                for &i in idxs.iter().rev() {
+                    if i < plines.len() {
+                        plines.remove(i);
+                    }
+                }
+                idxs.clear();
+            }
+            {
+                let mut arcs = arcs_ref.borrow_mut();
+                let mut idxs = selected_arcs.borrow_mut();
+                idxs.sort();
+                for &i in idxs.iter().rev() {
+                    if i < arcs.len() {
+                        arcs.remove(i);
+                    }
+                }
+                idxs.clear();
+            }
+            {
+                let mut dims = dimensions_ref.borrow_mut();
+                let mut idxs = selected_dimensions.borrow_mut();
+                idxs.sort();
+                for &i in idxs.iter().rev() {
+                    if i < dims.len() {
+                        dims.remove(i);
+                        backend_render.borrow_mut().remove_dimension(i);
+                    }
+                }
+                idxs.clear();
+            }
+            if let Some(app) = weak.upgrade() {
+                app.set_workspace_image(render_image());
+                app.window().request_redraw();
+            }
         });
     }
 
