@@ -557,20 +557,21 @@ fn spawn_line(
         .add_line([a.x, a.y, 0.0], [b.x, b.y, 0.0], [1.0, 1.0, 1.0, 1.0], 1.0);
 }
 
-fn play_macro_file(
-    path: &Path,
-    playing: &Rc<RefCell<MacroPlaying>>,
-    recorder: &Rc<RefCell<MacroRecorder>>,
-    point_db: &Rc<RefCell<PointDatabase>>,
-    point_styles: &Rc<RefCell<Vec<usize>>>,
-    lines: &Rc<RefCell<Vec<(Point, Point)>>>,
-    line_styles: &Rc<RefCell<Vec<usize>>>,
-    backend: &Rc<RefCell<TruckBackend>>,
-    render_image: &dyn Fn() -> Image,
-    weak: &slint::Weak<MainWindow>,
-) {
+struct MacroContext {
+    playing: Rc<RefCell<MacroPlaying>>,
+    recorder: Rc<RefCell<MacroRecorder>>,
+    point_db: Rc<RefCell<PointDatabase>>,
+    point_styles: Rc<RefCell<Vec<usize>>>,
+    lines: Rc<RefCell<Vec<(Point, Point)>>>,
+    line_styles: Rc<RefCell<Vec<usize>>>,
+    backend: Rc<RefCell<TruckBackend>>,
+    render_image: Rc<dyn Fn() -> Image>,
+    weak: slint::Weak<MainWindow>,
+}
+
+fn play_macro_file(path: &Path, ctx: &MacroContext) {
     if let Ok(content) = std::fs::read_to_string(path) {
-        playing.borrow_mut().0 = true;
+        ctx.playing.borrow_mut().0 = true;
         for line in content.lines() {
             let parts = shell_words::split(line).unwrap_or_default();
             if parts.is_empty() {
@@ -579,7 +580,12 @@ fn play_macro_file(
             match parts[0].as_str() {
                 "point" if parts.len() >= 3 => {
                     if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
-                        spawn_point(point_db, point_styles, backend, Point::new(x, y));
+                        spawn_point(
+                            &ctx.point_db,
+                            &ctx.point_styles,
+                            &ctx.backend,
+                            Point::new(x, y),
+                        );
                     }
                 }
                 "line" if parts.len() >= 5 => {
@@ -590,11 +596,11 @@ fn play_macro_file(
                         parts[4].parse::<f64>(),
                     ) {
                         spawn_line(
-                            point_db,
-                            lines,
-                            point_styles,
-                            line_styles,
-                            backend,
+                            &ctx.point_db,
+                            &ctx.lines,
+                            &ctx.point_styles,
+                            &ctx.line_styles,
+                            &ctx.backend,
                             Point::new(x1, y1),
                             Point::new(x2, y2),
                         );
@@ -603,14 +609,14 @@ fn play_macro_file(
                 _ => {}
             }
         }
-        playing.borrow_mut().0 = false;
-        recorder.borrow_mut().file = None;
-        if let Some(app) = weak.upgrade() {
+        ctx.playing.borrow_mut().0 = false;
+        ctx.recorder.borrow_mut().file = None;
+        if let Some(app) = ctx.weak.upgrade() {
             if app.get_workspace_mode() == 0 {
-                app.set_workspace_image(render_image());
+                app.set_workspace_image((*ctx.render_image)());
                 app.window().request_redraw();
             }
-            refresh_workspace(&app, &render_image, backend);
+            refresh_workspace(&app, &*ctx.render_image, &ctx.backend);
         }
     }
 }
@@ -2735,18 +2741,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     if name.ends_with(".py") {
                         run_python_file(&path, &weak_run, &point_db_run, &lines_run, &surfaces_run);
                     } else {
-                        play_macro_file(
-                            &path,
-                            &playing_run,
-                            &recorder_run,
-                            &point_db_run,
-                            &point_styles_run,
-                            &lines_run,
-                            &line_styles_run,
-                            &backend_run,
-                            &render_image_run,
-                            &weak_run,
-                        );
+                        let ctx = MacroContext {
+                            playing: playing_run.clone(),
+                            recorder: recorder_run.clone(),
+                            point_db: point_db_run.clone(),
+                            point_styles: point_styles_run.clone(),
+                            lines: lines_run.clone(),
+                            line_styles: line_styles_run.clone(),
+                            backend: backend_run.clone(),
+                            render_image: Rc::new(render_image_run.clone()),
+                            weak: weak_run.clone(),
+                        };
+                        play_macro_file(&path, &ctx);
                     }
                 }
                 if let Some(d) = dlg_weak_run.upgrade() {
@@ -2796,18 +2802,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 if name.ends_with(".py") {
                     run_python_file(&path, &weak, &point_db, &lines_ref, &surfaces_ref);
                 } else {
-                    play_macro_file(
-                        &path,
-                        &playing,
-                        &recorder,
-                        &point_db,
-                        &point_styles,
-                        &lines_ref,
-                        &line_styles,
-                        &backend_render,
-                        &render_image,
-                        &weak,
-                    );
+                    let ctx = MacroContext {
+                        playing: playing.clone(),
+                        recorder: recorder.clone(),
+                        point_db: point_db.clone(),
+                        point_styles: point_styles.clone(),
+                        lines: lines_ref.clone(),
+                        line_styles: line_styles.clone(),
+                        backend: backend_render.clone(),
+                        render_image: Rc::new(render_image.clone()),
+                        weak: weak.clone(),
+                    };
+                    play_macro_file(&path, &ctx);
                 }
             }
         });
@@ -7152,8 +7158,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     let filtered: Vec<LayerRow> = rows
                         .borrow()
                         .iter()
-                        .cloned()
                         .filter(|r| r.name.to_lowercase().contains(&text))
+                        .cloned()
                         .collect();
                     model.set_vec(filtered);
                 });
