@@ -4145,7 +4145,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 config_rc.borrow_mut().last_open_dir = last_dir.borrow().clone();
                 save_config(&config_rc.borrow());
                 if let Some(p) = path.to_str() {
-                    match read_project_json(p) {
+                    let p = p.to_string();
+                    match read_project_json(&p) {
                         Ok(proj) => {
                             *workspace_crs.borrow_mut() = proj.crs_epsg;
                             if let Some(idx) = crs_entries_rc
@@ -6545,6 +6546,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
+                    let p = p.to_string();
                     #[cfg(feature = "las")]
                     {
                         use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
@@ -6561,7 +6563,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                         let (tx, rx) = mpsc::channel();
                         std::thread::spawn(move || {
-                            let res = survey_cad::io::las::read_points_las_progress(p, |prog| {
+                            let res = survey_cad::io::las::read_points_las_progress(&p, |prog| {
                                 let dweak = dlg_weak.clone();
                                 let _ = slint::invoke_from_event_loop(move || {
                                     if let Some(d) = dweak.upgrade() {
@@ -6655,6 +6657,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .pick_file()
             {
                 if let Some(p) = path.to_str() {
+                    let p = p.to_string();
                     #[cfg(feature = "e57")]
                     {
                         use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
@@ -6671,7 +6674,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
                         let (tx, rx) = mpsc::channel();
                         std::thread::spawn(move || {
-                            let res = survey_cad::io::e57::read_points_e57_progress(p, |prog| {
+                            let res = survey_cad::io::e57::read_points_e57_progress(&p, |prog| {
                                 let dweak = dlg_weak.clone();
                                 let _ = slint::invoke_from_event_loop(move || {
                                     if let Some(d) = dweak.upgrade() {
