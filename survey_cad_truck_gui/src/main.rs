@@ -3849,6 +3849,12 @@ fn main() -> Result<(), slint::PlatformError> {
                                     backend_inner.borrow_mut().highlight_surface(i, true);
                                     backend_inner.borrow_mut().show_surface_handles(i);
                                 }
+                                HitObject::Point(i) => {
+                                    backend_inner.borrow_mut().show_point_handles(i);
+                                }
+                                HitObject::Line(i) => {
+                                    backend_inner.borrow_mut().show_line_handles(i);
+                                }
                                 _ => {
                                     if let Some(prev) = selected_surface_ref.take() {
                                         backend_inner.borrow_mut().highlight_surface(prev, false);
