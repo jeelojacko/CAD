@@ -1,0 +1,18 @@
+import { Button, VerticalBox, ProgressIndicator } from "std-widgets.slint";
+
+export component ImportProgressDialog inherits Window {
+    in-out property <string> message;
+    in-out property <percent> progress;
+    callback cancel();
+    title: "Importing";
+    preferred-width: 300px;
+    VerticalBox {
+        spacing: 6px;
+        Text { color: #FFFFFF; text: root.message; }
+        ProgressIndicator {
+            indeterminate: root.progress <= 0%;
+            progress: root.progress;
+        }
+        Button { text: "Cancel"; clicked => { root.cancel(); } }
+    }
+}

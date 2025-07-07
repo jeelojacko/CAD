@@ -123,6 +123,7 @@ struct Config {
     window_height: u32,
     last_open_dir: Option<String>,
     snap: SnapPrefs,
+    auto_tin: bool,
     #[serde(default)]
     quick_scripts: [String; 3],
 }
@@ -134,6 +135,7 @@ impl Default for Config {
             window_height: 600,
             last_open_dir: None,
             snap: SnapPrefs::default(),
+            auto_tin: false,
             quick_scripts: Default::default(),
         }
     }
@@ -6240,6 +6242,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let config_ref = config.clone();
+        let surfaces_ref = surfaces.clone();
         app.on_import_las(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LAS", &["las", "laz"])
@@ -6247,34 +6251,67 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "las")]
-                    match survey_cad::io::las::read_points_las(p) {
-                        Ok(pts3) => {
-                            let len = {
-                                let mut db = point_db.borrow_mut();
-                                db.clear();
-                                db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
-                                db.len()
-                            };
-                            if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Imported {len} points"
-                                )));
-                                if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
-                                } else {
-                                    let image = backend_render.borrow_mut().render();
-                                    app.set_workspace_texture(image);
+                    {
+                        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+                        let dlg = ImportProgressDialog::new().unwrap();
+                        dlg.set_message(SharedString::from("Importing LAS"));
+                        dlg.set_progress(0.0);
+                        let cancel = Arc::new(AtomicBool::new(false));
+                        let cancel_dlg = cancel.clone();
+                        let dlg_weak = dlg.as_weak();
+                        dlg.on_cancel(move || { cancel_dlg.store(true, Ordering::SeqCst); });
+                        dlg.show().unwrap();
+                        let weak_app = weak.clone();
+                        let point_db = point_db.clone();
+                        let render_image = render_image.clone();
+                        let backend_render = backend_render.clone();
+                        let config = config_ref.clone();
+                        let surfaces = surfaces_ref.clone();
+                        std::thread::spawn(move || {
+                            let res = survey_cad::io::las::read_points_las_progress(p, |prog| {
+                                let dweak = dlg_weak.clone();
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(d) = dweak.upgrade() {
+                                        d.set_progress(prog.into());
+                                    }
+                                });
+                                !cancel.load(Ordering::SeqCst)
+                            });
+                            slint::invoke_from_event_loop(move || {
+                                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                            }).unwrap();
+                            match res {
+                                Ok(pts3) => {
+                                    let len = {
+                                        let mut db = point_db.borrow_mut();
+                                        db.clear();
+                                        db.extend(pts3.iter().map(|p3| Point::new(p3.x, p3.y)));
+                                        db.len()
+                                    };
+                                    if config.borrow().auto_tin && len >= 3 {
+                                        let verts: Vec<ScPoint3> = pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
+                                        let tin = survey_cad::dtm::Tin::from_points(verts.clone());
+                                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                                        surfaces.borrow_mut().push(tin);
+                                    }
+                                    if let Some(app) = weak_app.upgrade() {
+                                        app.set_status(SharedString::from(format!("Imported {len} points")));
+                                        if app.get_workspace_mode() == 0 {
+                                            app.set_workspace_image(render_image());
+                                        } else {
+                                            let image = backend_render.borrow_mut().render();
+                                            app.set_workspace_texture(image);
+                                        }
+                                        app.window().request_redraw();
+                                    }
                                 }
-                                app.window().request_redraw();
+                                Err(e) => {
+                                    if let Some(app) = weak_app.upgrade() {
+                                        app.set_status(SharedString::from(format!("Failed to import: {e}")));
+                                    }
+                                }
                             }
-                        }
-                        Err(e) => {
-                            if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Failed to import: {e}"
-                                )));
-                            }
-                        }
+                        });
                     }
                     #[cfg(not(feature = "las"))]
                     if let Some(app) = weak.upgrade() {
@@ -6290,6 +6327,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let config_ref = config.clone();
+        let surfaces_ref = surfaces.clone();
         app.on_import_e57(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("E57", &["e57"])
@@ -6297,34 +6336,67 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "e57")]
-                    match survey_cad::io::e57::read_points_e57(p) {
-                        Ok(pts3) => {
-                            let len = {
-                                let mut db = point_db.borrow_mut();
-                                db.clear();
-                                db.extend(pts3.into_iter().map(|p3| Point::new(p3.x, p3.y)));
-                                db.len()
-                            };
-                            if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Imported {len} points"
-                                )));
-                                if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
-                                } else {
-                                    let image = backend_render.borrow_mut().render();
-                                    app.set_workspace_texture(image);
+                    {
+                        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+                        let dlg = ImportProgressDialog::new().unwrap();
+                        dlg.set_message(SharedString::from("Importing E57"));
+                        dlg.set_progress(0.0);
+                        let cancel = Arc::new(AtomicBool::new(false));
+                        let cancel_dlg = cancel.clone();
+                        let dlg_weak = dlg.as_weak();
+                        dlg.on_cancel(move || { cancel_dlg.store(true, Ordering::SeqCst); });
+                        dlg.show().unwrap();
+                        let weak_app = weak.clone();
+                        let point_db = point_db.clone();
+                        let render_image = render_image.clone();
+                        let backend_render = backend_render.clone();
+                        let config = config_ref.clone();
+                        let surfaces = surfaces_ref.clone();
+                        std::thread::spawn(move || {
+                            let res = survey_cad::io::e57::read_points_e57_progress(p, |prog| {
+                                let dweak = dlg_weak.clone();
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(d) = dweak.upgrade() {
+                                        d.set_progress(prog.into());
+                                    }
+                                });
+                                !cancel.load(Ordering::SeqCst)
+                            });
+                            slint::invoke_from_event_loop(move || {
+                                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
+                            }).unwrap();
+                            match res {
+                                Ok(pts3) => {
+                                    let len = {
+                                        let mut db = point_db.borrow_mut();
+                                        db.clear();
+                                        db.extend(pts3.iter().map(|p3| Point::new(p3.x, p3.y)));
+                                        db.len()
+                                    };
+                                    if config.borrow().auto_tin && len >= 3 {
+                                        let verts: Vec<ScPoint3> = pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
+                                        let tin = survey_cad::dtm::Tin::from_points(verts.clone());
+                                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                                        surfaces.borrow_mut().push(tin);
+                                    }
+                                    if let Some(app) = weak_app.upgrade() {
+                                        app.set_status(SharedString::from(format!("Imported {len} points")));
+                                        if app.get_workspace_mode() == 0 {
+                                            app.set_workspace_image(render_image());
+                                        } else {
+                                            let image = backend_render.borrow_mut().render();
+                                            app.set_workspace_texture(image);
+                                        }
+                                        app.window().request_redraw();
+                                    }
                                 }
-                                app.window().request_redraw();
+                                Err(e) => {
+                                    if let Some(app) = weak_app.upgrade() {
+                                        app.set_status(SharedString::from(format!("Failed to import: {e}")));
+                                    }
+                                }
                             }
-                        }
-                        Err(e) => {
-                            if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!(
-                                    "Failed to import: {e}"
-                                )));
-                            }
-                        }
+                        });
                     }
                     #[cfg(not(feature = "e57"))]
                     if let Some(app) = weak.upgrade() {
@@ -7585,6 +7657,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let render_image = render_image.clone();
         let backend_render = backend.clone();
         let workspace_crs = workspace_crs.clone();
+        let config_ref = config.clone();
         app.on_settings(move || {
             let dlg = SettingsDialog::new().unwrap();
             let gs = grid_settings.borrow();
@@ -7593,6 +7666,7 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_color_g(SharedString::from(gs.color[1].to_string()));
             dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
             dlg.set_show_grid(gs.visible);
+            dlg.set_auto_tin(config_ref.borrow().auto_tin);
             dlg.set_crs_epsg(SharedString::from(workspace_crs.borrow().to_string()));
             drop(gs);
             let dlg_weak = dlg.as_weak();
@@ -7601,6 +7675,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let render_image = render_image.clone();
             let backend_render = backend_render.clone();
             let crs_ref = workspace_crs.clone();
+            let config_acc = config_ref.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(v) = d.get_spacing_value().parse::<f32>() {
@@ -7611,6 +7686,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let b = d.get_color_b().parse::<u8>().unwrap_or(60);
                     gs_ref.borrow_mut().color = [r, g, b];
                     gs_ref.borrow_mut().visible = d.get_show_grid();
+                    config_acc.borrow_mut().auto_tin = d.get_auto_tin();
                     if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
                         *crs_ref.borrow_mut() = epsg;
                     }
