@@ -2295,6 +2295,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
     let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
     let macro_playing = Rc::new(RefCell::new(MacroPlaying::default()));
+    let command_history = Rc::new(VecModel::<SharedString>::from(Vec::new()));
     let line_type_names = Rc::new(VecModel::from(vec![
         SharedString::from("Solid"),
         SharedString::from("Dashed"),
@@ -2464,6 +2465,8 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_crs_index(default_idx as i32);
     app.set_workspace_mode(0); // start with 2D mode
     app.set_show_point_numbers(true);
+    app.set_command_history(command_history.clone().into());
+    app.set_command_text(SharedString::from(""));
 
     // show camera controls in the status bar
     app.set_status(SharedString::from(
@@ -3038,6 +3041,79 @@ fn main() -> Result<(), slint::PlatformError> {
                 backend: &backend,
             };
             command_stack.borrow_mut().redo(&ctx);
+            if let Some(app) = weak.upgrade() {
+                refresh_workspace(&app, &render_image, &backend);
+            }
+        });
+    }
+
+    {
+        let history_model = command_history.clone();
+        let command_stack = command_stack.clone();
+        let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
+        let lines = lines.clone();
+        let line_style_indices = line_style_indices.clone();
+        let backend = backend.clone();
+        let render_image = render_image.clone();
+        let dimensions = dimensions.clone();
+        let weak = app.as_weak();
+        app.on_command_entered(move |cmd| {
+            history_model.push(cmd.clone());
+            let parts = shell_words::split(&cmd).unwrap_or_default();
+            if parts.is_empty() {
+                return;
+            }
+            let ctx = Context {
+                points: &point_db,
+                point_styles: &point_style_indices,
+                lines: &lines,
+                line_styles: &line_style_indices,
+                dimensions: &dimensions,
+                backend: &backend,
+            };
+            match parts[0].as_str() {
+                "point" if parts.len() >= 3 => {
+                    if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
+                        point_db.borrow_mut().push(Point::new(x, y));
+                        point_style_indices.borrow_mut().push(0);
+                        backend.borrow_mut().add_point(x, y, 0.0);
+                        command_stack.borrow_mut().push(Command::RemovePoint {
+                            index: point_db.borrow().len() - 1,
+                            point: Point::new(x, y),
+                        });
+                    }
+                }
+                "line" if parts.len() >= 5 => {
+                    if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
+                        parts[1].parse::<f64>(),
+                        parts[2].parse::<f64>(),
+                        parts[3].parse::<f64>(),
+                        parts[4].parse::<f64>(),
+                    ) {
+                        spawn_line(
+                            &point_db,
+                            &lines,
+                            &point_style_indices,
+                            &line_style_indices,
+                            &backend,
+                            Point::new(x1, y1),
+                            Point::new(x2, y2),
+                        );
+                        command_stack.borrow_mut().push(Command::RemoveLine {
+                            index: lines.borrow().len() - 1,
+                            line: (Point::new(x1, y1), Point::new(x2, y2)),
+                        });
+                    }
+                }
+                "undo" => {
+                    command_stack.borrow_mut().undo(&ctx);
+                }
+                "redo" => {
+                    command_stack.borrow_mut().redo(&ctx);
+                }
+                _ => {}
+            }
             if let Some(app) = weak.upgrade() {
                 refresh_workspace(&app, &render_image, &backend);
             }

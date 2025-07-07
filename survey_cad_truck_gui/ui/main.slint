@@ -6,6 +6,24 @@ export { SuperelevationEditor } from "superelevation_editor.slint";
 export { EntityInspector } from "entity_inspector.slint";
 export { ImportProgressDialog } from "import_progress.slint";
 
+component CommandLine inherits VerticalBox {
+    in-out property <[string]> history;
+    in-out property <string> text;
+    callback entered(string);
+    spacing: 2px;
+    ListView {
+        vertical-stretch: 1;
+        for h in root.history : Text { color: #FFFFFF; text: h; }
+    }
+    LineEdit {
+        text <=> root.text;
+        accepted => {
+            root.entered(root.text);
+            root.text = "";
+        }
+    }
+}
+
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
     in-out property <bool> click_mode;
@@ -667,6 +685,10 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_nearest;
     in-out property <float> snap_tolerance;
     in-out property <float> zoom_level;
+    in-out property <[string]> command_history;
+    in-out property <string> command_text;
+
+    callback command_entered(string);
 
     callback key_pressed(string);
     FocusScope {
@@ -1079,6 +1101,13 @@ export component MainWindow inherits Window {
                 pointer_released() => { root.workspace_pointer_released(); }
                 scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }
+        } 
+
+        command_line := CommandLine {
+            width: 100%;
+            history <=> root.command_history;
+            text <=> root.command_text;
+            entered(cmd) => { root.command_entered(cmd); }
         }
 
         status_bar := Text {

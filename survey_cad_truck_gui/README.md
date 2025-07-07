@@ -20,6 +20,12 @@ cargo build -p survey_cad_truck_gui
 Rebuilding ensures that any changes in the `.slint` files are reflected in the
 Rust code via the generated bindings.
 
+## Command Line
+
+The main window now contains a simple command line interface below the
+workspace. Type commands such as `point`, `line`, `undo` or `redo` and press
+Enter to execute them. Entered commands are kept in a history list.
+
 ## Fonts
 
 This application bundles the `DejaVuSans.ttf` font located in the `assets/`
