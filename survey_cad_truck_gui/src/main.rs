@@ -6365,9 +6365,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                         db.len()
                                     };
                                     if config.borrow().auto_tin && len >= 3 {
-                                        let verts: Vec<ScPoint3> = pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
-                                        let tin = survey_cad::dtm::Tin::from_points(verts.clone());
-                                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                                        let verts_sc: Vec<ScPoint3> =
+                                            pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
+                                        let tin = survey_cad::dtm::Tin::from_points(verts_sc.clone());
+                                        let verts: Vec<Point3> = tin
+                                            .vertices
+                                            .iter()
+                                            .map(|p| Point3::new(p.x, p.y, p.z))
+                                            .collect();
+                                        backend_render
+                                            .borrow_mut()
+                                            .add_surface(&verts, &tin.triangles);
                                         surfaces.borrow_mut().push(tin);
                                     }
                                     if let Some(app) = weak_app.upgrade() {
@@ -6450,9 +6458,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                         db.len()
                                     };
                                     if config.borrow().auto_tin && len >= 3 {
-                                        let verts: Vec<ScPoint3> = pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
-                                        let tin = survey_cad::dtm::Tin::from_points(verts.clone());
-                                        backend_render.borrow_mut().add_surface(&verts, &tin.triangles);
+                                        let verts_sc: Vec<ScPoint3> =
+                                            pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
+                                        let tin = survey_cad::dtm::Tin::from_points(verts_sc.clone());
+                                        let verts: Vec<Point3> = tin
+                                            .vertices
+                                            .iter()
+                                            .map(|p| Point3::new(p.x, p.y, p.z))
+                                            .collect();
+                                        backend_render
+                                            .borrow_mut()
+                                            .add_surface(&verts, &tin.triangles);
                                         surfaces.borrow_mut().push(tin);
                                     }
                                     if let Some(app) = weak_app.upgrade() {
