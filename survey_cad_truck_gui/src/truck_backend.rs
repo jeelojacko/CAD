@@ -4,12 +4,20 @@ use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
 
 pub enum HitObject {
-    Point,
-    Line,
+    Point(usize),
+    Line(usize),
     Surface(usize),
     Handle(usize),
     Breakline,
     Boundary,
+}
+
+enum HandleTarget {
+    Point(usize),
+    Line(usize),
+    Polyline(usize),
+    Arc(usize),
+    Surface(usize),
 }
 
 struct SurfaceData {
@@ -29,7 +37,7 @@ pub struct TruckBackend {
     lines: Vec<(Point3, Point3, Vector4, f32)>,
     dimensions: Vec<(Point3, Point3)>,
     surfaces: Vec<SurfaceData>,
-    handles: Option<(usize, Vec<usize>)>,
+    handles: Option<(HandleTarget, Vec<usize>)>,
     hover_surface: Option<usize>,
     hover_handle: Option<usize>,
 }
@@ -364,7 +372,28 @@ impl TruckBackend {
             for v in &surf.vertices {
                 ids.push(self.engine.add_point_marker(*v));
             }
-            self.handles = Some((idx, ids));
+            self.handles = Some((HandleTarget::Surface(idx), ids));
+        }
+    }
+
+    /// Show handle for a single point.
+    pub fn show_point_handles(&mut self, idx: usize) {
+        self.hide_handles();
+        if let Some(p) = self.points.get(idx).copied() {
+            let id = self.engine.add_point_marker(p);
+            self.handles = Some((HandleTarget::Point(idx), vec![id]));
+        }
+    }
+
+    /// Show handles for a line's endpoints.
+    pub fn show_line_handles(&mut self, idx: usize) {
+        self.hide_handles();
+        if let Some((a, b, _, _)) = self.lines.get(idx) {
+            let ids = vec![
+                self.engine.add_point_marker(*a),
+                self.engine.add_point_marker(*b),
+            ];
+            self.handles = Some((HandleTarget::Line(idx), ids));
         }
     }
 
@@ -380,10 +409,42 @@ impl TruckBackend {
     /// Move a handle and the underlying vertex.
     #[allow(dead_code)]
     pub fn move_handle(&mut self, handle_idx: usize, new_pos: Point3) {
-        if let Some((surf_idx, ref mut handles)) = self.handles {
+        if let Some((ref target, ref mut handles)) = self.handles {
             if let Some(id) = handles.get(handle_idx).copied() {
                 self.engine.update_point_marker(id, new_pos);
-                self.move_vertex(surf_idx, handle_idx, new_pos);
+            }
+            match *target {
+                HandleTarget::Surface(idx) => {
+                    self.move_vertex(idx, handle_idx, new_pos);
+                }
+                HandleTarget::Point(idx) => {
+                    if handle_idx == 0 {
+                        self.update_point(idx, new_pos.x, new_pos.y, new_pos.z);
+                    }
+                }
+                HandleTarget::Line(idx) => {
+                    if let Some(line) = self.lines.get_mut(idx) {
+                        if handle_idx == 0 {
+                            line.0 = new_pos;
+                        } else if handle_idx == 1 {
+                            line.1 = new_pos;
+                        }
+                        let p0 = line.0;
+                        let p1 = line.1;
+                        let col = line.2;
+                        let weight = line.3;
+                        // drop mutable borrow before calling update_line
+                        drop(line);
+                        self.update_line(
+                            idx,
+                            [p0.x, p0.y, p0.z],
+                            [p1.x, p1.y, p1.z],
+                            [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
+                            weight,
+                        );
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -452,7 +513,7 @@ impl TruckBackend {
                 let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                 if d2 < 64.0 && z < best_z {
                     best_z = z;
-                    result = Some(HitObject::Point);
+                    result = Some(HitObject::Point(i));
                 }
             }
         }
@@ -471,7 +532,7 @@ impl TruckBackend {
                     let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                     if d2 < 36.0 && lz < best_z {
                         best_z = lz;
-                        result = Some(HitObject::Line);
+                        result = Some(HitObject::Line(i));
                     }
                 }
             }
