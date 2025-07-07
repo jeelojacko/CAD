@@ -2717,7 +2717,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg = MacroListDialog::new().unwrap();
             dlg.set_files(Rc::new(VecModel::from(items.clone())).into());
             dlg.set_selected_index(0);
-            let dlg_weak = dlg.as_weak();
+            let dlg_weak_run = dlg.as_weak();
             let weak_run = weak.clone();
             let point_db_run = point_db.clone();
             let lines_run = lines_ref.clone();
@@ -2728,8 +2728,9 @@ fn main() -> Result<(), slint::PlatformError> {
             let line_styles_run = line_styles.clone();
             let backend_run = backend_render.clone();
             let render_image_run = render_image.clone();
+            let items_run = items.clone();
             dlg.on_run(move |idx| {
-                if let Some(name) = items.get(idx as usize) {
+                if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
                     if name.ends_with(".py") {
                         run_python_file(&path, &weak_run, &point_db_run, &lines_run, &surfaces_run);
@@ -2748,21 +2749,23 @@ fn main() -> Result<(), slint::PlatformError> {
                         );
                     }
                 }
-                if let Some(d) = dlg_weak.upgrade() {
+                if let Some(d) = dlg_weak_run.upgrade() {
                     let _ = d.hide();
                 }
             });
 
             let cfg_assign = cfg.clone();
+            let items_assign = items.clone();
             dlg.on_assign(move |idx, slot| {
-                if let Some(name) = items.get(idx as usize) {
+                if let Some(name) = items_assign.get(idx as usize) {
                     cfg_assign.borrow_mut().quick_scripts[slot as usize] = name.to_string();
                     save_config(&cfg_assign.borrow());
                 }
             });
 
+            let dlg_weak_cancel = dlg.as_weak();
             dlg.on_cancel(move || {
-                if let Some(d) = dlg_weak.upgrade() {
+                if let Some(d) = dlg_weak_cancel.upgrade() {
                     let _ = d.hide();
                 }
             });
@@ -3230,11 +3233,17 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                 }
             } else if key.as_str() == "F5" {
-                app.invoke_run_quick_script(0);
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_run_quick_script(0);
+                }
             } else if key.as_str() == "F6" {
-                app.invoke_run_quick_script(1);
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_run_quick_script(1);
+                }
             } else if key.as_str() == "F7" {
-                app.invoke_run_quick_script(2);
+                if let Some(app) = weak.upgrade() {
+                    app.invoke_run_quick_script(2);
+                }
             }
         });
     }
@@ -4071,6 +4080,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_styles_ref = surface_styles.clone();
         let surface_descriptions_ref = surface_descriptions.clone();
         let alignments_save = alignments.clone();
+        let layer_names_save = layer_names.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -4093,12 +4103,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         surface_units: surface_units_ref.borrow().clone(),
                         surface_styles: surface_styles_ref.borrow().clone(),
                         surface_descriptions: surface_descriptions_ref.borrow().clone(),
-                        layers: layer_names
+                        layers: layer_names_save
                             .borrow()
                             .iter()
                             .filter_map(|n| layers_ref.borrow().layer(n).cloned())
                             .collect(),
-                        layer_order: layer_names.borrow().clone(),
+                        layer_order: layer_names_save.borrow().clone(),
                         point_style_indices: point_style_indices.borrow().clone(),
                         line_style_indices: line_style_indices.borrow().clone(),
                         polygon_style_indices: polygon_style_indices.borrow().clone(),
