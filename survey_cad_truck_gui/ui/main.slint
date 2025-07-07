@@ -4,6 +4,7 @@ export { LayerManager } from "layer_manager.slint";
 export { CrossSectionViewer } from "cross_section_viewer.slint";
 export { SuperelevationEditor } from "superelevation_editor.slint";
 export { EntityInspector } from "entity_inspector.slint";
+export { ImportProgressDialog } from "import_progress.slint";
 
 component Workspace2D inherits Rectangle {
     in-out property <image> image;
@@ -552,6 +553,7 @@ export component SettingsDialog inherits Window {
     in-out property <string> color_b;
     in-out property <string> crs_epsg;
     in-out property <bool> show_grid;
+    in-out property <bool> auto_tin;
     callback accept();
     callback cancel();
     title: "Workspace Settings";
@@ -568,6 +570,7 @@ export component SettingsDialog inherits Window {
             LineEdit { text <=> root.color_b; width: 40px; }
         }
         CheckBox { text: "Show Grid"; checked <=> root.show_grid; }
+        CheckBox { text: "Create TIN after Import"; checked <=> root.auto_tin; }
         HorizontalBox {
             Text { color: #FFFFFF; text: "EPSG:"; }
             LineEdit { text <=> root.crs_epsg; width: 80px; }
