@@ -1,5 +1,12 @@
 use super::*;
 use array_macro::array;
+#[cfg(test)]
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
+#[cfg(test)]
+fn seeded_rng() -> StdRng {
+    StdRng::seed_from_u64(0)
+}
 
 #[derive(Clone, Debug)]
 pub struct HashedPointCloud {
@@ -236,33 +243,34 @@ fn exec_space_division_distance() {
     const NUM_TRIANGLES: usize = 10;
     const TRIANGLE_DISPLACEMENT: f64 = 1.0;
 
+    let mut rng = seeded_rng();
     let points = (0..NUM_POINTS)
         .map(|_| {
             Point3::new(
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
             )
         })
         .collect::<Vec<_>>();
     let triangles = (0..NUM_TRIANGLES)
         .map(|_| {
             let pt = Point3::new(
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rand::random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
             );
             [
                 pt,
                 pt + Vector3::new(
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
                 ),
                 pt + Vector3::new(
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rand::random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
                 ),
             ]
         })

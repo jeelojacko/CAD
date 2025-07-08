@@ -1,4 +1,9 @@
 use super::*;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
+fn seeded_rng() -> StdRng {
+    StdRng::seed_from_u64(0)
+}
 
 #[test]
 fn sphere_interference() {
@@ -28,8 +33,9 @@ fn sphere_interference() {
 
 #[test]
 fn in_plane() {
+    let mut rng = seeded_rng();
     let positions: Vec<_> = (0..300)
-        .map(|_| Point3::new(rand::random::<f64>(), 0.0, rand::random::<f64>()))
+        .map(|_| Point3::new(rng.gen::<f64>(), 0.0, rng.gen::<f64>()))
         .collect();
     let faces = Faces::from_iter((0..100).map(|i| [i, i + 100, i + 200]));
     let polygon0 = PolygonMesh::new(
@@ -40,7 +46,7 @@ fn in_plane() {
         faces.clone(),
     );
     let positions: Vec<_> = (0..300)
-        .map(|_| Point3::new(rand::random::<f64>(), 0.0, rand::random::<f64>()))
+        .map(|_| Point3::new(rng.gen::<f64>(), 0.0, rng.gen::<f64>()))
         .collect();
     let polygon1 = PolygonMesh::new(
         StandardAttributes {
@@ -54,10 +60,11 @@ fn in_plane() {
 
 #[test]
 fn collision_sphere() {
+    let mut rng = seeded_rng();
     let unit = Vector3::new(
-        rand::random::<f64>(),
-        rand::random::<f64>(),
-        rand::random::<f64>(),
+        rng.gen::<f64>(),
+        rng.gen::<f64>(),
+        rng.gen::<f64>(),
     )
     .normalize();
     let instant = std::time::Instant::now();
