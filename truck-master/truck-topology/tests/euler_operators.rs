@@ -1,6 +1,8 @@
 use std::ops::Bound;
 use truck_base::{assert_near, cgmath64::*, tolerance::*};
 use truck_geotrait::*;
+mod common;
+use common::{parameter_transform_random_test, cut_random_test, concat_random_test};
 use truck_topology::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -1,5 +1,7 @@
+mod common;
 use proptest::prelude::*;
 use truck_geometry::prelude::*;
+use common::concat_random_test;
 
 fn exec_concat_positive_test(
     v0: [[f64; 3]; 8],
