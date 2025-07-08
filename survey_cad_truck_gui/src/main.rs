@@ -22,7 +22,7 @@ use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
     format_dms, HatchPattern, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
-    TextStyle as ScTextStyle,
+    TextStyle as ScTextStyle, default_alignment_styles,
 };
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
@@ -410,6 +410,7 @@ struct RenderStyles<'a> {
     line_style_indices: &'a Rc<RefCell<Vec<usize>>>,
     polygon_styles: &'a [survey_cad::styles::PolygonStyle],
     polygon_style_indices: &'a Rc<RefCell<Vec<usize>>>,
+    alignment_style: &'a LineStyle,
     show_labels: bool,
     label_style: &'a LineLabelStyle,
     point_label_style: &'a PointLabelStyle,
@@ -1211,7 +1212,12 @@ fn render_workspace(
         }
     }
 
-    paint.set_color(Color::from_rgba8(0, 200, 255, 255));
+    paint.set_color(Color::from_rgba8(
+        styles.alignment_style.color[0],
+        styles.alignment_style.color[1],
+        styles.alignment_style.color[2],
+        255,
+    ));
     for al in data.alignments {
         for elem in &al.horizontal.elements {
             match elem {
@@ -1220,10 +1226,20 @@ fn render_workspace(
                     pb.move_to(tx(start.x as f32), ty(start.y as f32));
                     pb.line_to(tx(end.x as f32), ty(end.y as f32));
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke {
-                            width: 1.0,
+                        let mut stroke = Stroke {
+                            width: styles.alignment_style.weight.0,
                             ..Stroke::default()
                         };
+                        use tiny_skia::StrokeDash;
+                        match styles.alignment_style.line_type {
+                            LineType::Dashed => {
+                                stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0);
+                            }
+                            LineType::Dotted => {
+                                stroke.dash = StrokeDash::new(vec![2.0, 6.0], 0.0);
+                            }
+                            _ => {}
+                        }
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -1244,10 +1260,20 @@ fn render_workspace(
                         }
                     }
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke {
-                            width: 1.0,
+                        let mut stroke = Stroke {
+                            width: styles.alignment_style.weight.0,
                             ..Stroke::default()
                         };
+                        use tiny_skia::StrokeDash;
+                        match styles.alignment_style.line_type {
+                            LineType::Dashed => {
+                                stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0);
+                            }
+                            LineType::Dotted => {
+                                stroke.dash = StrokeDash::new(vec![2.0, 6.0], 0.0);
+                            }
+                            _ => {}
+                        }
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -1258,10 +1284,20 @@ fn render_workspace(
                     pb.move_to(tx(sp.x as f32), ty(sp.y as f32));
                     pb.line_to(tx(ep.x as f32), ty(ep.y as f32));
                     if let Some(path) = pb.finish() {
-                        let stroke = Stroke {
-                            width: 1.0,
+                        let mut stroke = Stroke {
+                            width: styles.alignment_style.weight.0,
                             ..Stroke::default()
                         };
+                        use tiny_skia::StrokeDash;
+                        match styles.alignment_style.line_type {
+                            LineType::Dashed => {
+                                stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0);
+                            }
+                            LineType::Dotted => {
+                                stroke.dash = StrokeDash::new(vec![2.0, 6.0], 0.0);
+                            }
+                            _ => {}
+                        }
                         pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
                     }
                 }
@@ -2392,6 +2428,9 @@ fn main() -> Result<(), slint::PlatformError> {
         point_styles: survey_cad::styles::default_point_styles(),
         line_styles: survey_cad::styles::default_line_styles(),
         polygon_styles: survey_cad::styles::default_polygon_styles(),
+        alignment_styles: survey_cad::styles::default_alignment_styles(),
+        line_label_styles: survey_cad::styles::default_line_label_styles(),
+        point_label_styles: survey_cad::styles::default_point_label_styles(),
     });
     let point_styles = style_settings.point_styles.clone();
     let point_style_names: Vec<SharedString> = point_styles
@@ -2411,6 +2450,12 @@ fn main() -> Result<(), slint::PlatformError> {
         .collect();
     let polygon_style_values: Vec<survey_cad::styles::PolygonStyle> =
         polygon_styles.iter().map(|(_, s)| *s).collect();
+
+    let alignment_styles = style_settings.alignment_styles.clone();
+    let alignment_style = alignment_styles
+        .get(0)
+        .map(|(_, s)| *s)
+        .unwrap_or_else(|| default_alignment_styles()[0].1);
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
     let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
     let macro_playing = Rc::new(RefCell::new(MacroPlaying::default()));
@@ -2420,8 +2465,8 @@ fn main() -> Result<(), slint::PlatformError> {
         SharedString::from("Dashed"),
         SharedString::from("Dotted"),
     ]));
-    let line_label_styles = survey_cad::styles::default_line_label_styles();
-    let point_label_styles = survey_cad::styles::default_point_label_styles();
+    let line_label_styles = style_settings.line_label_styles.clone();
+    let point_label_styles = style_settings.point_label_styles.clone();
     let point_label_style = Rc::new(RefCell::new(point_label_styles[0].1.clone()));
     let line_style_names: Rc<Vec<SharedString>> = Rc::new(
         line_styles
@@ -2516,6 +2561,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
         let point_label_style = point_label_style.clone();
+        let alignment_style = alignment_style.clone();
         let grid_settings_ref = grid_settings.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
@@ -2554,6 +2600,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     line_style_indices: &line_style_indices,
                     polygon_styles: &polygon_style_values,
                     polygon_style_indices: &polygon_style_indices,
+                    alignment_style: &alignment_style,
                     show_labels: true,
                     label_style: &label_style,
                     point_label_style: &point_label_style.borrow(),
@@ -4553,6 +4600,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         point_styles: point_styles.clone(),
                         line_styles: line_styles.clone(),
                         polygon_styles: polygon_styles.clone(),
+                        alignment_styles: alignment_styles.clone(),
+                        line_label_styles: line_label_styles.clone(),
+                        point_label_styles: point_label_styles.clone(),
                     };
                     let _ = save_styles(&base.with_extension("styles.json"), &style_settings);
 
