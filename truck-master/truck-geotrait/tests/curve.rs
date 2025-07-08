@@ -48,16 +48,16 @@ fn exec_polycurve_snp_on_curve() -> bool {
     let coef: Vec<Vector3> = (0..5)
         .map(|_| {
             Vector3::new(
-                20.0 * rng.gen::<f64>() - 10.0,
-                20.0 * rng.gen::<f64>() - 10.0,
-                20.0 * rng.gen::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
             )
         })
         .collect();
     let poly = PolyCurve::<Point3>(coef);
-    let t = 20.0 * rng.gen::<f64>() - 10.0;
+    let t = 20.0 * rng.random::<f64>() - 10.0;
     let pt = poly.subs(t);
-    let hint = t + 1.0 * rng.gen::<f64>() - 0.5;
+    let hint = t + 1.0 * rng.random::<f64>() - 0.5;
     match algo::curve::search_nearest_parameter(&poly, pt, hint, 100) {
         Some(res) => match poly.subs(res).near(&pt) {
             true => true,
@@ -86,9 +86,9 @@ fn exec_polycurve_division() -> bool {
     let coef: Vec<Vector3> = (0..5)
         .map(|_| {
             Vector3::new(
-                20.0 * rng.gen::<f64>() - 10.0,
-                20.0 * rng.gen::<f64>() - 10.0,
-                20.0 * rng.gen::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
+                20.0 * rng.random::<f64>() - 10.0,
             )
         })
         .collect();
@@ -118,10 +118,10 @@ fn polycurve_division() {
 fn exec_polycurve_closest_point() -> bool {
     let mut rng = seeded_rng();
     let a = [
-        rng.gen::<f64>() - 0.5,
-        rng.gen::<f64>() - 0.5,
-        rng.gen::<f64>() - 0.5,
-        rng.gen::<f64>() - 0.5,
+        rng.random::<f64>() - 0.5,
+        rng.random::<f64>() - 0.5,
+        rng.random::<f64>() - 0.5,
+        rng.random::<f64>() - 0.5,
     ];
     let coef0 = vec![
         Vector3::new(0.0, 0.0, 0.0),
@@ -164,9 +164,9 @@ fn polycurve_closest_point() {
 fn exec_polycurve_intersection_point() -> bool {
     let mut rng = seeded_rng();
     let a = [
-        0.5 * rng.gen::<f64>() + 0.1,
-        0.5 * rng.gen::<f64>() + 0.1,
-        rng.gen::<f64>() - 0.5,
+        0.5 * rng.random::<f64>() + 0.1,
+        0.5 * rng.random::<f64>() + 0.1,
+        rng.random::<f64>() - 0.5,
     ];
     let (x, y) = (-1.0 + a[0], 1.0 - a[1]);
     let coef0 = vec![

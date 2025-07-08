@@ -247,30 +247,30 @@ fn exec_space_division_distance() {
     let points = (0..NUM_POINTS)
         .map(|_| {
             Point3::new(
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
             )
         })
         .collect::<Vec<_>>();
     let triangles = (0..NUM_TRIANGLES)
         .map(|_| {
             let pt = Point3::new(
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
-                SPACE_SIZE * rng.gen::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
+                SPACE_SIZE * rng.random::<f64>() - SPACE_SIZE / 2.0,
             );
             [
                 pt,
                 pt + Vector3::new(
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
                 ),
                 pt + Vector3::new(
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
-                    TRIANGLE_DISPLACEMENT * 2.0 * rng.gen::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
+                    TRIANGLE_DISPLACEMENT * 2.0 * rng.random::<f64>() - TRIANGLE_DISPLACEMENT,
                 ),
             ]
         })

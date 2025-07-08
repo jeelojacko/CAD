@@ -358,14 +358,14 @@ where
     C::Point: Debug + Tolerance,
     C::Vector: Debug + Tolerance + std::ops::Mul<f64, Output = C::Vector>, {
     let mut rng = seeded_rng();
-    let a = rng.gen::<f64>() + 0.5;
-    let b = rng.gen::<f64>() * 2.0;
+    let a = rng.random::<f64>() + 0.5;
+    let b = rng.random::<f64>() * 2.0;
     let transformed = curve.parameter_transformed(a, b);
 
     let (t0, t1) = curve.range_tuple();
     assert_near!(transformed.range_tuple().0, t0 * a + b);
     assert_near!(transformed.range_tuple().1, t1 * a + b);
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let t = (1.0 - p) * t0 + p * t1;
     assert_near!(transformed.subs(t * a + b), curve.subs(t));
     assert_near!(transformed.der(t * a + b) * a, curve.der(t));
@@ -401,14 +401,14 @@ where
     assert_near!(concatted.range_tuple().0, t0);
     assert_near!(concatted.range_tuple().1, t2);
 
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let t = t0 * (1.0 - p) + t1 * p;
     assert_near!(concatted.subs(t), curve0.subs(t));
     assert_near!(concatted.der(t), curve0.der(t));
     assert_near!(concatted.der2(t), curve0.der2(t));
     assert_near!(concatted.front(), curve0.front());
 
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let t = t1 * (1.0 - p) + t2 * p;
     assert_near!(concatted.subs(t), curve1.subs(t));
     assert_near!(concatted.der(t), curve1.der(t));
@@ -435,7 +435,7 @@ where
     let mut rng = seeded_rng();
     let mut part0 = curve.clone();
     let (t0, t1) = curve.range_tuple();
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let t = t0 * (1.0 - p) + t1 * p;
     let part1 = part0.cut(t);
     assert_near!(part0.range_tuple().0, t0);
@@ -443,7 +443,7 @@ where
     assert_near!(part1.range_tuple().0, t);
     assert_near!(part1.range_tuple().1, t1);
 
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let s = t0 * (1.0 - p) + t * p;
     assert_near!(part0.subs(s), curve.subs(s));
     assert_near!(part0.der(s), curve.der(s));
@@ -451,7 +451,7 @@ where
     assert_near!(part0.front(), curve.front());
     assert_near!(part0.back(), curve.subs(t));
 
-    let p = rng.gen::<f64>();
+    let p = rng.random::<f64>();
     let s = t * (1.0 - p) + t1 * p;
     assert_near!(part1.subs(s), curve.subs(s));
     assert_near!(part1.der(s), curve.der(s));
