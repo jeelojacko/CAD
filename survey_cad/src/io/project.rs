@@ -32,7 +32,11 @@ pub struct Project {
     pub dimensions: Vec<crate::geometry::LinearDimension>,
     #[serde(default)]
     pub alignments: Vec<crate::alignment::Alignment>,
+    #[serde(default)]
+    pub alignment_groups: Vec<crate::alignment::AlignmentGroup>,
     pub surfaces: Vec<Tin>,
+    #[serde(default)]
+    pub surface_groups: Vec<crate::dtm::SurfaceGroup>,
     #[serde(default)]
     pub surface_units: Vec<String>,
     #[serde(default)]
@@ -66,7 +70,9 @@ impl Project {
             arcs: Vec::new(),
             dimensions: Vec::new(),
             alignments: Vec::new(),
+            alignment_groups: Vec::new(),
             surfaces: Vec::new(),
+            surface_groups: Vec::new(),
             surface_units: Vec::new(),
             surface_styles: Vec::new(),
             surface_descriptions: Vec::new(),

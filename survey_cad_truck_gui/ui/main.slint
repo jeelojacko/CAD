@@ -1,6 +1,8 @@
 export { PointManager } from "point_manager.slint";
 export { LineStyleManager } from "line_style_manager.slint";
 export { AlignmentStyleManager } from "alignment_style_manager.slint";
+export { SurfaceGroupManager } from "surface_group_manager.slint";
+export { AlignmentGroupManager } from "alignment_group_manager.slint";
 export { LineLabelStyleManager } from "line_label_style_manager.slint";
 export { PointLabelStyleManager } from "point_label_style_manager.slint";
 export { LayerManager } from "layer_manager.slint";
@@ -29,6 +31,8 @@ component Ribbon inherits TabWidget {
     callback point_manager();
     callback line_style_manager();
     callback alignment_style_manager();
+    callback surface_group_manager();
+    callback alignment_group_manager();
     callback line_label_style_manager();
     callback point_label_style_manager();
     callback layer_manager();
@@ -73,6 +77,8 @@ component Ribbon inherits TabWidget {
             Button { icon: @image-url("../assets/icons/save.png"); clicked => { root.save_project(); } }
             Button { icon: @image-url("../assets/icons/point_manager.png"); clicked => { root.point_manager(); } }
             Button { icon: @image-url("../assets/icons/line_styles.png"); clicked => { root.line_style_manager(); } }
+            Button { icon: @image-url("../assets/icons/load_surface.png"); clicked => { root.surface_group_manager(); } }
+            Button { icon: @image-url("../assets/icons/load_alignment.png"); clicked => { root.alignment_group_manager(); } }
             Button { icon: @image-url("../assets/icons/layer_manager.png"); clicked => { root.layer_manager(); } }
             Button { icon: @image-url("../assets/icons/inspector.png"); clicked => { root.inspector(); } }
             Button { icon: @image-url("../assets/icons/move.png"); clicked => { root.move_entity(); } }
@@ -1095,6 +1101,8 @@ export component MainWindow inherits Window {
             point_manager => { root.point_manager(); }
             line_style_manager => { root.line_style_manager(); }
             alignment_style_manager => { root.alignment_style_manager(); }
+            surface_group_manager => { root.surface_group_manager(); }
+            alignment_group_manager => { root.alignment_group_manager(); }
             line_label_style_manager => { root.line_label_style_manager(); }
             point_label_style_manager => { root.point_label_style_manager(); }
             layer_manager => { root.layer_manager(); }

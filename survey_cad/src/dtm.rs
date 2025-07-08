@@ -694,10 +694,19 @@ pub struct DynamicTin {
     pub tin: Tin,
 }
 
+/// Group of surfaces referenced by indices.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct SurfaceGroup {
+    pub name: String,
+    pub surface_ids: Vec<usize>,
+}
+
 /// Container for working with multiple TIN surfaces.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct TinManager {
     pub tins: Vec<Tin>,
+    #[serde(default)]
+    pub groups: Vec<SurfaceGroup>,
 }
 
 impl TinManager {
@@ -710,6 +719,12 @@ impl TinManager {
     pub fn remove(&mut self, index: usize) {
         if index < self.tins.len() {
             self.tins.remove(index);
+            for g in &mut self.groups {
+                g.surface_ids.retain(|&id| id != index);
+                for id in &mut g.surface_ids {
+                    if *id > index { *id -= 1; }
+                }
+            }
         }
     }
 
@@ -726,6 +741,49 @@ impl TinManager {
     /// Returns `true` if no TINs are managed.
     pub fn is_empty(&self) -> bool {
         self.tins.is_empty()
+    }
+
+    /// Adds a new group and returns its index.
+    pub fn add_group<S: Into<String>>(&mut self, name: S) -> usize {
+        self.groups.push(SurfaceGroup { name: name.into(), surface_ids: Vec::new() });
+        self.groups.len() - 1
+    }
+
+    /// Renames an existing group.
+    pub fn rename_group<S: Into<String>>(&mut self, id: usize, name: S) -> bool {
+        if let Some(g) = self.groups.get_mut(id) {
+            g.name = name.into();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Assigns a surface to a group.
+    pub fn assign_surface(&mut self, surface_id: usize, group_id: usize) -> bool {
+        if surface_id >= self.tins.len() || group_id >= self.groups.len() {
+            return false;
+        }
+        let g = &mut self.groups[group_id];
+        if !g.surface_ids.contains(&surface_id) {
+            g.surface_ids.push(surface_id);
+        }
+        true
+    }
+
+    /// Removes a surface from a group.
+    pub fn remove_surface_from_group(&mut self, surface_id: usize, group_id: usize) -> bool {
+        if let Some(g) = self.groups.get_mut(group_id) {
+            let len = g.surface_ids.len();
+            g.surface_ids.retain(|&id| id != surface_id);
+            return len != g.surface_ids.len();
+        }
+        false
+    }
+
+    /// Iterate over groups.
+    pub fn iter_groups(&self) -> impl Iterator<Item = (usize, &SurfaceGroup)> {
+        self.groups.iter().enumerate()
     }
 }
 

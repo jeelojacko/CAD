@@ -1,0 +1,27 @@
+export component SurfaceGroupManager inherits Window {
+    in-out property <[string]> groups_model;
+    in-out property <int> selected_index;
+    callback create_group();
+    callback rename_group(int);
+    title: "Surface Groups";
+    preferred-width: 200px;
+    preferred-height: 200px;
+    VerticalBox {
+        spacing: 6px;
+        ListView {
+            vertical-stretch: 1;
+            for g[i] in root.groups_model : Rectangle {
+                property <bool> selected: root.selected_index == i;
+                background: selected ? #404040 : transparent;
+                height: 24px;
+                Text { color: #FFFFFF; text: g; }
+                TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
+            }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "New"; clicked => { root.create_group(); } }
+            Button { text: "Rename"; clicked => { root.rename_group(root.selected_index); } }
+        }
+    }
+}
