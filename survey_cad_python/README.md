@@ -22,3 +22,10 @@ a = Point(0.0, 0.0)
 b = Point(3.0, 4.0)
 print(station_distance(a, b))
 ```
+
+## Using in GUI Plugins
+
+The `survey_cad_truck_gui` application exposes this module to Python scripts
+loaded from the `macros/` folder. Scripts can access geometry through the
+`Point` class and call functions like `station_distance` while operating on the
+entities and view parameters provided by the GUI.

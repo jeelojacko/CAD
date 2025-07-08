@@ -26,6 +26,29 @@ The main window now contains a simple command line interface below the
 workspace. Type commands such as `point`, `line`, `undo` or `redo` and press
 Enter to execute them. Entered commands are kept in a history list.
 
+## Scripts and Plugins
+
+Python scripts located in the `macros/` directory can be executed from the
+**Plugins Panel** available through the `Macro` menu. When a script runs the
+following variables are provided:
+
+- `survey_cad_python` &ndash; bindings to the core library.
+- `points`, `lines`, `surfaces` &ndash; all entities in the current project.
+- `selected_points`, `selected_lines` &ndash; the current selection.
+- `view` &ndash; a dictionary with `offset` and `zoom` describing the active view.
+
+Scripts can use these values to query or modify the project. An example script:
+
+```python
+from survey_cad_python import Point
+
+for idx in selected_points:
+    p = points[idx]
+    print("Selected:", p.x, p.y)
+
+print("Zoom:", view["zoom"])
+```
+
 ## Fonts
 
 This application bundles the `DejaVuSans.ttf` font located in the `assets/`
