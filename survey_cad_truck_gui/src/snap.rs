@@ -3,6 +3,7 @@ use survey_cad::io::DxfEntity;
 use survey_cad::snap::{snap_point_with_settings, SnapSettings};
 use truck_modeling::base::{Point3, Vector3};
 use truck_modeling::topology::Solid;
+use truck_modeling::cgmath::InnerSpace;
 
 pub struct Scene<'a> {
     pub points: &'a [Point],
