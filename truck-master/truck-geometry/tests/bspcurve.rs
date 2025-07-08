@@ -1,5 +1,7 @@
+mod common;
 use proptest::prelude::*;
 use truck_geometry::prelude::*;
+use common::{parameter_transform_random_test, cut_random_test, concat_random_test};
 
 proptest! {
     #[test]
@@ -8,12 +10,12 @@ proptest! {
             KnotVec::uniform_knot(4, 4),
             (0..8).map(|_| Point3::from(c)).collect(),
         );
-        truck_geotrait::parameter_transform_random_test(&curve, 10);
-        truck_geotrait::cut_random_test(&curve, 10);
+        parameter_transform_random_test(&curve, 10);
+        cut_random_test(&curve, 10);
 
         let mut part0 = curve.clone();
         let part1 = part0.cut(0.56);
-        truck_geotrait::concat_random_test(&part0, &part1, 10);
+        concat_random_test(&part0, &part1, 10);
     }
 }
 

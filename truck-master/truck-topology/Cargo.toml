@@ -26,3 +26,4 @@ default = ["rclite"]
 nightly = ["parking_lot/nightly"]
 
 [dev-dependencies]
+rand = "0.9"

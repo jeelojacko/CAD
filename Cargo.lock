@@ -10275,6 +10275,7 @@ version = "0.5.0"
 dependencies = [
  "getrandom 0.3.3",
  "proptest",
+ "rand 0.9.1",
  "serde",
  "thiserror 2.0.12",
  "truck-base",
@@ -10400,6 +10401,7 @@ name = "truck-topology"
 version = "0.6.0"
 dependencies = [
  "parking_lot",
+ "rand 0.9.1",
  "rayon",
  "rclite",
  "rustc-hash 2.1.1",
