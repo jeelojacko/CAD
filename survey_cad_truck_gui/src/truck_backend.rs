@@ -3,6 +3,7 @@ use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
 use truck_meshalgo::prelude::*;
+use truck_meshalgo::tessellation::MeshableShape;
 
 pub enum HitObject {
     Point(usize),
@@ -92,7 +93,7 @@ impl TruckBackend {
 
     pub fn update_point(&mut self, idx: usize, x: f64, y: f64, z: f64) {
         if let Some(Some(id)) = self.point_ids.get(idx) {
-            self.engine.update_point_marker(*id, Point3::new(x, y, z));
+            self.engine.update_point_marker(id, Point3::new(x, y, z));
         }
         if let Some(p) = self.points.get_mut(idx) {
             *p = Point3::new(x, y, z);
@@ -145,7 +146,7 @@ impl TruckBackend {
     ) {
         if let Some(Some(id)) = self.line_ids.get(idx) {
             self.engine.update_line(
-                *id,
+                id,
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
                 Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
@@ -222,7 +223,7 @@ impl TruckBackend {
     #[allow(dead_code)]
     pub fn update_surface(&mut self, idx: usize, vertices: &[Point3], triangles: &[[usize; 3]]) {
         if let Some(Some(id)) = self.surface_ids.get(idx) {
-            self.engine.update_surface(*id, vertices, triangles);
+            self.engine.update_surface(id, vertices, triangles);
         }
         if let Some(surf) = self.surfaces.get_mut(idx) {
             surf.vertices = vertices.to_vec();
@@ -383,8 +384,8 @@ impl TruckBackend {
     /// Show handle for a single point.
     pub fn show_point_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if let Some(p) = self.points.get(idx).copied() {
-            let id = self.engine.add_point_marker(p);
+        if let Some(p) = self.points.get(idx) {
+            let id = self.engine.add_point_marker(p.clone());
             self.handles = Some((HandleTarget::Point(idx), vec![id]));
         }
     }
@@ -394,8 +395,8 @@ impl TruckBackend {
         self.hide_handles();
         if let Some((a, b, _, _)) = self.lines.get(idx) {
             let ids = vec![
-                self.engine.add_point_marker(*a),
-                self.engine.add_point_marker(*b),
+                self.engine.add_point_marker(a.clone()),
+                self.engine.add_point_marker(b.clone()),
             ];
             self.handles = Some((HandleTarget::Line(idx), ids));
         }
@@ -414,7 +415,8 @@ impl TruckBackend {
     #[allow(dead_code)]
     pub fn move_handle(&mut self, handle_idx: usize, new_pos: Point3) {
         if let Some((ref target, ref mut handles)) = self.handles {
-            if let Some(id) = handles.get(handle_idx).copied() {
+            if handle_idx < handles.len() {
+                let id = handles[handle_idx];
                 self.engine.update_point_marker(id, new_pos);
             }
             match *target {
@@ -453,7 +455,8 @@ impl TruckBackend {
     /// Highlight or un-highlight a handle.
     pub fn highlight_handle(&mut self, handle_idx: usize, on: bool) {
         if let Some((_, ref handles)) = self.handles {
-            if let Some(id) = handles.get(handle_idx).copied() {
+            if handle_idx < handles.len() {
+                let id = handles[handle_idx];
                 let color = if on {
                     Vector4::new(1.0, 0.0, 0.0, 1.0)
                 } else {
@@ -469,8 +472,7 @@ impl TruckBackend {
         self.handles.as_ref().and_then(|(_, handles)| {
             handles
                 .get(handle_idx)
-                .copied()
-                .and_then(|id| self.engine.point_marker_position(id))
+                .and_then(|id| self.engine.point_marker_position(*id))
         })
     }
 

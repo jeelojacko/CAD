@@ -12,6 +12,7 @@ rfd = "0.15"
 tiny-skia = "0.11"
 truck_cad_engine = { path = "../truck_cad_engine" }
 truck-modeling = { path = "../truck-master/truck-modeling" }
+truck-meshalgo = { path = "../truck-master/truck-meshalgo", features = ["tessellation"] }
 once_cell = "1"
 rusttype = "0.9"
 serde = { version = "1", features = ["derive"] }
