@@ -86,7 +86,7 @@ impl PointLabelStyle {
 }
 
 /// Position of a line label relative to the line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum LineLabelPosition {
     Above,
     Below,
