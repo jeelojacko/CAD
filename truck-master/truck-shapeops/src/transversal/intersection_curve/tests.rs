@@ -43,7 +43,7 @@ fn intersection_curve_sphere_case() {
     );
 
     let mut rng = seeded_rng();
-    let theta = 2.0 * PI * rng.gen::<f64>();
+    let theta = 2.0 * PI * rng.random::<f64>();
     let pt = Point3::new(f64::cos(theta), f64::sin(theta), 0.0);
     let t = curve.search_parameter(pt, None, 10).unwrap();
     assert_near!(curve.subs(t), pt);
