@@ -68,7 +68,7 @@ pub struct DimensionStyleOverride {
 }
 
 /// Style definition for point labels.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PointLabelStyle {
     pub text_style: TextStyle,
     pub color: [u8; 3],
@@ -94,7 +94,7 @@ pub enum LineLabelPosition {
 }
 
 /// Style definition for line labels.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LineLabelStyle {
     pub text_style: TextStyle,
     pub color: [u8; 3],
@@ -243,6 +243,15 @@ pub fn default_line_label_styles() -> Vec<(String, LineLabelStyle)> {
             ),
         ),
     ]
+}
+
+/// Returns a basic set of default alignment styles.
+pub fn default_alignment_styles() -> Vec<(String, crate::geometry::line::LineStyle)> {
+    use crate::geometry::line::{LineStyle, LineType};
+    vec![(
+        "Default".to_string(),
+        LineStyle::new(LineType::Solid, [0, 200, 255], LineWeight(1.0)),
+    )]
 }
 
 /// Returns a basic set of default polygon styles.

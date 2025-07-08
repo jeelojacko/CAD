@@ -1,5 +1,8 @@
 export { PointManager } from "point_manager.slint";
 export { LineStyleManager } from "line_style_manager.slint";
+export { AlignmentStyleManager } from "alignment_style_manager.slint";
+export { LineLabelStyleManager } from "line_label_style_manager.slint";
+export { PointLabelStyleManager } from "point_label_style_manager.slint";
 export { LayerManager } from "layer_manager.slint";
 export { CrossSectionViewer } from "cross_section_viewer.slint";
 export { SuperelevationEditor } from "superelevation_editor.slint";
@@ -25,6 +28,9 @@ component Ribbon inherits TabWidget {
     callback save_project();
     callback point_manager();
     callback line_style_manager();
+    callback alignment_style_manager();
+    callback line_label_style_manager();
+    callback point_label_style_manager();
     callback layer_manager();
     callback inspector();
     callback add_point();
@@ -902,6 +908,9 @@ export component MainWindow inherits Window {
     callback snap_tolerance_changed(float);
     callback point_manager();
     callback line_style_manager();
+    callback alignment_style_manager();
+    callback line_label_style_manager();
+    callback point_label_style_manager();
     callback layer_manager();
     callback inspector();
     callback import_geojson();
@@ -1085,6 +1094,9 @@ export component MainWindow inherits Window {
             save_project => { root.save_project(); }
             point_manager => { root.point_manager(); }
             line_style_manager => { root.line_style_manager(); }
+            alignment_style_manager => { root.alignment_style_manager(); }
+            line_label_style_manager => { root.line_label_style_manager(); }
+            point_label_style_manager => { root.point_label_style_manager(); }
             layer_manager => { root.layer_manager(); }
             inspector => { root.inspector(); }
             add_point => { root.add_point(); }
