@@ -2,6 +2,7 @@ use slint::Image;
 use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
+use truck_meshalgo::prelude::*;
 
 pub enum HitObject {
     Point(usize),
@@ -35,6 +36,7 @@ pub struct TruckBackend {
     lines: Vec<(Point3, Point3, Vector4, f32)>,
     dimensions: Vec<(Point3, Point3)>,
     surfaces: Vec<SurfaceData>,
+    solids: Vec<Vec<Point3>>,
     handles: Option<(HandleTarget, Vec<usize>)>,
     hover_surface: Option<usize>,
     hover_handle: Option<usize>,
@@ -54,6 +56,7 @@ impl TruckBackend {
             lines: Vec::new(),
             dimensions: Vec::new(),
             surfaces: Vec::new(),
+            solids: Vec::new(),
             handles: None,
             hover_surface: None,
             hover_handle: None,
@@ -211,6 +214,8 @@ impl TruckBackend {
     }
 
     pub fn add_solid(&mut self, solid: Solid) {
+        let mesh = solid.triangulation(0.01).to_polygon();
+        self.solids.push(mesh.positions().clone());
         self.engine.add_solid(solid);
     }
 
@@ -345,6 +350,7 @@ impl TruckBackend {
         self.lines.clear();
         self.dimensions.clear();
         self.surfaces.clear();
+        self.solids.clear();
         if let Some((_, handles)) = self.handles.take() {
             for id in handles {
                 self.engine.remove_point_marker(id);
@@ -479,6 +485,29 @@ impl TruckBackend {
             (z - orig.z) / dir.z
         };
         orig + dir * t
+    }
+
+    /// Collect geometry for snapping.
+    pub fn snap_scene(&self) -> crate::snap::Scene3D {
+        let lines = self
+            .lines
+            .iter()
+            .map(|(a, b, _, _)| (*a, *b))
+            .collect();
+        let mut surface_vertices = Vec::new();
+        for s in &self.surfaces {
+            surface_vertices.extend_from_slice(&s.vertices);
+        }
+        let mut solid_vertices = Vec::new();
+        for verts in &self.solids {
+            solid_vertices.extend_from_slice(verts);
+        }
+        crate::snap::Scene3D {
+            points: self.points.clone(),
+            lines,
+            surface_vertices,
+            solid_vertices,
+        }
     }
 
     /// Hit test screen coordinates against existing objects.

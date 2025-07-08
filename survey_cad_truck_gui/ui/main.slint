@@ -763,6 +763,8 @@ export component SnapSettingsDialog inherits Window {
     in-out property <bool> snap_midpoints;
     in-out property <bool> snap_intersections;
     in-out property <bool> snap_nearest;
+    in-out property <bool> snap_surfaces;
+    in-out property <bool> snap_solids;
     callback accept();
     callback cancel();
     title: "Snap Settings";
@@ -777,6 +779,8 @@ export component SnapSettingsDialog inherits Window {
         CheckBox { text: "Midpoints"; checked <=> root.snap_midpoints; }
         CheckBox { text: "Intersections"; checked <=> root.snap_intersections; }
         CheckBox { text: "Nearest"; checked <=> root.snap_nearest; }
+        CheckBox { text: "Surfaces"; checked <=> root.snap_surfaces; }
+        CheckBox { text: "Solids"; checked <=> root.snap_solids; }
         HorizontalBox {
             spacing: 6px;
             Button { text: "OK"; clicked => { root.accept(); } }
@@ -838,6 +842,8 @@ export component MainWindow inherits Window {
     in-out property <bool> snap_midpoints;
     in-out property <bool> snap_intersections;
     in-out property <bool> snap_nearest;
+    in-out property <bool> snap_surfaces;
+    in-out property <bool> snap_solids;
     in-out property <float> snap_tolerance;
     in-out property <float> zoom_level;
     in-out property <[string]> command_history;
@@ -891,6 +897,8 @@ export component MainWindow inherits Window {
     callback snap_intersections_changed(bool);
     callback snap_midpoints_changed(bool);
     callback snap_nearest_changed(bool);
+    callback snap_surfaces_changed(bool);
+    callback snap_solids_changed(bool);
     callback snap_tolerance_changed(float);
     callback point_manager();
     callback line_style_manager();

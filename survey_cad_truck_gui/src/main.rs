@@ -99,6 +99,8 @@ struct SnapPrefs {
     snap_midpoints: bool,
     snap_intersections: bool,
     snap_nearest: bool,
+    snap_surfaces: bool,
+    snap_solids: bool,
     snap_tolerance: f32,
 }
 
@@ -112,6 +114,8 @@ impl Default for SnapPrefs {
             snap_midpoints: true,
             snap_intersections: true,
             snap_nearest: true,
+            snap_surfaces: true,
+            snap_solids: true,
             snap_tolerance: 5.0,
         }
     }
@@ -2312,6 +2316,8 @@ fn main() -> Result<(), slint::PlatformError> {
         app.set_snap_intersections(p.snap_intersections);
         app.set_snap_midpoints(p.snap_midpoints);
         app.set_snap_nearest(p.snap_nearest);
+        app.set_snap_surfaces(p.snap_surfaces);
+        app.set_snap_solids(p.snap_solids);
         app.set_snap_tolerance(p.snap_tolerance);
     }
     let last_folder = Rc::new(RefCell::new(config.borrow().last_open_dir.clone()));
@@ -3714,6 +3720,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 snap_midpoints: app.get_snap_midpoints(),
                                 snap_intersections: app.get_snap_intersections(),
                                 snap_nearest: app.get_snap_nearest(),
+                                snap_surfaces: app.get_snap_surfaces(),
+                                snap_solids: app.get_snap_solids(),
                             };
                             if let Some(sp) = snap::resolve_snap(
                                 p,
@@ -4081,9 +4089,31 @@ fn main() -> Result<(), slint::PlatformError> {
             *last = (x as f64, y as f64);
             if let Some(i) = *active_handle_ref.borrow() {
                 if let Some(pos) = backend_move.borrow().handle_position(i) {
-                    let new_p = backend_move
+                    let mut new_p = backend_move
                         .borrow()
                         .screen_to_plane(x as f64, y as f64, pos.z);
+                    if let Some(app_ref) = weak.upgrade() {
+                        if app_ref.get_snap_to_entities() {
+                            let scene = backend_move.borrow().snap_scene();
+                            let opts = snap::SnapOptions {
+                                snap_points: app_ref.get_snap_points(),
+                                snap_endpoints: app_ref.get_snap_endpoints(),
+                                snap_midpoints: app_ref.get_snap_midpoints(),
+                                snap_intersections: app_ref.get_snap_intersections(),
+                                snap_nearest: app_ref.get_snap_nearest(),
+                                snap_surfaces: app_ref.get_snap_surfaces(),
+                                snap_solids: app_ref.get_snap_solids(),
+                            };
+                            if let Some(sp) = snap::resolve_snap_3d(
+                                new_p,
+                                &scene,
+                                app_ref.get_snap_tolerance() as f64,
+                                opts,
+                            ) {
+                                new_p = sp;
+                            }
+                        }
+                    }
                     backend_move.borrow_mut().move_handle(i, new_p);
                     if let Some(app) = weak.upgrade() {
                         let image = backend_move.borrow_mut().render();
@@ -4162,6 +4192,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
                             snap_nearest: app.get_snap_nearest(),
+                            snap_surfaces: app.get_snap_surfaces(),
+                            snap_solids: app.get_snap_solids(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
@@ -8310,6 +8342,8 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_snap_midpoints(prefs.snap_midpoints);
             dlg.set_snap_intersections(prefs.snap_intersections);
             dlg.set_snap_nearest(prefs.snap_nearest);
+            dlg.set_snap_surfaces(prefs.snap_surfaces);
+            dlg.set_snap_solids(prefs.snap_solids);
             drop(prefs);
             let dlg_weak = dlg.as_weak();
             let prefs_ref = snap_prefs_ref.clone();
@@ -8331,12 +8365,18 @@ fn main() -> Result<(), slint::PlatformError> {
                     cfg_ref.borrow_mut().snap.snap_intersections = d.get_snap_intersections();
                     prefs_ref.borrow_mut().snap_nearest = d.get_snap_nearest();
                     cfg_ref.borrow_mut().snap.snap_nearest = d.get_snap_nearest();
+                    prefs_ref.borrow_mut().snap_surfaces = d.get_snap_surfaces();
+                    cfg_ref.borrow_mut().snap.snap_surfaces = d.get_snap_surfaces();
+                    prefs_ref.borrow_mut().snap_solids = d.get_snap_solids();
+                    cfg_ref.borrow_mut().snap.snap_solids = d.get_snap_solids();
                     if let Some(a) = app_weak.upgrade() {
                         a.set_snap_points(d.get_snap_points());
                         a.set_snap_endpoints(d.get_snap_endpoints());
                         a.set_snap_midpoints(d.get_snap_midpoints());
                         a.set_snap_intersections(d.get_snap_intersections());
                         a.set_snap_nearest(d.get_snap_nearest());
+                        a.set_snap_surfaces(d.get_snap_surfaces());
+                        a.set_snap_solids(d.get_snap_solids());
                         if let Ok(v) = d.get_tolerance().parse::<f32>() {
                             a.set_snap_tolerance(v);
                         }
@@ -8502,6 +8542,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
                             snap_nearest: app.get_snap_nearest(),
+                            snap_surfaces: app.get_snap_surfaces(),
+                            snap_solids: app.get_snap_solids(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
@@ -8616,6 +8658,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             snap_midpoints: app.get_snap_midpoints(),
                             snap_intersections: app.get_snap_intersections(),
                             snap_nearest: app.get_snap_nearest(),
+                            snap_surfaces: app.get_snap_surfaces(),
+                            snap_solids: app.get_snap_solids(),
                         };
                         if let Some(sp) = snap::resolve_snap(
                             p,
