@@ -1,11 +1,10 @@
 use super::*;
 use std::fmt::Debug;
 use thiserror::Error;
-use truck_base::{
-    assert_near,
-    cgmath64::{Point2, Point3, Vector2, Vector3},
-    tolerance::Tolerance,
-};
+use truck_base::cgmath64::{Point2, Point3, Vector2, Vector3};
+#[cfg(test)]
+use truck_base::{assert_near, tolerance::Tolerance};
+#[cfg(test)]
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
 /// Parametric curves
