@@ -587,6 +587,17 @@ struct MacroContext {
     weak: slint::Weak<MainWindow>,
 }
 
+struct PythonContext {
+    weak: slint::Weak<MainWindow>,
+    point_db: Rc<RefCell<PointDatabase>>,
+    lines: Rc<RefCell<Vec<(Point, Point)>>>,
+    surfaces: Rc<RefCell<Vec<Tin>>>,
+    selected_points: Rc<RefCell<Vec<usize>>>,
+    selected_lines: Rc<RefCell<Vec<(Point, Point)>>>,
+    offset: Rc<RefCell<Vec2>>,
+    zoom: Rc<RefCell<f32>>,
+}
+
 fn play_macro_file(path: &Path, ctx: &MacroContext) {
     if let Ok(content) = std::fs::read_to_string(path) {
         ctx.playing.borrow_mut().0 = true;
@@ -639,31 +650,22 @@ fn play_macro_file(path: &Path, ctx: &MacroContext) {
     }
 }
 
-fn run_python_file(
-    path: &Path,
-    weak: &slint::Weak<MainWindow>,
-    point_db: &Rc<RefCell<PointDatabase>>,
-    lines_ref: &Rc<RefCell<Vec<(Point, Point)>>>,
-    surfaces_ref: &Rc<RefCell<Vec<Tin>>>,
-    selected_points: &Rc<RefCell<Vec<usize>>>,
-    selected_lines: &Rc<RefCell<Vec<(Point, Point)>>>,
-    offset: &Rc<RefCell<Vec2>>,
-    zoom: &Rc<RefCell<f32>>,
-) {
+fn run_python_file(path: &Path, ctx: &PythonContext) {
     match std::fs::read_to_string(path) {
         Ok(code) => {
             let result = Python::with_gil(|py| {
                 let module = PyModule::new_bound(py, "survey_cad_python")?;
                 survey_cad_python::init(py, &module)?;
 
-                let pts: Vec<Py<survey_cad_python::Point>> = point_db
+                let pts: Vec<Py<survey_cad_python::Point>> = ctx
+                    .point_db
                     .borrow()
                     .iter()
                     .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
                     .collect::<PyResult<_>>()?;
 
                 let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
-                    lines_ref
+                    ctx.lines
                         .borrow()
                         .iter()
                         .map(|(a, b)| {
@@ -674,7 +676,8 @@ fn run_python_file(
                         })
                         .collect::<PyResult<_>>()?;
 
-                let surfs: Vec<Py<PyAny>> = surfaces_ref
+                let surfs: Vec<Py<PyAny>> = ctx
+                    .surfaces
                     .borrow()
                     .iter()
                     .map(|s| {
@@ -689,23 +692,26 @@ fn run_python_file(
                     })
                     .collect::<PyResult<_>>()?;
 
-                let selected_pts: Vec<usize> = selected_points.borrow().clone();
-                let selected_lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
-                    selected_lines
-                        .borrow()
-                        .iter()
-                        .map(|(a, b)| {
-                            Ok((
-                                Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
-                                Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
-                            ))
-                        })
-                        .collect::<PyResult<_>>()?;
+                let selected_pts: Vec<usize> = ctx.selected_points.borrow().clone();
+                let selected_lines_py: Vec<(
+                    Py<survey_cad_python::Point>,
+                    Py<survey_cad_python::Point>,
+                )> = ctx
+                    .selected_lines
+                    .borrow()
+                    .iter()
+                    .map(|(a, b)| {
+                        Ok((
+                            Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                            Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                        ))
+                    })
+                    .collect::<PyResult<_>>()?;
 
                 let view = PyDict::new_bound(py);
-                let off = offset.borrow();
+                let off = ctx.offset.borrow();
                 view.set_item("offset", (off.x, off.y))?;
-                view.set_item("zoom", *zoom.borrow())?;
+                view.set_item("zoom", *ctx.zoom.borrow())?;
 
                 let globals = PyDict::new_bound(py);
                 globals.set_item("survey_cad_python", module)?;
@@ -721,19 +727,19 @@ fn run_python_file(
 
             match result {
                 Ok(_) => {
-                    if let Some(app) = weak.upgrade() {
+                    if let Some(app) = ctx.weak.upgrade() {
                         app.set_status(SharedString::from("Python script finished"));
                     }
                 }
                 Err(e) => {
-                    if let Some(app) = weak.upgrade() {
+                    if let Some(app) = ctx.weak.upgrade() {
                         app.set_status(SharedString::from(format!("Python error: {e}")));
                     }
                 }
             }
         }
         Err(e) => {
-            if let Some(app) = weak.upgrade() {
+            if let Some(app) = ctx.weak.upgrade() {
                 app.set_status(SharedString::from(format!("Failed to read: {e}")));
             }
         }
@@ -2860,17 +2866,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
                     if name.ends_with(".py") {
-                        run_python_file(
-                            &path,
-                            &weak_run,
-                            &point_db_run,
-                            &lines_run,
-                            &surfaces_run,
-                            &selected_indices.clone(),
-                            &selected_lines.clone(),
-                            &offset.clone(),
-                            &zoom.clone(),
-                        );
+                        let ctx_py = PythonContext {
+                            weak: weak_run.clone(),
+                            point_db: point_db_run.clone(),
+                            lines: lines_run.clone(),
+                            surfaces: surfaces_run.clone(),
+                            selected_points: selected_indices.clone(),
+                            selected_lines: selected_lines.clone(),
+                            offset: offset.clone(),
+                            zoom: zoom.clone(),
+                        };
+                        run_python_file(&path, &ctx_py);
                     } else {
                         let ctx = MacroContext {
                             playing: playing_run.clone(),
@@ -2950,17 +2956,17 @@ fn main() -> Result<(), slint::PlatformError> {
             panel.on_run(move |idx| {
                 if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
-                    run_python_file(
-                        &path,
-                        &weak_run,
-                        &point_db_run,
-                        &lines_run,
-                        &surfaces_run,
-                        &selected_indices_run,
-                        &selected_lines_run,
-                        &offset_run,
-                        &zoom_run,
-                    );
+                    let ctx_py = PythonContext {
+                        weak: weak_run.clone(),
+                        point_db: point_db_run.clone(),
+                        lines: lines_run.clone(),
+                        surfaces: surfaces_run.clone(),
+                        selected_points: selected_indices_run.clone(),
+                        selected_lines: selected_lines_run.clone(),
+                        offset: offset_run.clone(),
+                        zoom: zoom_run.clone(),
+                    };
+                    run_python_file(&path, &ctx_py);
                 }
             });
 
@@ -2998,17 +3004,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 let path = Path::new(MACRO_DIR).join(name);
                 if name.ends_with(".py") {
-                    run_python_file(
-                        &path,
-                        &weak,
-                        &point_db,
-                        &lines_ref,
-                        &surfaces_ref,
-                        &selected_indices,
-                        &selected_lines,
-                        &offset,
-                        &zoom,
-                    );
+                    let ctx_py = PythonContext {
+                        weak: weak.clone(),
+                        point_db: point_db.clone(),
+                        lines: lines_ref.clone(),
+                        surfaces: surfaces_ref.clone(),
+                        selected_points: selected_indices.clone(),
+                        selected_lines: selected_lines.clone(),
+                        offset: offset.clone(),
+                        zoom: zoom.clone(),
+                    };
+                    run_python_file(&path, &ctx_py);
                 } else {
                     let ctx = MacroContext {
                         playing: playing.clone(),
