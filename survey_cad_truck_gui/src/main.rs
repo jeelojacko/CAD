@@ -8,10 +8,10 @@ use std::io::Write;
 use std::rc::Rc;
 use std::time::Instant;
 
-use survey_cad::alignment::{Alignment, VerticalAlignment, VerticalElement};
+use survey_cad::alignment::{Alignment, AlignmentGroup, VerticalAlignment, VerticalElement};
 use survey_cad::corridor;
 use survey_cad::crs::list_known_crs;
-use survey_cad::dtm::Tin;
+use survey_cad::dtm::{Tin, SurfaceGroup};
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
     convex_hull, Arc, Line, LineAnnotation, LineStyle, LineType, LinearDimension, Point,
@@ -2368,10 +2368,12 @@ fn main() -> Result<(), slint::PlatformError> {
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let dimensions = Rc::new(RefCell::new(Vec::<LinearDimension>::new()));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
+    let surface_groups = Rc::new(RefCell::new(Vec::<SurfaceGroup>::new()));
     let surface_units = Rc::new(RefCell::new(Vec::<String>::new()));
     let surface_styles = Rc::new(RefCell::new(Vec::<String>::new()));
     let surface_descriptions = Rc::new(RefCell::new(Vec::<String>::new()));
     let alignments = Rc::new(RefCell::new(Vec::<Alignment>::new()));
+    let alignment_groups = Rc::new(RefCell::new(Vec::<AlignmentGroup>::new()));
     let superelevation = Rc::new(RefCell::new(Vec::<SuperelevationPoint>::new()));
     let layers = Rc::new(RefCell::new(ScLayerManager::new()));
     let layer_names = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -4454,6 +4456,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             dimensions.borrow_mut().extend(proj.dimensions.clone());
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
+                            surface_groups.borrow_mut().clear();
+                            surface_groups.borrow_mut().extend(proj.surface_groups.clone());
                             surface_units_ref.borrow_mut().clear();
                             surface_units_ref
                                 .borrow_mut()
@@ -4468,6 +4472,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .extend(proj.surface_descriptions.clone());
                             alignments.borrow_mut().clear();
                             alignments.borrow_mut().extend(proj.alignments.clone());
+                            alignment_groups.borrow_mut().clear();
+                            alignment_groups.borrow_mut().extend(proj.alignment_groups.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
                             *polygon_style_indices.borrow_mut() =
@@ -4556,7 +4562,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_units_ref = surface_units.clone();
         let surface_styles_ref = surface_styles.clone();
         let surface_descriptions_ref = surface_descriptions.clone();
+        let surface_groups_ref = surface_groups.clone();
         let alignments_save = alignments.clone();
+        let alignment_groups_save = alignment_groups.clone();
         let layer_names_save = layer_names.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
@@ -4576,7 +4584,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         arcs: arcs.borrow().clone(),
                         dimensions: dimensions.borrow().clone(),
                         alignments: alignments_save.borrow().clone(),
+                        alignment_groups: alignment_groups_save.borrow().clone(),
                         surfaces: surfaces.borrow().clone(),
+                        surface_groups: surface_groups_ref.borrow().clone(),
                         surface_units: surface_units_ref.borrow().clone(),
                         surface_styles: surface_styles_ref.borrow().clone(),
                         surface_descriptions: surface_descriptions_ref.borrow().clone(),
@@ -6122,6 +6132,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend = backend.clone();
         let weak = app.as_weak();
         let cs_outer = command_stack.clone();
+        let surface_groups = surface_groups.clone();
         app.on_tin_add_vertex(move || {
             let dlg = TinVertexDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6136,15 +6147,17 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        if let Some(idx) = backend_inner
-                            .borrow_mut()
-                            .add_vertex(surf, Point3::new(x, y, z))
-                        {
-                            command_stack.borrow_mut().push(Command::TinDeleteVertex {
-                                surface: surf,
-                                index: idx,
-                                point: Point3::new(x, y, z),
-                            });
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            if let Some(idx) = backend_inner.borrow_mut().add_vertex(sidx, Point3::new(x, y, z)) {
+                                command_stack.borrow_mut().push(Command::TinDeleteVertex {
+                                    surface: sidx,
+                                    index: idx,
+                                    point: Point3::new(x, y, z),
+                                });
+                            }
                         }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
@@ -6168,6 +6181,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_move_vertex(move || {
             let dlg = TinVertexDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6182,9 +6196,14 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        backend_inner
-                            .borrow_mut()
-                            .move_vertex(surf, idx, Point3::new(x, y, z));
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner
+                                .borrow_mut()
+                                .move_vertex(sidx, idx, Point3::new(x, y, z));
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6207,6 +6226,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_delete_vertex(move || {
             let dlg = TinVertexDialog::new().unwrap();
             dlg.set_x_val("0".into());
@@ -6221,7 +6241,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_surface_index().parse::<usize>(),
                         d.get_vertex_index().parse::<usize>(),
                     ) {
-                        backend_inner.borrow_mut().delete_vertex(surf, idx);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().delete_vertex(sidx, idx);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6244,6 +6269,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_add_triangle(move || {
             let dlg = TinTriangleDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6257,7 +6283,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v2().parse::<usize>(),
                         d.get_v3().parse::<usize>(),
                     ) {
-                        backend_inner.borrow_mut().add_triangle(surf, [a, b, c]);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().add_triangle(sidx, [a, b, c]);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6280,6 +6311,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_delete_triangle(move || {
             let dlg = TinTriangleDialog::new().unwrap();
             dlg.set_v1("0".into());
@@ -6294,7 +6326,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_surface_index().parse::<usize>(),
                         d.get_tri_index().parse::<usize>(),
                     ) {
-                        backend_inner.borrow_mut().delete_triangle(surf, idx);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().delete_triangle(sidx, idx);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6317,6 +6354,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_add_breakline(move || {
             let dlg = TinBreaklineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6329,7 +6367,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        backend_inner.borrow_mut().add_breakline(surf, a, b);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().add_breakline(sidx, a, b);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6352,6 +6395,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_remove_breakline(move || {
             let dlg = TinBreaklineDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6364,7 +6408,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        backend_inner.borrow_mut().remove_breakline(surf, a, b);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().remove_breakline(sidx, a, b);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6387,6 +6436,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_set_boundary(move || {
             let dlg = TinBoundaryDialog::new().unwrap();
             let dlg_weak = dlg.as_weak();
@@ -6400,7 +6450,12 @@ fn main() -> Result<(), slint::PlatformError> {
                             .split(|c: char| c == ',' || c.is_whitespace())
                             .filter_map(|s| s.parse().ok())
                             .collect();
-                        backend_inner.borrow_mut().set_boundary(surf, verts);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().set_boundary(sidx, verts.clone());
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -6423,6 +6478,7 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let backend = backend.clone();
         let weak = app.as_weak();
+        let surface_groups = surface_groups.clone();
         app.on_tin_clear_boundary(move || {
             let dlg = TinBoundaryDialog::new().unwrap();
             dlg.set_verts("".into());
@@ -6432,7 +6488,12 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(surf) = d.get_surface_index().parse::<usize>() {
-                        backend_inner.borrow_mut().clear_boundary(surf);
+                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                            g.surface_ids.clone()
+                        } else { vec![surf] };
+                        for sidx in targets {
+                            backend_inner.borrow_mut().clear_boundary(sidx);
+                        }
                         if let Some(app) = weak2.upgrade() {
                             let image = backend_inner.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -8140,6 +8201,82 @@ fn main() -> Result<(), slint::PlatformError> {
                 });
             }
 
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let surface_groups = surface_groups.clone();
+        let weak = app.as_weak();
+        app.on_surface_group_manager(move || {
+            let dlg = SurfaceGroupManager::new().unwrap();
+            let model = Rc::new(VecModel::<SharedString>::from(
+                surface_groups
+                    .borrow()
+                    .iter()
+                    .map(|g| SharedString::from(g.name.clone()))
+                    .collect::<Vec<_>>()
+            ));
+            dlg.set_groups_model(model.clone().into());
+            dlg.set_selected_index(-1);
+            {
+                let surface_groups = surface_groups.clone();
+                let model = model.clone();
+                dlg.on_create_group(move || {
+                    let name = format!("Group {}", surface_groups.borrow().len() + 1);
+                    surface_groups.borrow_mut().push(SurfaceGroup { name: name.clone(), surface_ids: Vec::new() });
+                    model.push(SharedString::from(name));
+                });
+            }
+            {
+                let surface_groups = surface_groups.clone();
+                let model = model.clone();
+                dlg.on_rename_group(move |idx| {
+                    if idx >= 0 { if let Some(g) = surface_groups.borrow_mut().get_mut(idx as usize) {
+                        let new_name = format!("Group {}", idx + 1);
+                        g.name = new_name.clone();
+                        model.set_row_data(idx as usize, SharedString::from(new_name));
+                    } }
+                });
+            }
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let alignment_groups = alignment_groups.clone();
+        let weak = app.as_weak();
+        app.on_alignment_group_manager(move || {
+            let dlg = AlignmentGroupManager::new().unwrap();
+            let model = Rc::new(VecModel::<SharedString>::from(
+                alignment_groups
+                    .borrow()
+                    .iter()
+                    .map(|g| SharedString::from(g.name.clone()))
+                    .collect::<Vec<_>>()
+            ));
+            dlg.set_groups_model(model.clone().into());
+            dlg.set_selected_index(-1);
+            {
+                let alignment_groups = alignment_groups.clone();
+                let model = model.clone();
+                dlg.on_create_group(move || {
+                    let name = format!("Group {}", alignment_groups.borrow().len() + 1);
+                    alignment_groups.borrow_mut().push(AlignmentGroup { name: name.clone(), alignment_ids: Vec::new() });
+                    model.push(SharedString::from(name));
+                });
+            }
+            {
+                let alignment_groups = alignment_groups.clone();
+                let model = model.clone();
+                dlg.on_rename_group(move |idx| {
+                    if idx >= 0 { if let Some(g) = alignment_groups.borrow_mut().get_mut(idx as usize) {
+                        let new_name = format!("Group {}", idx + 1);
+                        g.name = new_name.clone();
+                        model.set_row_data(idx as usize, SharedString::from(new_name));
+                    } }
+                });
+            }
             dlg.show().unwrap();
         });
     }

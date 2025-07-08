@@ -503,6 +503,71 @@ pub struct Alignment {
     pub vertical: VerticalAlignment,
 }
 
+/// Group of alignment indices.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct AlignmentGroup {
+    pub name: String,
+    pub alignment_ids: Vec<usize>,
+}
+
+/// Collection of alignments with optional grouping.
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AlignmentManager {
+    pub alignments: Vec<Alignment>,
+    #[serde(default)]
+    pub groups: Vec<AlignmentGroup>,
+}
+
+impl AlignmentManager {
+    pub fn add(&mut self, al: Alignment) { self.alignments.push(al); }
+
+    pub fn remove(&mut self, index: usize) {
+        if index < self.alignments.len() {
+            self.alignments.remove(index);
+            for g in &mut self.groups {
+                g.alignment_ids.retain(|&id| id != index);
+                for id in &mut g.alignment_ids {
+                    if *id > index { *id -= 1; }
+                }
+            }
+        }
+    }
+
+    pub fn add_group<S: Into<String>>(&mut self, name: S) -> usize {
+        self.groups.push(AlignmentGroup { name: name.into(), alignment_ids: Vec::new() });
+        self.groups.len() - 1
+    }
+
+    pub fn rename_group<S: Into<String>>(&mut self, id: usize, name: S) -> bool {
+        if let Some(g) = self.groups.get_mut(id) {
+            g.name = name.into();
+            true
+        } else { false }
+    }
+
+    pub fn assign_alignment(&mut self, align_id: usize, group_id: usize) -> bool {
+        if align_id >= self.alignments.len() || group_id >= self.groups.len() { return false; }
+        let g = &mut self.groups[group_id];
+        if !g.alignment_ids.contains(&align_id) {
+            g.alignment_ids.push(align_id);
+        }
+        true
+    }
+
+    pub fn remove_alignment_from_group(&mut self, align_id: usize, group_id: usize) -> bool {
+        if let Some(g) = self.groups.get_mut(group_id) {
+            let len = g.alignment_ids.len();
+            g.alignment_ids.retain(|&id| id != align_id);
+            return len != g.alignment_ids.len();
+        }
+        false
+    }
+
+    pub fn iter_groups(&self) -> impl Iterator<Item=(usize, &AlignmentGroup)> {
+        self.groups.iter().enumerate()
+    }
+}
+
 impl Alignment {
     pub fn new(horizontal: HorizontalAlignment, vertical: VerticalAlignment) -> Self {
         Self {
