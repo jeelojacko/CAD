@@ -1,5 +1,10 @@
 use super::*;
 use std::f64::consts::PI;
+use rand::{rngs::StdRng, Rng, SeedableRng};
+
+fn seeded_rng() -> StdRng {
+    StdRng::seed_from_u64(0)
+}
 
 #[test]
 fn intersection_curve_sphere_case() {
@@ -37,7 +42,8 @@ fn intersection_curve_sphere_case() {
         2.0 * PI
     );
 
-    let theta = 2.0 * PI * rand::random::<f64>();
+    let mut rng = seeded_rng();
+    let theta = 2.0 * PI * rng.gen::<f64>();
     let pt = Point3::new(f64::cos(theta), f64::sin(theta), 0.0);
     let t = curve.search_parameter(pt, None, 10).unwrap();
     assert_near!(curve.subs(t), pt);

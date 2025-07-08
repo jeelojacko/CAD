@@ -1,8 +1,13 @@
 use algo::surface;
 use truck_base::{cgmath64::*, tolerance::*};
 use truck_geotrait::*;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 mod polynomial;
 use polynomial::{PolyCurve, PolySurface};
+
+fn seeded_rng() -> StdRng {
+    StdRng::seed_from_u64(0)
+}
 
 #[test]
 fn polysurface() {
@@ -64,22 +69,23 @@ fn polysurface_presearch() {
 }
 
 fn exec_polysurface_snp_on_surface() -> bool {
+    let mut rng = seeded_rng();
     let coef0 = vec![
-        Vector3::new(0.0, 1.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(1.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
+        Vector3::new(0.0, 1.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(1.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
     ];
     let coef1 = vec![
-        Vector3::new(1.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 1.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
+        Vector3::new(1.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 1.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
     ];
     let poly = PolySurface(PolyCurve(coef0), PolyCurve(coef1));
-    let u = 10.0 * rand::random::<f64>() - 5.0;
-    let v = 10.0 * rand::random::<f64>() - 5.0;
+    let u = 10.0 * rng.gen::<f64>() - 5.0;
+    let v = 10.0 * rng.gen::<f64>() - 5.0;
     let pt = poly.subs(u, v);
-    let u0 = u + 0.2 * rand::random::<f64>() - 0.1;
-    let v0 = v + 0.2 * rand::random::<f64>() - 0.1;
+    let u0 = u + 0.2 * rng.gen::<f64>() - 0.1;
+    let v0 = v + 0.2 * rng.gen::<f64>() - 0.1;
     match algo::surface::search_nearest_parameter(&poly, pt, (u0, v0), 100) {
         Some(res) => match poly.subs(res.0, res.1).near(&pt) {
             true => true,
@@ -121,24 +127,25 @@ fn polysurface_snp_on_surface() {
 }
 
 fn exec_polysurface_sp_on_surface() -> bool {
+    let mut rng = seeded_rng();
     let coef0 = vec![
-        Vector3::new(0.0, 1.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(1.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
+        Vector3::new(0.0, 1.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(1.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
     ];
     let coef1 = vec![
-        Vector3::new(1.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 1.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
-        Vector3::new(0.0, 0.0, 3.0 * rand::random::<f64>() - 1.5),
+        Vector3::new(1.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 1.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
+        Vector3::new(0.0, 0.0, 3.0 * rng.gen::<f64>() - 1.5),
     ];
     let poly = PolySurface(PolyCurve(coef0), PolyCurve(coef1));
-    let u = 10.0 * rand::random::<f64>() - 5.0;
-    let v = 10.0 * rand::random::<f64>() - 5.0;
+    let u = 10.0 * rng.gen::<f64>() - 5.0;
+    let v = 10.0 * rng.gen::<f64>() - 5.0;
     let pt = poly.subs(u, v);
-    let u0 = u + 2.0 * rand::random::<f64>() - 1.0;
-    let v0 = v + 2.0 * rand::random::<f64>() - 1.0;
+    let u0 = u + 2.0 * rng.gen::<f64>() - 1.0;
+    let v0 = v + 2.0 * rng.gen::<f64>() - 1.0;
     match algo::surface::search_parameter(&poly, pt, (u0, v0), 100) {
         Some(res) => match poly.subs(res.0, res.1).near(&pt) {
             true => true,
@@ -180,7 +187,8 @@ fn polysurface_sp_on_surface() {
 }
 
 fn exec_polysurface_intersection_point() -> bool {
-    let (a, b) = (rand::random::<f64>(), rand::random::<f64>());
+    let mut rng = seeded_rng();
+    let (a, b) = (rng.gen::<f64>(), rng.gen::<f64>());
     let coef0 = vec![
         Vector3::new(0.0, 1.0, 0.0),
         Vector3::new(1.0, 0.0, 0.0),
@@ -213,15 +221,16 @@ fn polysurface_intersection_point() {
 }
 
 fn exec_polysurface_division() -> bool {
+    let mut rng = seeded_rng();
     let coef0 = vec![
-        Vector3::new(0.0, 1.0, 10.0 * rand::random::<f64>() - 5.0),
-        Vector3::new(1.0, 0.0, 10.0 * rand::random::<f64>() - 5.0),
-        Vector3::new(0.0, 0.0, 10.0 * rand::random::<f64>() - 5.0),
+        Vector3::new(0.0, 1.0, 10.0 * rng.gen::<f64>() - 5.0),
+        Vector3::new(1.0, 0.0, 10.0 * rng.gen::<f64>() - 5.0),
+        Vector3::new(0.0, 0.0, 10.0 * rng.gen::<f64>() - 5.0),
     ];
     let coef1 = vec![
-        Vector3::new(1.0, 0.0, 10.0 * rand::random::<f64>() - 5.0),
-        Vector3::new(0.0, 1.0, 10.0 * rand::random::<f64>() - 5.0),
-        Vector3::new(0.0, 0.0, 10.0 * rand::random::<f64>() - 5.0),
+        Vector3::new(1.0, 0.0, 10.0 * rng.gen::<f64>() - 5.0),
+        Vector3::new(0.0, 1.0, 10.0 * rng.gen::<f64>() - 5.0),
+        Vector3::new(0.0, 0.0, 10.0 * rng.gen::<f64>() - 5.0),
     ];
     let poly = PolySurface(PolyCurve(coef0), PolyCurve(coef1));
     let (udiv, vdiv) = algo::surface::parameter_division(&poly, ((-1.0, 1.0), (-1.0, 1.0)), 0.1);
