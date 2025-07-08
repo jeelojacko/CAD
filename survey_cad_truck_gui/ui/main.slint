@@ -5,6 +5,7 @@ export { CrossSectionViewer } from "cross_section_viewer.slint";
 export { SuperelevationEditor } from "superelevation_editor.slint";
 export { EntityInspector } from "entity_inspector.slint";
 export { ImportProgressDialog } from "import_progress.slint";
+export { ScriptPanel } from "script_panel.slint";
 
 component Ribbon inherits TabWidget {
     in property <[string]> crs_list;
@@ -931,6 +932,7 @@ export component MainWindow inherits Window {
     callback macro_play();
     callback run_python_script();
     callback show_macro_list();
+    callback open_script_panel();
     callback run_quick_script(int);
     callback undo();
     callback redo();
@@ -1046,6 +1048,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Play"; activated => { root.macro_play(); } }
             MenuItem { title: "Run Python Script"; activated => { root.run_python_script(); } }
             MenuItem { title: "Scripts..."; activated => { root.show_macro_list(); } }
+            MenuItem { title: "Plugins Panel"; activated => { root.open_script_panel(); } }
         }
     }
 

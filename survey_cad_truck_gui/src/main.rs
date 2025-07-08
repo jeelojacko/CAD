@@ -645,6 +645,10 @@ fn run_python_file(
     point_db: &Rc<RefCell<PointDatabase>>,
     lines_ref: &Rc<RefCell<Vec<(Point, Point)>>>,
     surfaces_ref: &Rc<RefCell<Vec<Tin>>>,
+    selected_points: &Rc<RefCell<Vec<usize>>>,
+    selected_lines: &Rc<RefCell<Vec<(Point, Point)>>>,
+    offset: &Rc<RefCell<Vec2>>,
+    zoom: &Rc<RefCell<f32>>,
 ) {
     match std::fs::read_to_string(path) {
         Ok(code) => {
@@ -685,11 +689,32 @@ fn run_python_file(
                     })
                     .collect::<PyResult<_>>()?;
 
+                let selected_pts: Vec<usize> = selected_points.borrow().clone();
+                let selected_lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
+                    selected_lines
+                        .borrow()
+                        .iter()
+                        .map(|(a, b)| {
+                            Ok((
+                                Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                            ))
+                        })
+                        .collect::<PyResult<_>>()?;
+
+                let view = PyDict::new_bound(py);
+                let off = offset.borrow();
+                view.set_item("offset", (off.x, off.y))?;
+                view.set_item("zoom", *zoom.borrow())?;
+
                 let globals = PyDict::new_bound(py);
                 globals.set_item("survey_cad_python", module)?;
                 globals.set_item("points", pts)?;
                 globals.set_item("lines", lines_py)?;
                 globals.set_item("surfaces", surfs)?;
+                globals.set_item("selected_points", selected_pts)?;
+                globals.set_item("selected_lines", selected_lines_py)?;
+                globals.set_item("view", view)?;
 
                 py.run_bound(&code, Some(&globals), None)
             });
@@ -2794,6 +2819,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let render_image = render_image.clone();
         let cfg = config.clone();
+        let selected_indices_ml = selected_indices.clone();
+        let selected_lines_ml = selected_lines.clone();
+        let offset_ml = offset.clone();
+        let zoom_ml = zoom.clone();
         app.on_show_macro_list(move || {
             let mut items = Vec::new();
             if let Ok(rd) = fs::read_dir(MACRO_DIR) {
@@ -2823,11 +2852,25 @@ fn main() -> Result<(), slint::PlatformError> {
             let backend_run = backend_render.clone();
             let render_image_run = render_image.clone();
             let items_run = items.clone();
+            let selected_indices = selected_indices_ml.clone();
+            let selected_lines = selected_lines_ml.clone();
+            let offset = offset_ml.clone();
+            let zoom = zoom_ml.clone();
             dlg.on_run(move |idx| {
                 if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
                     if name.ends_with(".py") {
-                        run_python_file(&path, &weak_run, &point_db_run, &lines_run, &surfaces_run);
+                        run_python_file(
+                            &path,
+                            &weak_run,
+                            &point_db_run,
+                            &lines_run,
+                            &surfaces_run,
+                            &selected_indices.clone(),
+                            &selected_lines.clone(),
+                            &offset.clone(),
+                            &zoom.clone(),
+                        );
                     } else {
                         let ctx = MacroContext {
                             playing: playing_run.clone(),
@@ -2870,6 +2913,69 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let surfaces_ref = surfaces.clone();
+        let selected_indices_ref = selected_indices.clone();
+        let selected_lines_ref = selected_lines.clone();
+        let offset_ref = offset.clone();
+        let zoom_ref = zoom.clone();
+        app.on_open_script_panel(move || {
+            let mut items = Vec::new();
+            if let Ok(rd) = fs::read_dir(MACRO_DIR) {
+                for ent in rd.flatten() {
+                    if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
+                        if ext == "py" {
+                            if let Some(n) = ent.file_name().to_str() {
+                                items.push(SharedString::from(n.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            let panel = ScriptPanel::new().unwrap();
+            panel.set_files(Rc::new(VecModel::from(items.clone())).into());
+            panel.set_selected_index(0);
+            let weak_run = weak.clone();
+            let point_db_run = point_db.clone();
+            let lines_run = lines_ref.clone();
+            let surfaces_run = surfaces_ref.clone();
+            let panel_weak = panel.as_weak();
+            let items_run = items.clone();
+            let selected_indices_run = selected_indices_ref.clone();
+            let selected_lines_run = selected_lines_ref.clone();
+            let offset_run = offset_ref.clone();
+            let zoom_run = zoom_ref.clone();
+            panel.on_run(move |idx| {
+                if let Some(name) = items_run.get(idx as usize) {
+                    let path = Path::new(MACRO_DIR).join(name.as_str());
+                    run_python_file(
+                        &path,
+                        &weak_run,
+                        &point_db_run,
+                        &lines_run,
+                        &surfaces_run,
+                        &selected_indices_run,
+                        &selected_lines_run,
+                        &offset_run,
+                        &zoom_run,
+                    );
+                }
+            });
+
+            panel.on_close(move || {
+                if let Some(p) = panel_weak.upgrade() {
+                    let _ = p.hide();
+                }
+            });
+
+            panel.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let cfg = config.clone();
         let point_db = point_db.clone();
         let lines_ref = lines.clone();
@@ -2880,6 +2986,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_styles = line_style_indices.clone();
         let backend_render = backend.clone();
         let render_image = render_image.clone();
+        let selected_indices = selected_indices.clone();
+        let selected_lines = selected_lines.clone();
+        let offset = offset.clone();
+        let zoom = zoom.clone();
         app.on_run_quick_script(move |slot| {
             let scripts = &cfg.borrow().quick_scripts;
             if let Some(name) = scripts.get(slot as usize) {
@@ -2888,7 +2998,17 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 let path = Path::new(MACRO_DIR).join(name);
                 if name.ends_with(".py") {
-                    run_python_file(&path, &weak, &point_db, &lines_ref, &surfaces_ref);
+                    run_python_file(
+                        &path,
+                        &weak,
+                        &point_db,
+                        &lines_ref,
+                        &surfaces_ref,
+                        &selected_indices,
+                        &selected_lines,
+                        &offset,
+                        &zoom,
+                    );
                 } else {
                     let ctx = MacroContext {
                         playing: playing.clone(),
