@@ -841,8 +841,10 @@ export component MainWindow inherits Window {
     in-out property <float> zoom_level;
     in-out property <[string]> command_history;
     in-out property <string> command_text;
+    in-out property <string> input_value;
 
     callback command_entered(string);
+    callback input_entered(string);
 
     callback key_pressed(string);
     FocusScope {
@@ -1139,6 +1141,15 @@ export component MainWindow inherits Window {
             history <=> root.command_history;
             text <=> root.command_text;
             entered(cmd) => { root.command_entered(cmd); }
+        }
+
+        input_box := LineEdit {
+            width: 100px;
+            text <=> root.input_value;
+            accepted => {
+                root.input_entered(root.input_value);
+                root.input_value = "";
+            }
         }
 
         status_bar := Text {

@@ -470,6 +470,22 @@ fn screen_to_workspace(
     Point::new(wx as f64, wy as f64)
 }
 
+fn workspace_to_screen(
+    p: Point,
+    offset: &Rc<RefCell<Vec2>>,
+    zoom: &Rc<RefCell<f32>>,
+    width: f32,
+    height: f32,
+) -> (f32, f32) {
+    let origin_x = width / 2.0;
+    let origin_y = height / 2.0;
+    let z = *zoom.borrow();
+    let off = offset.borrow();
+    let sx = (p.x as f32 + off.x) * z + origin_x;
+    let sy = origin_y - (p.y as f32 + off.y) * z;
+    (sx, sy)
+}
+
 fn arc_from_three_points(p1: Point, p2: Point, p3: Point) -> Option<Arc> {
     let a = p2.x - p1.x;
     let b = p2.y - p1.y;
@@ -1894,6 +1910,7 @@ fn show_context_menu(
             }
         });
     }
+
     {
         let weak = app.as_weak();
         menu.on_rot(move || {
@@ -2532,6 +2549,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_show_point_numbers(true);
     app.set_command_history(command_history.clone().into());
     app.set_command_text(SharedString::from(""));
+    app.set_input_value(SharedString::from(""));
 
     // show camera controls in the status bar
     app.set_status(SharedString::from(
@@ -3183,6 +3201,38 @@ fn main() -> Result<(), slint::PlatformError> {
                 refresh_workspace(&app, &render_image, &backend);
             }
         });
+        {
+            let weak = app.as_weak();
+            let offset_ref = offset.clone();
+            let zoom_ref = zoom.clone();
+            app.on_input_entered(move |text| {
+                let parts: Vec<_> = text
+                    .split(|c: char| c == ',' || c.is_whitespace())
+                    .collect();
+                if parts.len() >= 2 {
+                    if let (Ok(x), Ok(y)) = (
+                        parts[0].trim().parse::<f64>(),
+                        parts[1].trim().parse::<f64>(),
+                    ) {
+                        if let Some(app) = weak.upgrade() {
+                            let size = app.window().size();
+                            let (sx, sy) = workspace_to_screen(
+                                Point::new(x, y),
+                                &offset_ref,
+                                &zoom_ref,
+                                size.width as f32,
+                                size.height as f32,
+                            );
+                            app.invoke_workspace_clicked(sx, sy);
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Invalid input"));
+                    }
+                } else if let Some(app) = weak.upgrade() {
+                    app.set_status(SharedString::from("Enter X Y"));
+                }
+            });
+        }
     }
 
     {
@@ -3492,7 +3542,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let macro_recorder = macro_recorder.clone();
         let snap_target = snap_target.clone();
         app.on_workspace_pointer_pressed(move |x, y, ev| {
-            if ev.button == PointerEventButton::Right && *drawing_mode.borrow() == DrawingMode::None {
+            if ev.button == PointerEventButton::Right && *drawing_mode.borrow() == DrawingMode::None
+            {
                 if has_selection(
                     &selected_indices,
                     &selected_lines,
@@ -4022,7 +4073,26 @@ fn main() -> Result<(), slint::PlatformError> {
             });
 
             if let Some(app) = weak.upgrade() {
-                if app.get_workspace_mode() == 1 {
+                if app.get_workspace_mode() == 0 {
+                    let size = app.window().size();
+                    let p = screen_to_workspace(
+                        x,
+                        y,
+                        &offset,
+                        &zoom,
+                        size.width as f32,
+                        size.height as f32,
+                    );
+                    app.set_status(SharedString::from(format!("X: {:.3} Y: {:.3}", p.x, p.y)));
+                } else {
+                    let p = {
+                        let b = backend_move.borrow();
+                        b.screen_to_plane(x as f64, y as f64, 0.0)
+                    };
+                    app.set_status(SharedString::from(format!(
+                        "X: {:.3} Y: {:.3} Z: {:.3}",
+                        p.x, p.y, p.z
+                    )));
                     let image = backend_move.borrow_mut().render();
                     app.set_workspace_texture(image);
                     app.window().request_redraw();
@@ -5477,9 +5547,10 @@ fn main() -> Result<(), slint::PlatformError> {
                             styles.remove(idx);
                         }
                         backend_render.borrow_mut().remove_point(idx);
-                        command_stack
-                            .borrow_mut()
-                            .push(Command::AddPoint { index: idx, point: pt });
+                        command_stack.borrow_mut().push(Command::AddPoint {
+                            index: idx,
+                            point: pt,
+                        });
                     }
                 }
                 inds.clear();
@@ -5489,9 +5560,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 let mut styles = lsi.borrow_mut();
                 for i in (0..lines.len()).rev() {
                     let l = lines[i];
-                    if selected_lines.borrow().iter().any(|(s, e)| {
-                        (l.0 == *s && l.1 == *e) || (l.0 == *e && l.1 == *s)
-                    }) {
+                    if selected_lines
+                        .borrow()
+                        .iter()
+                        .any(|(s, e)| (l.0 == *s && l.1 == *e) || (l.0 == *e && l.1 == *s))
+                    {
                         lines.remove(i);
                         if i < styles.len() {
                             styles.remove(i);
@@ -6555,14 +6628,19 @@ fn main() -> Result<(), slint::PlatformError> {
                     let p = p.to_string();
                     #[cfg(feature = "las")]
                     {
-                        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+                        use std::sync::{
+                            atomic::{AtomicBool, Ordering},
+                            Arc,
+                        };
                         let dlg = ImportProgressDialog::new().unwrap();
                         dlg.set_message(SharedString::from("Importing LAS"));
                         dlg.set_progress(0.0);
                         let cancel = Arc::new(AtomicBool::new(false));
                         let cancel_dlg = cancel.clone();
                         let dlg_weak = dlg.as_weak();
-                        dlg.on_cancel(move || { cancel_dlg.store(true, Ordering::SeqCst); });
+                        dlg.on_cancel(move || {
+                            cancel_dlg.store(true, Ordering::SeqCst);
+                        });
                         dlg.show().unwrap();
                         use slint::{Timer, TimerMode};
                         use std::sync::mpsc;
@@ -6580,8 +6658,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             });
                             let _ = tx.send(res);
                             slint::invoke_from_event_loop(move || {
-                                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
-                            }).unwrap();
+                                if let Some(d) = dlg_weak.upgrade() {
+                                    let _ = d.hide();
+                                }
+                            })
+                            .unwrap();
                         });
 
                         let weak_app = weak.clone();
@@ -6603,13 +6684,19 @@ fn main() -> Result<(), slint::PlatformError> {
                                             let len = {
                                                 let mut db = point_db.borrow_mut();
                                                 db.clear();
-                                                db.extend(pts3.iter().map(|p3| Point::new(p3.x, p3.y)));
+                                                db.extend(
+                                                    pts3.iter().map(|p3| Point::new(p3.x, p3.y)),
+                                                );
                                                 db.len()
                                             };
                                             if config.borrow().auto_tin && len >= 3 {
-                                                let verts_sc: Vec<ScPoint3> =
-                                                    pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
-                                                let tin = survey_cad::dtm::Tin::from_points(verts_sc.clone());
+                                                let verts_sc: Vec<ScPoint3> = pts3
+                                                    .iter()
+                                                    .map(|p| ScPoint3::new(p.x, p.y, p.z))
+                                                    .collect();
+                                                let tin = survey_cad::dtm::Tin::from_points(
+                                                    verts_sc.clone(),
+                                                );
                                                 let verts: Vec<Point3> = tin
                                                     .vertices
                                                     .iter()
@@ -6621,11 +6708,14 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 surfaces.borrow_mut().push(tin);
                                             }
                                             if let Some(app) = weak_app.upgrade() {
-                                                app.set_status(SharedString::from(format!("Imported {len} points")));
+                                                app.set_status(SharedString::from(format!(
+                                                    "Imported {len} points"
+                                                )));
                                                 if app.get_workspace_mode() == 0 {
                                                     app.set_workspace_image(render_image());
                                                 } else {
-                                                    let image = backend_render.borrow_mut().render();
+                                                    let image =
+                                                        backend_render.borrow_mut().render();
                                                     app.set_workspace_texture(image);
                                                 }
                                                 app.window().request_redraw();
@@ -6633,7 +6723,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                         }
                                         Err(e) => {
                                             if let Some(app) = weak_app.upgrade() {
-                                                app.set_status(SharedString::from(format!("Failed to import: {e}")));
+                                                app.set_status(SharedString::from(format!(
+                                                    "Failed to import: {e}"
+                                                )));
                                             }
                                         }
                                     }
@@ -6666,14 +6758,19 @@ fn main() -> Result<(), slint::PlatformError> {
                     let p = p.to_string();
                     #[cfg(feature = "e57")]
                     {
-                        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+                        use std::sync::{
+                            atomic::{AtomicBool, Ordering},
+                            Arc,
+                        };
                         let dlg = ImportProgressDialog::new().unwrap();
                         dlg.set_message(SharedString::from("Importing E57"));
                         dlg.set_progress(0.0);
                         let cancel = Arc::new(AtomicBool::new(false));
                         let cancel_dlg = cancel.clone();
                         let dlg_weak = dlg.as_weak();
-                        dlg.on_cancel(move || { cancel_dlg.store(true, Ordering::SeqCst); });
+                        dlg.on_cancel(move || {
+                            cancel_dlg.store(true, Ordering::SeqCst);
+                        });
                         dlg.show().unwrap();
                         use slint::{Timer, TimerMode};
                         use std::sync::mpsc;
@@ -6691,8 +6788,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             });
                             let _ = tx.send(res);
                             slint::invoke_from_event_loop(move || {
-                                if let Some(d) = dlg_weak.upgrade() { let _ = d.hide(); }
-                            }).unwrap();
+                                if let Some(d) = dlg_weak.upgrade() {
+                                    let _ = d.hide();
+                                }
+                            })
+                            .unwrap();
                         });
 
                         let weak_app = weak.clone();
@@ -6714,13 +6814,19 @@ fn main() -> Result<(), slint::PlatformError> {
                                             let len = {
                                                 let mut db = point_db.borrow_mut();
                                                 db.clear();
-                                                db.extend(pts3.iter().map(|p3| Point::new(p3.x, p3.y)));
+                                                db.extend(
+                                                    pts3.iter().map(|p3| Point::new(p3.x, p3.y)),
+                                                );
                                                 db.len()
                                             };
                                             if config.borrow().auto_tin && len >= 3 {
-                                                let verts_sc: Vec<ScPoint3> =
-                                                    pts3.iter().map(|p| ScPoint3::new(p.x, p.y, p.z)).collect();
-                                                let tin = survey_cad::dtm::Tin::from_points(verts_sc.clone());
+                                                let verts_sc: Vec<ScPoint3> = pts3
+                                                    .iter()
+                                                    .map(|p| ScPoint3::new(p.x, p.y, p.z))
+                                                    .collect();
+                                                let tin = survey_cad::dtm::Tin::from_points(
+                                                    verts_sc.clone(),
+                                                );
                                                 let verts: Vec<Point3> = tin
                                                     .vertices
                                                     .iter()
@@ -6732,11 +6838,14 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 surfaces.borrow_mut().push(tin);
                                             }
                                             if let Some(app) = weak_app.upgrade() {
-                                                app.set_status(SharedString::from(format!("Imported {len} points")));
+                                                app.set_status(SharedString::from(format!(
+                                                    "Imported {len} points"
+                                                )));
                                                 if app.get_workspace_mode() == 0 {
                                                     app.set_workspace_image(render_image());
                                                 } else {
-                                                    let image = backend_render.borrow_mut().render();
+                                                    let image =
+                                                        backend_render.borrow_mut().render();
                                                     app.set_workspace_texture(image);
                                                 }
                                                 app.window().request_redraw();
@@ -6744,7 +6853,9 @@ fn main() -> Result<(), slint::PlatformError> {
                                         }
                                         Err(e) => {
                                             if let Some(app) = weak_app.upgrade() {
-                                                app.set_status(SharedString::from(format!("Failed to import: {e}")));
+                                                app.set_status(SharedString::from(format!(
+                                                    "Failed to import: {e}"
+                                                )));
                                             }
                                         }
                                     }
