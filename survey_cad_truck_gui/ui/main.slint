@@ -13,16 +13,28 @@ export { ImportProgressDialog } from "import_progress.slint";
 export { ScriptPanel } from "script_panel.slint";
 
 // Button used in toolbars that emits hover events
-component ToolButton inherits Button {
+component ToolButton {
     in property <string> tip;
+    in property <image> icon;
+    in property <string> text;
+    callback clicked();
     callback hovered(string);
-    tooltip: tip;
+
+    button := Button {
+        icon: root.icon;
+        text: root.text;
+        clicked => { root.clicked(); }
+    }
+
+    width: button.width;
+    height: button.height;
+
     TouchArea {
         x: 0; y: 0; width: root.width; height: root.height;
         pointer-event(ev) => {
-            if ev.kind == PointerEventKind.enter {
+            if ev.kind == PointerEventKind.move {
                 root.hovered(root.tip);
-            } else if ev.kind == PointerEventKind.leave {
+            } else if ev.kind == PointerEventKind.cancel {
                 root.hovered("");
             }
         }
@@ -1000,106 +1012,106 @@ export component MainWindow inherits Window {
     menubar := MenuBar {
         Menu {
             title: "File";
-            MenuItem { title: "New"; tooltip: "Create New Project"; activated => { root.new_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Open"; tooltip: "Open Project"; activated => { root.open_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Save"; tooltip: "Save Project"; activated => { root.save_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "New"; activated => { root.new_project(); }}
+            MenuItem { title: "Open"; activated => { root.open_project(); }}
+            MenuItem { title: "Save"; activated => { root.save_project(); }}
             Menu {
                 title: "Import";
-                MenuItem { title: "GeoJSON"; tooltip: "Import GeoJSON"; activated => { root.import_geojson(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "KML"; tooltip: "Import KML"; activated => { root.import_kml(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "DXF"; tooltip: "Import DXF"; activated => { root.import_dxf(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "DWG"; tooltip: "Import DWG"; activated => { root.import_dwg(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "SHP"; tooltip: "Import SHP"; activated => { root.import_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "Polyline SHP"; tooltip: "Import Polyline SHP"; activated => { root.import_polylines_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "Polygon SHP"; tooltip: "Import Polygon SHP"; activated => { root.import_polygons_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LAS"; tooltip: "Import LAS"; activated => { root.import_las(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "E57"; tooltip: "Import E57"; activated => { root.import_e57(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LandXML Surface"; tooltip: "Import LandXML Surface"; activated => { root.import_landxml_surface(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LandXML Alignment"; tooltip: "Import LandXML Alignment"; activated => { root.import_landxml_alignment(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "GeoJSON"; activated => { root.import_geojson(); }}
+                MenuItem { title: "KML"; activated => { root.import_kml(); }}
+                MenuItem { title: "DXF"; activated => { root.import_dxf(); }}
+                MenuItem { title: "DWG"; activated => { root.import_dwg(); }}
+                MenuItem { title: "SHP"; activated => { root.import_shp(); }}
+                MenuItem { title: "Polyline SHP"; activated => { root.import_polylines_shp(); }}
+                MenuItem { title: "Polygon SHP"; activated => { root.import_polygons_shp(); }}
+                MenuItem { title: "LAS"; activated => { root.import_las(); }}
+                MenuItem { title: "E57"; activated => { root.import_e57(); }}
+                MenuItem { title: "LandXML Surface"; activated => { root.import_landxml_surface(); }}
+                MenuItem { title: "LandXML Alignment"; activated => { root.import_landxml_alignment(); }}
             }
             Menu {
                 title: "Export";
-                MenuItem { title: "GeoJSON"; tooltip: "Export GeoJSON"; activated => { root.export_geojson(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "KML"; tooltip: "Export KML"; activated => { root.export_kml(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "DXF"; tooltip: "Export DXF"; activated => { root.export_dxf(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "DWG"; tooltip: "Export DWG"; activated => { root.export_dwg(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "SHP"; tooltip: "Export SHP"; activated => { root.export_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "Polyline SHP"; tooltip: "Export Polyline SHP"; activated => { root.export_polylines_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "Polygon SHP"; tooltip: "Export Polygon SHP"; activated => { root.export_polygons_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LAS"; tooltip: "Export LAS"; activated => { root.export_las(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "E57"; tooltip: "Export E57"; activated => { root.export_e57(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LandXML Surface"; tooltip: "Export LandXML Surface"; activated => { root.export_landxml_surface(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LandXML Alignment"; tooltip: "Export LandXML Alignment"; activated => { root.export_landxml_alignment(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-                MenuItem { title: "LandXML Sections"; tooltip: "Export LandXML Sections"; activated => { root.export_landxml_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "GeoJSON"; activated => { root.export_geojson(); }}
+                MenuItem { title: "KML"; activated => { root.export_kml(); }}
+                MenuItem { title: "DXF"; activated => { root.export_dxf(); }}
+                MenuItem { title: "DWG"; activated => { root.export_dwg(); }}
+                MenuItem { title: "SHP"; activated => { root.export_shp(); }}
+                MenuItem { title: "Polyline SHP"; activated => { root.export_polylines_shp(); }}
+                MenuItem { title: "Polygon SHP"; activated => { root.export_polygons_shp(); }}
+                MenuItem { title: "LAS"; activated => { root.export_las(); }}
+                MenuItem { title: "E57"; activated => { root.export_e57(); }}
+                MenuItem { title: "LandXML Surface"; activated => { root.export_landxml_surface(); }}
+                MenuItem { title: "LandXML Alignment"; activated => { root.export_landxml_alignment(); }}
+                MenuItem { title: "LandXML Sections"; activated => { root.export_landxml_sections(); }}
             }
         }
         Menu {
             title: "Edit";
-            MenuItem { title: "Undo"; tooltip: "Undo"; activated => { root.undo(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Redo"; tooltip: "Redo"; activated => { root.redo(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Point"; tooltip: "Add Point"; activated => { root.add_point(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Line"; tooltip: "Add Line"; activated => { root.add_line(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Polygon"; tooltip: "Add Polygon"; activated => { root.add_polygon(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Polyline"; tooltip: "Add Polyline"; activated => { root.add_polyline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Arc"; tooltip: "Add Arc"; activated => { root.add_arc(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Line Mode"; tooltip: "Line Mode"; activated => { root.draw_line_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Polygon Mode"; tooltip: "Polygon Mode"; activated => { root.draw_polygon_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Arc Mode"; tooltip: "Arc Mode"; activated => { root.draw_arc_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Dimension Mode"; tooltip: "Dimension Mode"; activated => { root.draw_dimension_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Move Entities"; tooltip: "Move Entities"; activated => { root.move_entity(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Rotate Entities"; tooltip: "Rotate Entities"; activated => { root.rotate_entity(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Create Polygon from Selection"; tooltip: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Create Surface from Selection"; tooltip: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Point Manager..."; tooltip: "Point Manager"; activated => { root.point_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Line Styles..."; tooltip: "Line Styles"; activated => { root.line_style_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Layer Manager..."; tooltip: "Layer Manager"; activated => { root.layer_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Inspector..."; tooltip: "Inspector"; activated => { root.inspector(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Clear"; tooltip: "Clear Workspace"; activated => { root.clear_workspace(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Undo"; activated => { root.undo(); }}
+            MenuItem { title: "Redo"; activated => { root.redo(); }}
+            MenuItem { title: "Add Point"; activated => { root.add_point(); }}
+            MenuItem { title: "Add Line"; activated => { root.add_line(); }}
+            MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); }}
+            MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); }}
+            MenuItem { title: "Add Arc"; activated => { root.add_arc(); }}
+            MenuItem { title: "Line Mode"; activated => { root.draw_line_mode(); }}
+            MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); }}
+            MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); }}
+            MenuItem { title: "Dimension Mode"; activated => { root.draw_dimension_mode(); }}
+            MenuItem { title: "Move Entities"; activated => { root.move_entity(); }}
+            MenuItem { title: "Rotate Entities"; activated => { root.rotate_entity(); }}
+            MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); }}
+            MenuItem { title: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); }}
+            MenuItem { title: "Point Manager..."; activated => { root.point_manager(); }}
+            MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); }}
+            MenuItem { title: "Layer Manager..."; activated => { root.layer_manager(); }}
+            MenuItem { title: "Inspector..."; activated => { root.inspector(); }}
+            MenuItem { title: "Clear"; activated => { root.clear_workspace(); }}
         }
         Menu {
             title: "Tools";
-            MenuItem { title: "Station Distance"; tooltip: "Compute Station Distance"; activated => { root.station_distance(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Traverse Area"; tooltip: "Compute Traverse Area"; activated => { root.traverse_area(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Level Elevation"; tooltip: "Level Elevation"; activated => { root.level_elevation_tool(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Corridor Volume"; tooltip: "Corridor Volume"; activated => { root.corridor_volume(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Superelevation..."; tooltip: "Superelevation"; activated => { root.superelevation_editor(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Design Sections"; tooltip: "Design Sections"; activated => { root.design_cross_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Cross Sections"; tooltip: "View Cross Sections"; activated => { root.view_cross_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Extrude Polyline"; tooltip: "Extrude Polyline"; activated => { root.extrude_polyline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Station Distance"; activated => { root.station_distance(); }}
+            MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); }}
+            MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); }}
+            MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); }}
+            MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); }}
+            MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); }}
+            MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); }}
+            MenuItem { title: "Extrude Polyline"; activated => { root.extrude_polyline(); }}
         }
         Menu {
             title: "TIN";
-            MenuItem { title: "Add Vertex"; tooltip: "Add Vertex"; activated => { root.tin_add_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Move Vertex"; tooltip: "Move Vertex"; activated => { root.tin_move_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Delete Vertex"; tooltip: "Delete Vertex"; activated => { root.tin_delete_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Triangle"; tooltip: "Add Triangle"; activated => { root.tin_add_triangle(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Delete Triangle"; tooltip: "Delete Triangle"; activated => { root.tin_delete_triangle(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Add Breakline"; tooltip: "Add Breakline"; activated => { root.tin_add_breakline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Remove Breakline"; tooltip: "Remove Breakline"; activated => { root.tin_remove_breakline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Set Boundary"; tooltip: "Set Boundary"; activated => { root.tin_set_boundary(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Clear Boundary"; tooltip: "Clear Boundary"; activated => { root.tin_clear_boundary(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Vertex"; activated => { root.tin_add_vertex(); }}
+            MenuItem { title: "Move Vertex"; activated => { root.tin_move_vertex(); }}
+            MenuItem { title: "Delete Vertex"; activated => { root.tin_delete_vertex(); }}
+            MenuItem { title: "Add Triangle"; activated => { root.tin_add_triangle(); }}
+            MenuItem { title: "Delete Triangle"; activated => { root.tin_delete_triangle(); }}
+            MenuItem { title: "Add Breakline"; activated => { root.tin_add_breakline(); }}
+            MenuItem { title: "Remove Breakline"; activated => { root.tin_remove_breakline(); }}
+            MenuItem { title: "Set Boundary"; activated => { root.tin_set_boundary(); }}
+            MenuItem { title: "Clear Boundary"; activated => { root.tin_clear_boundary(); }}
         }
         Menu {
             title: "View";
-            MenuItem { title: "2D Workspace"; tooltip: "Switch to 2D"; activated => { root.view_changed(0); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "3D Workspace"; tooltip: "Switch to 3D"; activated => { root.view_changed(1); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Zoom In"; tooltip: "Zoom In"; activated => { root.zoom_in(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Zoom Out"; tooltip: "Zoom Out"; activated => { root.zoom_out(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Settings..."; tooltip: "Application Settings"; activated => { root.settings(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Snap Settings..."; tooltip: "Snap Settings"; activated => { root.snap_settings(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "2D Workspace"; activated => { root.view_changed(0); }}
+            MenuItem { title: "3D Workspace"; activated => { root.view_changed(1); }}
+            MenuItem { title: "Zoom In"; activated => { root.zoom_in(); }}
+            MenuItem { title: "Zoom Out"; activated => { root.zoom_out(); }}
+            MenuItem { title: "Settings..."; activated => { root.settings(); }}
+            MenuItem { title: "Snap Settings..."; activated => { root.snap_settings(); }}
         }
         Menu {
             title: "Macro";
-            MenuItem { title: "Record"; tooltip: "Record Macro"; activated => { root.macro_record(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Play"; tooltip: "Play Macro"; activated => { root.macro_play(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Run Python Script"; tooltip: "Run Python Script"; activated => { root.run_python_script(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Scripts..."; tooltip: "Macro Scripts"; activated => { root.show_macro_list(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Plugins Panel"; tooltip: "Open Plugins Panel"; activated => { root.open_script_panel(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Record"; activated => { root.macro_record(); }}
+            MenuItem { title: "Play"; activated => { root.macro_play(); }}
+            MenuItem { title: "Run Python Script"; activated => { root.run_python_script(); }}
+            MenuItem { title: "Scripts..."; activated => { root.show_macro_list(); }}
+            MenuItem { title: "Plugins Panel"; activated => { root.open_script_panel(); }}
         }
         Menu {
             title: "Help";
-            MenuItem { title: "User Guide"; tooltip: "Open User Guide"; activated => { root.open_help("docs/user_guide.md"); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
-            MenuItem { title: "Online Docs"; tooltip: "Open Online Documentation"; activated => { root.open_help("https://example.com"); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "User Guide"; activated => { root.open_help("docs/user_guide.md"); }}
+            MenuItem { title: "Online Docs"; activated => { root.open_help("https://example.com"); }}
         }
     }
 

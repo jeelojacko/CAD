@@ -4443,6 +4443,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let workspace_crs = workspace_crs.clone();
         let crs_entries_rc = crs_entries_rc.clone();
         let alignments = alignments.clone();
+        let surface_groups = surface_groups.clone();
+        let alignment_groups = alignment_groups.clone();
         app.on_open_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
