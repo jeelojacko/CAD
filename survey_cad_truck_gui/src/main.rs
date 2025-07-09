@@ -30,7 +30,6 @@ mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use open;
 use truck_modeling::base::InnerSpace;
 use truck_modeling::base::Point3;
 use truck_modeling::base::Vector3;
@@ -6166,6 +6165,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
             let command_stack = cs_outer.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(x), Ok(y), Ok(z)) = (
@@ -6174,7 +6174,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6214,6 +6214,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(idx), Ok(x), Ok(y), Ok(z)) = (
@@ -6223,7 +6224,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6262,13 +6263,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(idx)) = (
                         d.get_surface_index().parse::<usize>(),
                         d.get_vertex_index().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6302,6 +6304,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(a), Ok(b), Ok(c)) = (
@@ -6310,7 +6313,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v2().parse::<usize>(),
                         d.get_v3().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6347,13 +6350,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(idx)) = (
                         d.get_surface_index().parse::<usize>(),
                         d.get_tri_index().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6387,6 +6391,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(a), Ok(b)) = (
@@ -6394,7 +6399,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6428,6 +6433,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let (Ok(surf), Ok(a), Ok(b)) = (
@@ -6435,7 +6441,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6469,6 +6475,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(surf) = d.get_surface_index().parse::<usize>() {
@@ -6477,7 +6484,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             .split(|c: char| c == ',' || c.is_whitespace())
                             .filter_map(|s| s.parse().ok())
                             .collect();
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {
@@ -6512,10 +6519,11 @@ fn main() -> Result<(), slint::PlatformError> {
             let dlg_weak = dlg.as_weak();
             let weak2 = weak.clone();
             let backend_inner = backend.clone();
+            let surface_groups_inner = surface_groups.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(surf) = d.get_surface_index().parse::<usize>() {
-                        let targets = if let Some(g) = surface_groups.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
                             g.surface_ids.clone()
                         } else { vec![surf] };
                         for sidx in targets {

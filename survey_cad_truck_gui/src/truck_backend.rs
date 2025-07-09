@@ -469,11 +469,15 @@ impl TruckBackend {
 
     /// Get the world position of a handle.
     pub fn handle_position(&self, handle_idx: usize) -> Option<Point3> {
-        self.handles.as_ref().and_then(|(_, handles)| {
-            handles
-                .get(handle_idx)
-                .and_then(|id| self.engine.point_marker_position(*id))
-        })
+        if let Some((_, handles)) = self.handles.as_ref() {
+            if let Some(&id) = handles.as_slice().get(handle_idx) {
+                self.engine.point_marker_position(id)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     /// Convert screen coordinates to a point on the plane z.
