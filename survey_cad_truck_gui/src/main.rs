@@ -121,6 +121,31 @@ impl Default for SnapPrefs {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+enum WorkspaceProfile {
+    Surveyor,
+    Engineer,
+    Gis,
+}
+
+impl Default for WorkspaceProfile {
+    fn default() -> Self {
+        WorkspaceProfile::Surveyor
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+enum Theme {
+    Dark,
+    Light,
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Theme::Dark
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 struct Config {
     window_width: u32,
@@ -130,6 +155,10 @@ struct Config {
     auto_tin: bool,
     #[serde(default)]
     quick_scripts: [String; 3],
+    #[serde(default)]
+    profile: WorkspaceProfile,
+    #[serde(default)]
+    theme: Theme,
 }
 
 impl Default for Config {
@@ -141,6 +170,8 @@ impl Default for Config {
             snap: SnapPrefs::default(),
             auto_tin: false,
             quick_scripts: Default::default(),
+            profile: WorkspaceProfile::default(),
+            theme: Theme::default(),
         }
     }
 }
@@ -2336,6 +2367,10 @@ fn main() -> Result<(), slint::PlatformError> {
     // provide our bundled DejaVuSans.
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
     sharedfontdb::register_font_from_memory(FONT_DATA).expect("failed to register embedded font");
+    match config.borrow().theme {
+        Theme::Dark => std::env::set_var("SLINT_STYLE", "fluent-dark"),
+        Theme::Light => std::env::set_var("SLINT_STYLE", "fluent-light"),
+    }
     let app = MainWindow::new()?;
     app.window().set_size(PhysicalSize::new(
         config.borrow().window_width,
@@ -8512,6 +8547,8 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_show_grid(gs.visible);
             dlg.set_auto_tin(config_ref.borrow().auto_tin);
             dlg.set_crs_epsg(SharedString::from(workspace_crs.borrow().to_string()));
+            dlg.set_profile_index(config_ref.borrow().profile as i32);
+            dlg.set_theme_index(config_ref.borrow().theme as i32);
             drop(gs);
             let dlg_weak = dlg.as_weak();
             let gs_ref = grid_settings.clone();
@@ -8530,15 +8567,32 @@ fn main() -> Result<(), slint::PlatformError> {
                     let b = d.get_color_b().parse::<u8>().unwrap_or(60);
                     gs_ref.borrow_mut().color = [r, g, b];
                     gs_ref.borrow_mut().visible = d.get_show_grid();
-                    config_acc.borrow_mut().auto_tin = d.get_auto_tin();
+                    let mut cfg = config_acc.borrow_mut();
+                    cfg.auto_tin = d.get_auto_tin();
+                    cfg.profile = match d.get_profile_index() {
+                        1 => WorkspaceProfile::Engineer,
+                        2 => WorkspaceProfile::Gis,
+                        _ => WorkspaceProfile::Surveyor,
+                    };
+                    let theme = match d.get_theme_index() {
+                        1 => Theme::Light,
+                        _ => Theme::Dark,
+                    };
+                    cfg.theme = theme;
+                    drop(cfg);
                     if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
                         *crs_ref.borrow_mut() = epsg;
                     }
                     d.hide().unwrap();
                 }
                 if let Some(app) = weak_app.upgrade() {
+                    match config_acc.borrow().theme {
+                        Theme::Dark => std::env::set_var("SLINT_STYLE", "fluent-dark"),
+                        Theme::Light => std::env::set_var("SLINT_STYLE", "fluent-light"),
+                    }
                     refresh_workspace(&app, &render_image, &backend_render);
                 }
+                save_config(&config_acc.borrow());
             });
             let cancel_weak = dlg.as_weak();
             dlg.on_cancel(move || {
