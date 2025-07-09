@@ -121,29 +121,19 @@ impl Default for SnapPrefs {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
 enum WorkspaceProfile {
+    #[default]
     Surveyor,
     Engineer,
     Gis,
 }
 
-impl Default for WorkspaceProfile {
-    fn default() -> Self {
-        WorkspaceProfile::Surveyor
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
 enum Theme {
+    #[default]
     Dark,
     Light,
-}
-
-impl Default for Theme {
-    fn default() -> Self {
-        Theme::Dark
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]
