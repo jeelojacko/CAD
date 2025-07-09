@@ -2455,7 +2455,7 @@ fn main() -> Result<(), slint::PlatformError> {
 
     let alignment_styles = style_settings.alignment_styles.clone();
     let alignment_style = alignment_styles
-        .get(0)
+        .first()
         .map(|(_, s)| *s)
         .unwrap_or_else(|| default_alignment_styles()[0].1);
     let command_stack = Rc::new(RefCell::new(CommandStack::new()));
@@ -2563,7 +2563,6 @@ fn main() -> Result<(), slint::PlatformError> {
         let drawing_mode = drawing_mode.clone();
         let label_style = line_label_styles[0].1.clone();
         let point_label_style = point_label_style.clone();
-        let alignment_style = alignment_style.clone();
         let grid_settings_ref = grid_settings.clone();
         move || {
             let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();

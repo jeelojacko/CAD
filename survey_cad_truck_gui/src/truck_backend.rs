@@ -384,8 +384,9 @@ impl TruckBackend {
     /// Show handle for a single point.
     pub fn show_point_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if let Some(p) = self.points.get(idx) {
-            let id = self.engine.add_point_marker(p.clone());
+        if idx < self.points.len() {
+            let p = self.points[idx];
+            let id = self.engine.add_point_marker(p);
             self.handles = Some((HandleTarget::Point(idx), vec![id]));
         }
     }
@@ -393,10 +394,11 @@ impl TruckBackend {
     /// Show handles for a line's endpoints.
     pub fn show_line_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if let Some((a, b, _, _)) = self.lines.get(idx) {
+        if idx < self.lines.len() {
+            let (a, b, _, _) = self.lines[idx];
             let ids = vec![
-                self.engine.add_point_marker(a.clone()),
-                self.engine.add_point_marker(b.clone()),
+                self.engine.add_point_marker(a),
+                self.engine.add_point_marker(b),
             ];
             self.handles = Some((HandleTarget::Line(idx), ids));
         }
