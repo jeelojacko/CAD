@@ -1,7 +1,11 @@
 mod common;
 use proptest::prelude::*;
 use truck_geometry::prelude::*;
-use common::concat_random_test;
+use common::{
+    concat_random_test,
+    cut_random_test,
+    parameter_transform_random_test,
+};
 
 fn exec_concat_positive_test(
     v0: [[f64; 3]; 8],
@@ -60,5 +64,27 @@ fn test_parameter_division() {
         let param_middle = curve.subs((div[i - 1] + div[i]) / 2.0);
         let dist = value_middle.distance(param_middle);
         assert!(dist < tol, "large distance: {dist}");
+    }
+}
+
+proptest! {
+    #[test]
+    fn parameter_random_tests(
+        c in prop::array::uniform3(-10f64..10f64),
+        w in 0.5f64..=10f64,
+    ) {
+        let ctrl = Vector3::from(c).extend(w);
+        let curve = NurbsCurve::new(
+            BSplineCurve::new(
+                KnotVec::uniform_knot(4, 4),
+                (0..8).map(|_| ctrl).collect(),
+            )
+        );
+        parameter_transform_random_test(&curve, 10);
+        cut_random_test(&curve, 10);
+
+        let mut part0 = curve.clone();
+        let part1 = part0.cut(0.56);
+        concat_random_test(&part0, &part1, 10);
     }
 }
