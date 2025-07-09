@@ -12,6 +12,23 @@ export { EntityInspector } from "entity_inspector.slint";
 export { ImportProgressDialog } from "import_progress.slint";
 export { ScriptPanel } from "script_panel.slint";
 
+// Button used in toolbars that emits hover events
+component ToolButton inherits Button {
+    in property <string> tip;
+    callback hovered(string);
+    tooltip: tip;
+    TouchArea {
+        x: 0; y: 0; width: root.width; height: root.height;
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.enter {
+                root.hovered(root.tip);
+            } else if ev.kind == PointerEventKind.leave {
+                root.hovered("");
+            }
+        }
+    }
+}
+
 component Ribbon inherits TabWidget {
     in property <[string]> crs_list;
     in-out property <int> crs_index;
@@ -67,23 +84,24 @@ component Ribbon inherits TabWidget {
     callback snap_endpoints_changed(bool);
     callback snap_intersections_changed(bool);
     callback point_numbers_changed(bool);
+    callback button_hovered(string);
 
     Tab {
         title: "Home";
         HorizontalBox {
             spacing: 6px;
-            Button { icon: @image-url("../assets/icons/new.png"); clicked => { root.new_project(); } }
-            Button { icon: @image-url("../assets/icons/open.png"); clicked => { root.open_project(); } }
-            Button { icon: @image-url("../assets/icons/save.png"); clicked => { root.save_project(); } }
-            Button { icon: @image-url("../assets/icons/point_manager.png"); clicked => { root.point_manager(); } }
-            Button { icon: @image-url("../assets/icons/line_styles.png"); clicked => { root.line_style_manager(); } }
-            Button { icon: @image-url("../assets/icons/load_surface.png"); clicked => { root.surface_group_manager(); } }
-            Button { icon: @image-url("../assets/icons/load_alignment.png"); clicked => { root.alignment_group_manager(); } }
-            Button { icon: @image-url("../assets/icons/layer_manager.png"); clicked => { root.layer_manager(); } }
-            Button { icon: @image-url("../assets/icons/inspector.png"); clicked => { root.inspector(); } }
-            Button { icon: @image-url("../assets/icons/move.png"); clicked => { root.move_entity(); } }
-            Button { icon: @image-url("../assets/icons/rotate.png"); clicked => { root.rotate_entity(); } }
-            Button { icon: @image-url("../assets/icons/clear.png"); clicked => { root.clear_workspace(); } }
+            ToolButton { tip: "New Project"; icon: @image-url("../assets/icons/new.png"); clicked => { root.new_project(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Open Project"; icon: @image-url("../assets/icons/open.png"); clicked => { root.open_project(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Save Project"; icon: @image-url("../assets/icons/save.png"); clicked => { root.save_project(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Manage Points"; icon: @image-url("../assets/icons/point_manager.png"); clicked => { root.point_manager(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Line Styles"; icon: @image-url("../assets/icons/line_styles.png"); clicked => { root.line_style_manager(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Surface Groups"; icon: @image-url("../assets/icons/load_surface.png"); clicked => { root.surface_group_manager(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Alignment Groups"; icon: @image-url("../assets/icons/load_alignment.png"); clicked => { root.alignment_group_manager(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Layer Manager"; icon: @image-url("../assets/icons/layer_manager.png"); clicked => { root.layer_manager(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Entity Inspector"; icon: @image-url("../assets/icons/inspector.png"); clicked => { root.inspector(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Move Entities"; icon: @image-url("../assets/icons/move.png"); clicked => { root.move_entity(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Rotate Entities"; icon: @image-url("../assets/icons/rotate.png"); clicked => { root.rotate_entity(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Clear Workspace"; icon: @image-url("../assets/icons/clear.png"); clicked => { root.clear_workspace(); } hovered(t) => { root.button_hovered(t); } }
         }
     }
 
@@ -91,22 +109,22 @@ component Ribbon inherits TabWidget {
         title: "Insert";
         HorizontalBox {
             spacing: 6px;
-            Button { icon: @image-url("../assets/icons/add_point.png"); clicked => { root.add_point(); } }
-            Button { icon: @image-url("../assets/icons/add_line.png"); clicked => { root.add_line(); } }
-            Button { icon: @image-url("../assets/icons/add_polygon.png"); clicked => { root.add_polygon(); } }
-            Button { icon: @image-url("../assets/icons/add_polyline.png"); clicked => { root.add_polyline(); } }
-            Button { icon: @image-url("../assets/icons/add_arc.png"); clicked => { root.add_arc(); } }
-            Button { icon: @image-url("../assets/icons/line_mode.png"); clicked => { root.draw_line_mode(); } }
-            Button { icon: @image-url("../assets/icons/polygon_mode.png"); clicked => { root.draw_polygon_mode(); } }
-            Button { icon: @image-url("../assets/icons/arc_mode.png"); clicked => { root.draw_arc_mode(); } }
-            Button { icon: @image-url("../assets/icons/dimension_mode.png"); clicked => { root.draw_dimension_mode(); } }
-            Button { icon: @image-url("../assets/icons/extrude_polyline.png"); clicked => { root.extrude_polyline(); } }
-            Button { icon: @image-url("../assets/icons/create_polygon.png"); clicked => { root.create_polygon_from_selection(); } }
-            Button { icon: @image-url("../assets/icons/create_surface.png"); clicked => { root.create_surface_from_selection(); } }
-            Button { icon: @image-url("../assets/icons/corridor_volume.png"); clicked => { root.corridor_volume(); } }
-            Button { icon: @image-url("../assets/icons/superelevation.png"); clicked => { root.superelevation_editor(); } }
-            Button { icon: @image-url("../assets/icons/design_sections.png"); clicked => { root.design_cross_sections(); } }
-            Button { icon: @image-url("../assets/icons/cross_sections.png"); clicked => { root.view_cross_sections(); } }
+            ToolButton { tip: "Add Point"; icon: @image-url("../assets/icons/add_point.png"); clicked => { root.add_point(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Add Line"; icon: @image-url("../assets/icons/add_line.png"); clicked => { root.add_line(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Add Polygon"; icon: @image-url("../assets/icons/add_polygon.png"); clicked => { root.add_polygon(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Add Polyline"; icon: @image-url("../assets/icons/add_polyline.png"); clicked => { root.add_polyline(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Add Arc"; icon: @image-url("../assets/icons/add_arc.png"); clicked => { root.add_arc(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Draw Lines"; icon: @image-url("../assets/icons/line_mode.png"); clicked => { root.draw_line_mode(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Draw Polygons"; icon: @image-url("../assets/icons/polygon_mode.png"); clicked => { root.draw_polygon_mode(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Draw Arcs"; icon: @image-url("../assets/icons/arc_mode.png"); clicked => { root.draw_arc_mode(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Draw Dimensions"; icon: @image-url("../assets/icons/dimension_mode.png"); clicked => { root.draw_dimension_mode(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Extrude Polyline"; icon: @image-url("../assets/icons/extrude_polyline.png"); clicked => { root.extrude_polyline(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Create Polygon from Selection"; icon: @image-url("../assets/icons/create_polygon.png"); clicked => { root.create_polygon_from_selection(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Create Surface from Selection"; icon: @image-url("../assets/icons/create_surface.png"); clicked => { root.create_surface_from_selection(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Corridor Volume"; icon: @image-url("../assets/icons/corridor_volume.png"); clicked => { root.corridor_volume(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Edit Superelevation"; icon: @image-url("../assets/icons/superelevation.png"); clicked => { root.superelevation_editor(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "Design Cross Sections"; icon: @image-url("../assets/icons/design_sections.png"); clicked => { root.design_cross_sections(); } hovered(t) => { root.button_hovered(t); } }
+            ToolButton { tip: "View Cross Sections"; icon: @image-url("../assets/icons/cross_sections.png"); clicked => { root.view_cross_sections(); } hovered(t) => { root.button_hovered(t); } }
         }
     }
 
@@ -143,8 +161,8 @@ component Ribbon inherits TabWidget {
                 CheckBox { text: "Endpoints"; checked <=> root.snap_endpoints; toggled => { root.snap_endpoints_changed(root.snap_endpoints); } }
                 CheckBox { text: "Intersections"; checked <=> root.snap_intersections; toggled => { root.snap_intersections_changed(root.snap_intersections); } }
                 CheckBox { text: "Point Numbers"; checked <=> root.show_point_numbers; toggled => { root.point_numbers_changed(root.show_point_numbers); } }
-                Button { icon: @image-url("../assets/icons/settings.png"); clicked => { root.settings(); } }
-                Button { icon: @image-url("../assets/icons/snap.png"); clicked => { root.snap_settings(); } }
+                ToolButton { tip: "Settings"; icon: @image-url("../assets/icons/settings.png"); clicked => { root.settings(); } hovered(t) => { root.button_hovered(t); } }
+                ToolButton { tip: "Snap Settings"; icon: @image-url("../assets/icons/snap.png"); clicked => { root.snap_settings(); } hovered(t) => { root.button_hovered(t); } }
             }
         }
     }
@@ -975,105 +993,113 @@ export component MainWindow inherits Window {
     callback workspace_pointer_pressed(length, length, PointerEvent);
     callback workspace_pointer_released();
     callback workspace_scrolled(length, length);
+    callback button_hovered(string);
+    callback menu_hovered(string);
+    callback open_help(string);
 
     menubar := MenuBar {
         Menu {
             title: "File";
-            MenuItem { title: "New"; activated => { root.new_project(); } }
-            MenuItem { title: "Open"; activated => { root.open_project(); } }
-            MenuItem { title: "Save"; activated => { root.save_project(); } }
+            MenuItem { title: "New"; tooltip: "Create New Project"; activated => { root.new_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Open"; tooltip: "Open Project"; activated => { root.open_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Save"; tooltip: "Save Project"; activated => { root.save_project(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
             Menu {
                 title: "Import";
-                MenuItem { title: "GeoJSON"; activated => { root.import_geojson(); } }
-                MenuItem { title: "KML"; activated => { root.import_kml(); } }
-                MenuItem { title: "DXF"; activated => { root.import_dxf(); } }
-                MenuItem { title: "DWG"; activated => { root.import_dwg(); } }
-                MenuItem { title: "SHP"; activated => { root.import_shp(); } }
-                MenuItem { title: "Polyline SHP"; activated => { root.import_polylines_shp(); } }
-                MenuItem { title: "Polygon SHP"; activated => { root.import_polygons_shp(); } }
-                MenuItem { title: "LAS"; activated => { root.import_las(); } }
-                MenuItem { title: "E57"; activated => { root.import_e57(); } }
-                MenuItem { title: "LandXML Surface"; activated => { root.import_landxml_surface(); } }
-                MenuItem { title: "LandXML Alignment"; activated => { root.import_landxml_alignment(); } }
+                MenuItem { title: "GeoJSON"; tooltip: "Import GeoJSON"; activated => { root.import_geojson(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "KML"; tooltip: "Import KML"; activated => { root.import_kml(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "DXF"; tooltip: "Import DXF"; activated => { root.import_dxf(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "DWG"; tooltip: "Import DWG"; activated => { root.import_dwg(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "SHP"; tooltip: "Import SHP"; activated => { root.import_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "Polyline SHP"; tooltip: "Import Polyline SHP"; activated => { root.import_polylines_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "Polygon SHP"; tooltip: "Import Polygon SHP"; activated => { root.import_polygons_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LAS"; tooltip: "Import LAS"; activated => { root.import_las(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "E57"; tooltip: "Import E57"; activated => { root.import_e57(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LandXML Surface"; tooltip: "Import LandXML Surface"; activated => { root.import_landxml_surface(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LandXML Alignment"; tooltip: "Import LandXML Alignment"; activated => { root.import_landxml_alignment(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
             }
             Menu {
                 title: "Export";
-                MenuItem { title: "GeoJSON"; activated => { root.export_geojson(); } }
-                MenuItem { title: "KML"; activated => { root.export_kml(); } }
-                MenuItem { title: "DXF"; activated => { root.export_dxf(); } }
-                MenuItem { title: "DWG"; activated => { root.export_dwg(); } }
-                MenuItem { title: "SHP"; activated => { root.export_shp(); } }
-                MenuItem { title: "Polyline SHP"; activated => { root.export_polylines_shp(); } }
-                MenuItem { title: "Polygon SHP"; activated => { root.export_polygons_shp(); } }
-                MenuItem { title: "LAS"; activated => { root.export_las(); } }
-                MenuItem { title: "E57"; activated => { root.export_e57(); } }
-                MenuItem { title: "LandXML Surface"; activated => { root.export_landxml_surface(); } }
-                MenuItem { title: "LandXML Alignment"; activated => { root.export_landxml_alignment(); } }
-                MenuItem { title: "LandXML Sections"; activated => { root.export_landxml_sections(); } }
+                MenuItem { title: "GeoJSON"; tooltip: "Export GeoJSON"; activated => { root.export_geojson(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "KML"; tooltip: "Export KML"; activated => { root.export_kml(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "DXF"; tooltip: "Export DXF"; activated => { root.export_dxf(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "DWG"; tooltip: "Export DWG"; activated => { root.export_dwg(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "SHP"; tooltip: "Export SHP"; activated => { root.export_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "Polyline SHP"; tooltip: "Export Polyline SHP"; activated => { root.export_polylines_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "Polygon SHP"; tooltip: "Export Polygon SHP"; activated => { root.export_polygons_shp(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LAS"; tooltip: "Export LAS"; activated => { root.export_las(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "E57"; tooltip: "Export E57"; activated => { root.export_e57(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LandXML Surface"; tooltip: "Export LandXML Surface"; activated => { root.export_landxml_surface(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LandXML Alignment"; tooltip: "Export LandXML Alignment"; activated => { root.export_landxml_alignment(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+                MenuItem { title: "LandXML Sections"; tooltip: "Export LandXML Sections"; activated => { root.export_landxml_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
             }
         }
         Menu {
             title: "Edit";
-            MenuItem { title: "Undo"; activated => { root.undo(); } }
-            MenuItem { title: "Redo"; activated => { root.redo(); } }
-            MenuItem { title: "Add Point"; activated => { root.add_point(); } }
-            MenuItem { title: "Add Line"; activated => { root.add_line(); } }
-            MenuItem { title: "Add Polygon"; activated => { root.add_polygon(); } }
-            MenuItem { title: "Add Polyline"; activated => { root.add_polyline(); } }
-            MenuItem { title: "Add Arc"; activated => { root.add_arc(); } }
-            MenuItem { title: "Line Mode"; activated => { root.draw_line_mode(); } }
-            MenuItem { title: "Polygon Mode"; activated => { root.draw_polygon_mode(); } }
-            MenuItem { title: "Arc Mode"; activated => { root.draw_arc_mode(); } }
-            MenuItem { title: "Dimension Mode"; activated => { root.draw_dimension_mode(); } }
-            MenuItem { title: "Move Entities"; activated => { root.move_entity(); } }
-            MenuItem { title: "Rotate Entities"; activated => { root.rotate_entity(); } }
-            MenuItem { title: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } }
-            MenuItem { title: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); } }
-            MenuItem { title: "Point Manager..."; activated => { root.point_manager(); } }
-            MenuItem { title: "Line Styles..."; activated => { root.line_style_manager(); } }
-            MenuItem { title: "Layer Manager..."; activated => { root.layer_manager(); } }
-            MenuItem { title: "Inspector..."; activated => { root.inspector(); } }
-            MenuItem { title: "Clear"; activated => { root.clear_workspace(); } }
+            MenuItem { title: "Undo"; tooltip: "Undo"; activated => { root.undo(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Redo"; tooltip: "Redo"; activated => { root.redo(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Point"; tooltip: "Add Point"; activated => { root.add_point(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Line"; tooltip: "Add Line"; activated => { root.add_line(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Polygon"; tooltip: "Add Polygon"; activated => { root.add_polygon(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Polyline"; tooltip: "Add Polyline"; activated => { root.add_polyline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Arc"; tooltip: "Add Arc"; activated => { root.add_arc(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Line Mode"; tooltip: "Line Mode"; activated => { root.draw_line_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Polygon Mode"; tooltip: "Polygon Mode"; activated => { root.draw_polygon_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Arc Mode"; tooltip: "Arc Mode"; activated => { root.draw_arc_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Dimension Mode"; tooltip: "Dimension Mode"; activated => { root.draw_dimension_mode(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Move Entities"; tooltip: "Move Entities"; activated => { root.move_entity(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Rotate Entities"; tooltip: "Rotate Entities"; activated => { root.rotate_entity(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Create Polygon from Selection"; tooltip: "Create Polygon from Selection"; activated => { root.create_polygon_from_selection(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Create Surface from Selection"; tooltip: "Create Surface from Selection"; activated => { root.create_surface_from_selection(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Point Manager..."; tooltip: "Point Manager"; activated => { root.point_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Line Styles..."; tooltip: "Line Styles"; activated => { root.line_style_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Layer Manager..."; tooltip: "Layer Manager"; activated => { root.layer_manager(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Inspector..."; tooltip: "Inspector"; activated => { root.inspector(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Clear"; tooltip: "Clear Workspace"; activated => { root.clear_workspace(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
         }
         Menu {
             title: "Tools";
-            MenuItem { title: "Station Distance"; activated => { root.station_distance(); } }
-            MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); } }
-            MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); } }
-            MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); } }
-            MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); } }
-            MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); } }
-            MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); } }
-            MenuItem { title: "Extrude Polyline"; activated => { root.extrude_polyline(); } }
+            MenuItem { title: "Station Distance"; tooltip: "Compute Station Distance"; activated => { root.station_distance(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Traverse Area"; tooltip: "Compute Traverse Area"; activated => { root.traverse_area(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Level Elevation"; tooltip: "Level Elevation"; activated => { root.level_elevation_tool(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Corridor Volume"; tooltip: "Corridor Volume"; activated => { root.corridor_volume(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Superelevation..."; tooltip: "Superelevation"; activated => { root.superelevation_editor(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Design Sections"; tooltip: "Design Sections"; activated => { root.design_cross_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Cross Sections"; tooltip: "View Cross Sections"; activated => { root.view_cross_sections(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Extrude Polyline"; tooltip: "Extrude Polyline"; activated => { root.extrude_polyline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
         }
         Menu {
             title: "TIN";
-            MenuItem { title: "Add Vertex"; activated => { root.tin_add_vertex(); } }
-            MenuItem { title: "Move Vertex"; activated => { root.tin_move_vertex(); } }
-            MenuItem { title: "Delete Vertex"; activated => { root.tin_delete_vertex(); } }
-            MenuItem { title: "Add Triangle"; activated => { root.tin_add_triangle(); } }
-            MenuItem { title: "Delete Triangle"; activated => { root.tin_delete_triangle(); } }
-            MenuItem { title: "Add Breakline"; activated => { root.tin_add_breakline(); } }
-            MenuItem { title: "Remove Breakline"; activated => { root.tin_remove_breakline(); } }
-            MenuItem { title: "Set Boundary"; activated => { root.tin_set_boundary(); } }
-            MenuItem { title: "Clear Boundary"; activated => { root.tin_clear_boundary(); } }
+            MenuItem { title: "Add Vertex"; tooltip: "Add Vertex"; activated => { root.tin_add_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Move Vertex"; tooltip: "Move Vertex"; activated => { root.tin_move_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Delete Vertex"; tooltip: "Delete Vertex"; activated => { root.tin_delete_vertex(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Triangle"; tooltip: "Add Triangle"; activated => { root.tin_add_triangle(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Delete Triangle"; tooltip: "Delete Triangle"; activated => { root.tin_delete_triangle(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Add Breakline"; tooltip: "Add Breakline"; activated => { root.tin_add_breakline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Remove Breakline"; tooltip: "Remove Breakline"; activated => { root.tin_remove_breakline(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Set Boundary"; tooltip: "Set Boundary"; activated => { root.tin_set_boundary(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Clear Boundary"; tooltip: "Clear Boundary"; activated => { root.tin_clear_boundary(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
         }
         Menu {
             title: "View";
-            MenuItem { title: "2D Workspace"; activated => { root.view_changed(0); } }
-            MenuItem { title: "3D Workspace"; activated => { root.view_changed(1); } }
-            MenuItem { title: "Zoom In"; activated => { root.zoom_in(); } }
-            MenuItem { title: "Zoom Out"; activated => { root.zoom_out(); } }
-            MenuItem { title: "Settings..."; activated => { root.settings(); } }
-            MenuItem { title: "Snap Settings..."; activated => { root.snap_settings(); } }
+            MenuItem { title: "2D Workspace"; tooltip: "Switch to 2D"; activated => { root.view_changed(0); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "3D Workspace"; tooltip: "Switch to 3D"; activated => { root.view_changed(1); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Zoom In"; tooltip: "Zoom In"; activated => { root.zoom_in(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Zoom Out"; tooltip: "Zoom Out"; activated => { root.zoom_out(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Settings..."; tooltip: "Application Settings"; activated => { root.settings(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Snap Settings..."; tooltip: "Snap Settings"; activated => { root.snap_settings(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
         }
         Menu {
             title: "Macro";
-            MenuItem { title: "Record"; activated => { root.macro_record(); } }
-            MenuItem { title: "Play"; activated => { root.macro_play(); } }
-            MenuItem { title: "Run Python Script"; activated => { root.run_python_script(); } }
-            MenuItem { title: "Scripts..."; activated => { root.show_macro_list(); } }
-            MenuItem { title: "Plugins Panel"; activated => { root.open_script_panel(); } }
+            MenuItem { title: "Record"; tooltip: "Record Macro"; activated => { root.macro_record(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Play"; tooltip: "Play Macro"; activated => { root.macro_play(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Run Python Script"; tooltip: "Run Python Script"; activated => { root.run_python_script(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Scripts..."; tooltip: "Macro Scripts"; activated => { root.show_macro_list(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Plugins Panel"; tooltip: "Open Plugins Panel"; activated => { root.open_script_panel(); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+        }
+        Menu {
+            title: "Help";
+            MenuItem { title: "User Guide"; tooltip: "Open User Guide"; activated => { root.open_help("docs/user_guide.md"); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
+            MenuItem { title: "Online Docs"; tooltip: "Open Online Documentation"; activated => { root.open_help("https://example.com"); } set-current => { root.menu_hovered(self.tooltip); } clear-current => { root.menu_hovered(""); } }
         }
     }
 
@@ -1139,6 +1165,7 @@ export component MainWindow inherits Window {
             snap_endpoints_changed(b) => { root.snap_endpoints_changed(b); }
             snap_intersections_changed(b) => { root.snap_intersections_changed(b); }
             point_numbers_changed(b) => { root.point_numbers_changed(b); }
+            button_hovered(t) => { root.button_hovered(t); }
         }
 
         Rectangle {

@@ -30,6 +30,7 @@ mod snap;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use open;
 use truck_modeling::base::InnerSpace;
 use truck_modeling::base::Point3;
 use truck_modeling::base::Vector3;
@@ -2636,6 +2637,30 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_command_history(command_history.clone().into());
     app.set_command_text(SharedString::from(""));
     app.set_input_value(SharedString::from(""));
+
+    {
+        let weak = app.as_weak();
+        app.on_button_hovered(move |txt| {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(txt.clone());
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_menu_hovered(move |txt| {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(txt.clone());
+            }
+        });
+    }
+
+    app.on_open_help(move |path| {
+        if let Err(e) = open::that(path.as_str()) {
+            eprintln!("Failed to open help: {e}");
+        }
+    });
 
     // show camera controls in the status bar
     app.set_status(SharedString::from(
