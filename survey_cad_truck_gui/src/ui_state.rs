@@ -91,7 +91,7 @@ pub struct Config {
     pub snap: SnapPrefs,
     pub auto_tin: bool,
     #[serde(default)]
-    pub quick_scripts: [String; 3],
+    pub quick_scripts: Vec<String>,
     #[serde(default)]
     pub profile: WorkspaceProfile,
     #[serde(default)]
@@ -106,7 +106,7 @@ impl Default for Config {
             last_open_dir: None,
             snap: SnapPrefs::default(),
             auto_tin: false,
-            quick_scripts: Default::default(),
+            quick_scripts: Vec::new(),
             profile: WorkspaceProfile::default(),
             theme: Theme::default(),
         }
