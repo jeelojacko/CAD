@@ -2284,8 +2284,14 @@ fn main() -> Result<(), slint::PlatformError> {
             let items_assign = items.clone();
             dlg.on_assign(move |idx, slot| {
                 if let Some(name) = items_assign.get(idx as usize) {
-                    cfg_assign.borrow_mut().quick_scripts[slot as usize] = name.to_string();
-                    save_config(&cfg_assign.borrow());
+                    let mut cfg_borrow = cfg_assign.borrow_mut();
+                    if slot as usize >= cfg_borrow.quick_scripts.len() {
+                        cfg_borrow
+                            .quick_scripts
+                            .resize(slot as usize + 1, String::new());
+                    }
+                    cfg_borrow.quick_scripts[slot as usize] = name.to_string();
+                    save_config(&cfg_borrow);
                 }
             });
 
