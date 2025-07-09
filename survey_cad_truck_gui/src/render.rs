@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use rusttype::{point, Font, Scale};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use tiny_skia::{Color, Pixmap};
 
 use survey_cad::alignment::Alignment;
 use survey_cad::dtm::Tin;

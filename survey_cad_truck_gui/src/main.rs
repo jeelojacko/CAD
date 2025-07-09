@@ -20,7 +20,7 @@ use survey_cad::io::project::{read_project_json, write_project_json, GridSetting
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
 use survey_cad::styles::{
-    format_dms, HatchPattern, LineLabelPosition, LineLabelStyle, LineWeight, PointLabelStyle,
+    format_dms, HatchPattern, LineLabelPosition, LineWeight,
     TextStyle as ScTextStyle, default_alignment_styles,
 };
 use survey_cad::subassembly;
@@ -31,8 +31,6 @@ use std::path::Path;
 use truck_modeling::base::InnerSpace;
 use truck_modeling::base::Point3;
 use truck_modeling::base::Vector3;
-use truck_modeling::builder;
-use truck_modeling::topology::{Solid, Wire};
 
 const MACRO_DIR: &str = "macros";
 
@@ -46,19 +44,19 @@ mod python;
 mod render;
 
 use once_cell::sync::Lazy;
-use commands::{Command, CommandStack, Context, MacroPlaying, MacroRecorder, apply_command, record_macro, spawn_line, spawn_point};
+use commands::{Command, CommandStack, Context, MacroPlaying, MacroRecorder, record_macro, spawn_line, spawn_point};
 use python::{MacroContext, PythonContext, play_macro_file, run_python_file};
 use render::{
     WorkspaceRenderData, RenderState, RenderStyles, draw_text, screen_to_workspace,
     workspace_to_screen, arc_from_three_points, arc_from_start_end_radius, polyline_to_solid,
 };
 use ui_state::{
-    Config, CursorFeedback, DragSelect, SnapPrefs, Vec2, DrawingMode, Theme,
+    CursorFeedback, DragSelect, Vec2, DrawingMode, Theme,
     WorkspaceProfile, load_config, save_config,
 };
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use rusttype::{point, Font, Scale};
+use rusttype::Font;
 use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::include_modules!();
