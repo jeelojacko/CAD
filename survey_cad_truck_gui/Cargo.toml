@@ -21,6 +21,7 @@ shell-words = "1.1"
 dirs = "6"
 pyo3 = { version = "0.21", features = ["auto-initialize"] }
 survey_cad_python = { path = "../survey_cad_python" }
+open = "5"
 
 [build-dependencies]
 slint-build = "1"
