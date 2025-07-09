@@ -112,17 +112,14 @@ impl LineLabelStyle {
 }
 
 /// Available hatch patterns for polygons.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum HatchPattern {
+    #[default]
     None,
     Cross,
     ForwardDiagonal,
     BackwardDiagonal,
     Grid,
-}
-
-impl Default for HatchPattern {
-    fn default() -> Self { Self::None }
 }
 
 /// Style information for polygon fills.
