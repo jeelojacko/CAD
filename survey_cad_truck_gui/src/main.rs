@@ -87,8 +87,12 @@ fn render_workspace(
         // available.
         return Ok(Image::default());
     }
-    let mut pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
-    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    let mut pixmap = state.pixmap.borrow_mut();
+    if pixmap.width() != width || pixmap.height() != height {
+        *pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
+    } else {
+        pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    }
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(
         grid.color[0],
@@ -1722,6 +1726,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let offset = Rc::new(RefCell::new(Vec2::default()));
     let grid_settings = Rc::new(RefCell::new(GridSettings::default()));
     let workspace_crs = Rc::new(RefCell::new(4326u32));
+    let workspace_pixmap = Rc::new(RefCell::new(Pixmap::new(1, 1).unwrap()));
     let pan_2d_flag = Rc::new(RefCell::new(false));
     let last_pos_2d = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
     let rotate_flag = Rc::new(RefCell::new(false));
@@ -1874,6 +1879,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let zoom = zoom.clone();
         let offset = offset.clone();
+        let pixmap_ref = workspace_pixmap.clone();
         let selected_indices = selected_indices.clone();
         let drag_select = drag_select.clone();
         let selected_lines = selected_lines.clone();
@@ -1913,6 +1919,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 &RenderState {
                     offset: &offset,
                     zoom: &zoom,
+                    pixmap: &pixmap_ref,
                     selected: &selected_indices,
                     selected_lines: &selected_lines,
                     selected_polygons: &selected_polygons,

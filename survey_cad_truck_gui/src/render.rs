@@ -38,6 +38,7 @@ pub struct RenderState<'a> {
     pub drag: &'a Rc<RefCell<DragSelect>>,
     pub cursor_feedback: &'a Rc<RefCell<Option<CursorFeedback>>>,
     pub snap_target: &'a Rc<RefCell<Option<Point>>>,
+    pub pixmap: &'a Rc<RefCell<Pixmap>>,
 }
 
 pub struct RenderStyles<'a> {
