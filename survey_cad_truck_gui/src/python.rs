@@ -127,7 +127,7 @@ pub fn run_python_file(path: &Path, ctx: &PythonContext) {
                     })
                     .collect::<PyResult<_>>()?;
 
-                let selected_pts: Vec<usize> = ctx.selected_points.borrow().clone();
+                let selected_pts: Vec<usize> = ctx.selected_points.borrow().to_vec();
                 let selected_lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> = ctx
                     .selected_lines
                     .borrow()
