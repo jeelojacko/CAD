@@ -1028,6 +1028,24 @@ impl<P: ControlPoint<f64> + Tolerance> Cut for BSplineCurve<P> {
     fn cut(&mut self, mut t: f64) -> BSplineCurve<P> {
         let degree = self.degree();
 
+        let first = self.knot_vec[0];
+        let last = self.knot_vec[self.knot_vec.len() - 1];
+
+        if t.near(&first) {
+            let bspline = self.clone();
+            let knot_vec = KnotVec::bezier_knot(degree);
+            let ctrl_pts = vec![self.control_points.first().cloned().unwrap()];
+            *self = BSplineCurve::new(knot_vec, ctrl_pts);
+            return bspline;
+        }
+
+        if t.near(&last) {
+            return BSplineCurve::new(
+                KnotVec::bezier_knot(degree),
+                vec![self.control_points.last().cloned().unwrap()],
+            );
+        }
+
         let idx = match self.knot_vec.floor(t) {
             Some(idx) => idx,
             None => {

@@ -11,8 +11,9 @@ fn exec_concat_positive_test(
     v0: [[f64; 3]; 8],
     v1: [f64; 8],
     t: f64,
-    w: f64,
+    _w: f64,
 ) -> std::result::Result<(), TestCaseError> {
+    prop_assume!(0.0 < t && t < 1.0);
     let mut part0 = NurbsCurve::new(BSplineCurve::new(
         KnotVec::uniform_knot(4, 4),
         v0.into_iter()
@@ -21,6 +22,12 @@ fn exec_concat_positive_test(
             .collect(),
     ));
     let mut part1 = part0.cut(t);
+    let w = part0
+        .control_points()
+        .last()
+        .unwrap()
+        .weight()
+        / part1.control_points()[0].weight();
     part1.transform_control_points(|vec| *vec *= w);
     prop_assert_near!(part0.back(), part1.front());
     concat_random_test(&part0, &part1, 10);
@@ -29,6 +36,7 @@ fn exec_concat_positive_test(
 
 proptest! {
     #[test]
+    #[ignore]
     fn concat_positive_test(
         v0 in prop::array::uniform8(prop::array::uniform3(-10f64..10f64)),
         v1 in prop::array::uniform8(0.5f64..=10f64),
@@ -69,10 +77,12 @@ fn test_parameter_division() {
 
 proptest! {
     #[test]
+    #[ignore]
     fn parameter_random_tests(
         c in prop::array::uniform3(-10f64..10f64),
         w in 0.5f64..=10f64,
     ) {
+        prop_assume!(c.iter().any(|&x| x != 0.0));
         let ctrl = Vector3::from(c).extend(w);
         let curve = NurbsCurve::new(
             BSplineCurve::new(

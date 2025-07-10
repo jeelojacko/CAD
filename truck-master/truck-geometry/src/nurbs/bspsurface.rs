@@ -1388,6 +1388,27 @@ impl<P: ControlPoint<f64> + Tolerance> BSplineSurface<P> {
     pub fn ucut(&mut self, mut u: f64) -> BSplineSurface<P> {
         let degree = self.udegree();
 
+        let first = self.uknot_vec()[0];
+        let last = self.uknot_vec()[self.uknot_vec().len() - 1];
+
+        if u.near(&first) {
+            let bspline = self.clone();
+            let uknot_vec = KnotVec::bezier_knot(degree);
+            let vknot_vec = self.vknot_vec().clone();
+            let ctrl_pts = vec![self.control_points.first().cloned().unwrap()];
+            *self = BSplineSurface::new((uknot_vec, vknot_vec.clone()), ctrl_pts);
+            return bspline;
+        }
+
+        if u.near(&last) {
+            let uknot_vec = KnotVec::bezier_knot(degree);
+            let vknot_vec = self.vknot_vec().clone();
+            return BSplineSurface::new(
+                (uknot_vec, vknot_vec),
+                vec![self.control_points.last().cloned().unwrap()],
+            );
+        }
+
         let idx = match self.uknot_vec().floor(u) {
             Some(idx) => idx,
             None => {
