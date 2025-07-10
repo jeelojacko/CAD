@@ -6,6 +6,7 @@ use slint::{Image, Model, PhysicalSize, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
+use std::error::Error;
 
 use survey_cad::alignment::{Alignment, AlignmentGroup, VerticalAlignment, VerticalElement};
 use survey_cad::corridor;
@@ -79,14 +80,14 @@ fn render_workspace(
     grid: &GridSettings,
     width: u32,
     height: u32,
-) -> Image {
+) -> Result<Image, Box<dyn Error>> {
     if width == 0 || height == 0 {
         // When the window has not been laid out yet slint reports a size of
         // zero. Returning an empty image avoids panicking until a real size is
         // available.
-        return Image::default();
+        return Ok(Image::default());
     }
-    let mut pixmap = Pixmap::new(width, height).unwrap();
+    let mut pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(
@@ -263,7 +264,7 @@ fn render_workspace(
             continue;
         }
         let mut pb = PathBuilder::new();
-        let first = poly.first().unwrap();
+        let Some(first) = poly.first() else { continue };
         pb.move_to(tx(first.x as f32), ty(first.y as f32));
         for p in &poly[1..] {
             pb.line_to(tx(p.x as f32), ty(p.y as f32));
@@ -747,7 +748,7 @@ fn render_workspace(
             }
             DrawingMode::Polygon { vertices } if !vertices.is_empty() => {
                 let mut pb = PathBuilder::new();
-                let first = vertices.first().unwrap();
+                let Some(first) = vertices.first() else { return Ok(Image::default()); };
                 pb.move_to(tx(first.x as f32), ty(first.y as f32));
                 for p in &vertices[1..] {
                     pb.line_to(tx(p.x as f32), ty(p.y as f32));
@@ -981,22 +982,26 @@ fn render_workspace(
         width,
         height,
     );
-    Image::from_rgba8_premultiplied(buffer)
+    Ok(Image::from_rgba8_premultiplied(buffer))
 }
 
-fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u32) -> Image {
+fn render_cross_section(
+    section: &corridor::CrossSection,
+    width: u32,
+    height: u32,
+) -> Result<Image, Box<dyn Error>> {
     if width == 0 || height == 0 {
-        return Image::default();
+        return Ok(Image::default());
     }
-    let mut pixmap = Pixmap::new(width, height).unwrap();
+    let mut pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));
     paint.anti_alias = true;
 
     if section.points.len() >= 2 {
-        let first = section.points.first().unwrap();
-        let last = section.points.last().unwrap();
+        let Some(first) = section.points.first() else { return Ok(Image::default()); };
+        let Some(last) = section.points.last() else { return Ok(Image::default()); };
         let dx = last.x - first.x;
         let dy = last.y - first.y;
         let len = (dx * dx + dy * dy).sqrt();
@@ -1054,7 +1059,7 @@ fn render_cross_section(section: &corridor::CrossSection, width: u32, height: u3
         width,
         height,
     );
-    Image::from_rgba8_premultiplied(buffer)
+    Ok(Image::from_rgba8_premultiplied(buffer))
 }
 
 struct SectionParams {
@@ -1073,8 +1078,8 @@ fn calc_section_params(
     if section.points.len() < 2 {
         return None;
     }
-    let first = section.points.first().unwrap();
-    let last = section.points.last().unwrap();
+    let Some(first) = section.points.first() else { return None };
+    let Some(last) = section.points.last() else { return None };
     let dx = last.x - first.x;
     let dy = last.y - first.y;
     let len = (dx * dx + dy * dy).sqrt();
@@ -1250,11 +1255,17 @@ fn read_arc_csv(path: &str) -> std::io::Result<Arc> {
 
 fn refresh_workspace(
     app: &MainWindow,
-    render_image: &dyn Fn() -> Image,
+    render_image: &dyn Fn() -> Result<Image, Box<dyn Error>>,
     backend_render: &Rc<RefCell<TruckBackend>>,
 ) {
     if app.get_workspace_mode() == 0 {
-        app.set_workspace_image(render_image());
+        match render_image() {
+            Ok(img) => app.set_workspace_image(img),
+            Err(e) => {
+                eprintln!("Failed to render workspace: {e}");
+                app.set_workspace_image(Image::default());
+            }
+        }
     } else {
         let image = backend_render.borrow_mut().render();
         app.set_workspace_texture(image);
@@ -1341,7 +1352,7 @@ fn show_inspector_for_point(
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
-    render_image: Rc<dyn Fn() -> Image>,
+    render_image: Rc<dyn Fn() -> Result<Image, Box<dyn Error>>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx {
@@ -1505,7 +1516,7 @@ fn show_inspector_for_polygon(
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
-    render_image: Rc<dyn Fn() -> Image>,
+    render_image: Rc<dyn Fn() -> Result<Image, Box<dyn Error>>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx {
@@ -5345,7 +5356,9 @@ fn main() -> Result<(), slint::PlatformError> {
             let grade = grade_at(&al.vertical, sections[0].station).unwrap_or(0.0);
             viewer.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
             viewer.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-            viewer.set_section_image(render_cross_section(&sections[0], 600, 300));
+            if let Ok(img) = render_cross_section(&sections[0], 600, 300) {
+                viewer.set_section_image(img);
+            }
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(RefCell::new(sections));
             let drag_index = Rc::new(RefCell::new(None::<usize>));
@@ -5368,7 +5381,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            v.set_section_image(render_cross_section(&secs_b[i], 600, 300));
+                            if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
+                                v.set_section_image(img);
+                            }
                         }
                     }
                 });
@@ -5392,7 +5407,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            v.set_section_image(render_cross_section(&secs_b[i], 600, 300));
+                            if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
+                                v.set_section_image(img);
+                            }
                         }
                     }
                 });
@@ -5425,11 +5442,13 @@ fn main() -> Result<(), slint::PlatformError> {
                         ) {
                             secs_m.borrow_mut()[*current_m.borrow()].points[idx] = p;
                             if let Some(v) = viewer_weak_m.upgrade() {
-                                v.set_section_image(render_cross_section(
+                                if let Ok(img) = render_cross_section(
                                     &secs_m.borrow()[*current_m.borrow()],
                                     600,
                                     300,
-                                ));
+                                ) {
+                                    v.set_section_image(img);
+                                }
                             }
                         }
                     }
