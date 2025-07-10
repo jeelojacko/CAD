@@ -23,7 +23,7 @@ pub struct MacroContext {
     pub lines: Rc<RefCell<Vec<(Point, Point)>>>,
     pub line_styles: Rc<RefCell<Vec<usize>>>,
     pub backend: Rc<RefCell<TruckBackend>>,
-    pub render_image: Rc<dyn Fn() -> Image>,
+    pub render_image: Rc<dyn Fn() -> Result<Image, Box<dyn std::error::Error>>>,
     pub weak: slint::Weak<MainWindow>,
 }
 
@@ -77,7 +77,7 @@ pub fn play_macro_file(path: &Path, ctx: &MacroContext) {
         ctx.recorder.borrow_mut().file = None;
         if let Some(app) = ctx.weak.upgrade() {
             if app.get_workspace_mode() == 0 {
-                app.set_workspace_image((*ctx.render_image)());
+                crate::set_workspace_image_result(&app, &*ctx.render_image);
                 app.window().request_redraw();
             }
             crate::refresh_workspace(&app, &*ctx.render_image, &ctx.backend);
