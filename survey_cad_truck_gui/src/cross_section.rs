@@ -1,0 +1,189 @@
+use slint::Image;
+use std::error::Error;
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+
+use survey_cad::alignment::{VerticalAlignment, VerticalElement};
+use survey_cad::corridor;
+use survey_cad::geometry::{Line, LineAnnotation, Point, Point3 as ScPoint3};
+
+/// Parameters for mapping section coordinates to screen coordinates.
+pub struct SectionParams {
+    pub dir: (f64, f64),
+    pub center: ScPoint3,
+    pub scale: f32,
+    pub ox: f32,
+    pub oy: f32,
+}
+
+pub fn render_cross_section(
+    section: &corridor::CrossSection,
+    width: u32,
+    height: u32,
+) -> Result<Image, Box<dyn Error>> {
+    if width == 0 || height == 0 {
+        return Ok(Image::default());
+    }
+    let mut pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(0, 255, 0, 255));
+    paint.anti_alias = true;
+
+    if section.points.len() >= 2 {
+        let Some(first) = section.points.first() else { return Ok(Image::default()); };
+        let Some(last) = section.points.last() else { return Ok(Image::default()); };
+        let dx = last.x - first.x;
+        let dy = last.y - first.y;
+        let len = (dx * dx + dy * dy).sqrt();
+        let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+        let center = section.points[section.points.len() / 2];
+        let mut pts = Vec::new();
+        let mut min_x = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        for p in &section.points {
+            let off = ((p.x - center.x) * dir.0 + (p.y - center.y) * dir.1) as f32;
+            let elev = (p.z - center.z) as f32;
+            pts.push((off, elev));
+            min_x = min_x.min(off);
+            max_x = max_x.max(off);
+            min_y = min_y.min(elev);
+            max_y = max_y.max(elev);
+        }
+        if (max_x - min_x).abs() < f32::EPSILON {
+            max_x += 1.0;
+        }
+        if (max_y - min_y).abs() < f32::EPSILON {
+            max_y += 1.0;
+        }
+        let scale = ((width as f32 * 0.8) / (max_x - min_x)).min((height as f32 * 0.8) / (max_y - min_y));
+        let ox = width as f32 / 2.0 - scale * (min_x + max_x) / 2.0;
+        let oy = height as f32 / 2.0 + scale * (min_y + max_y) / 2.0;
+        let mut pb = PathBuilder::new();
+        for (i, (x, y)) in pts.iter().enumerate() {
+            let px = ox + *x * scale;
+            let py = oy - *y * scale;
+            if i == 0 {
+                pb.move_to(px, py);
+            } else {
+                pb.line_to(px, py);
+            }
+        }
+        if let Some(path) = pb.finish() {
+            let stroke = Stroke { width: 2.0, ..Stroke::default() };
+            pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+        }
+    }
+
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        pixmap.data(),
+        width,
+        height,
+    );
+    Ok(Image::from_rgba8_premultiplied(buffer))
+}
+
+pub fn calc_section_params(
+    section: &corridor::CrossSection,
+    width: f32,
+    height: f32,
+) -> Option<SectionParams> {
+    if section.points.len() < 2 {
+        return None;
+    }
+    let first = section.points.first()?;
+    let last = section.points.last()?;
+    let dx = last.x - first.x;
+    let dy = last.y - first.y;
+    let len = (dx * dx + dy * dy).sqrt();
+    let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+    let center = section.points[section.points.len() / 2];
+    let mut min_x = f32::MAX;
+    let mut max_x = f32::MIN;
+    let mut min_y = f32::MAX;
+    let mut max_y = f32::MIN;
+    for p in &section.points {
+        let off = ((p.x - center.x) * dir.0 + (p.y - center.y) * dir.1) as f32;
+        let elev = (p.z - center.z) as f32;
+        min_x = min_x.min(off);
+        max_x = max_x.max(off);
+        min_y = min_y.min(elev);
+        max_y = max_y.max(elev);
+    }
+    if (max_x - min_x).abs() < f32::EPSILON {
+        max_x += 1.0;
+    }
+    if (max_y - min_y).abs() < f32::EPSILON {
+        max_y += 1.0;
+    }
+    let scale = ((width * 0.8) / (max_x - min_x)).min((height * 0.8) / (max_y - min_y));
+    let ox = width / 2.0 - scale * (min_x + max_x) / 2.0;
+    let oy = height / 2.0 + scale * (min_y + max_y) / 2.0;
+    Some(SectionParams { dir, center, scale, ox, oy })
+}
+
+pub fn screen_to_world(
+    section: &corridor::CrossSection,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> Option<ScPoint3> {
+    let params = calc_section_params(section, width, height)?;
+    let off = (x - params.ox) / params.scale;
+    let elev = (params.oy - y) / params.scale;
+    Some(ScPoint3::new(
+        params.center.x + off as f64 * params.dir.0,
+        params.center.y + off as f64 * params.dir.1,
+        params.center.z + elev as f64,
+    ))
+}
+
+pub fn nearest_point(
+    section: &corridor::CrossSection,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+) -> Option<usize> {
+    let params = calc_section_params(section, width, height)?;
+    let mut best = None;
+    let mut best_dist = f32::MAX;
+    for (i, p) in section.points.iter().enumerate() {
+        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1) as f32;
+        let elev = (p.z - params.center.z) as f32;
+        let sx = params.ox + off * params.scale;
+        let sy = params.oy - elev * params.scale;
+        let dx = sx - x;
+        let dy = sy - y;
+        let dist = dx * dx + dy * dy;
+        if dist < best_dist {
+            best_dist = dist;
+            best = Some(i);
+        }
+    }
+    if best_dist.sqrt() <= 10.0 { best } else { None }
+}
+
+pub fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
+    for elem in &profile.elements {
+        match *elem {
+            VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+                if station >= start_station && station <= end_station {
+                    if (end_station - start_station).abs() < f64::EPSILON {
+                        return Some(0.0);
+                    }
+                    return Some((end_elev - start_elev) / (end_station - start_station));
+                }
+            }
+            VerticalElement::Parabola { start_station, end_station, start_grade, end_grade, .. } => {
+                if station >= start_station && station <= end_station {
+                    let t = (station - start_station) / (end_station - start_station);
+                    return Some(start_grade + (end_grade - start_grade) * t);
+                }
+            }
+        }
+    }
+    None
+}
