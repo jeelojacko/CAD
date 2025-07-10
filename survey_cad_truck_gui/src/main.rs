@@ -1082,8 +1082,8 @@ fn calc_section_params(
     if section.points.len() < 2 {
         return None;
     }
-    let Some(first) = section.points.first() else { return None };
-    let Some(last) = section.points.last() else { return None };
+    let first = section.points.first()?;
+    let last = section.points.last()?;
     let dx = last.x - first.x;
     let dy = last.y - first.y;
     let len = (dx * dx + dy * dy).sqrt();
