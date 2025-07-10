@@ -7,9 +7,8 @@ use slint::{ComponentHandle, Image, SharedString, VecModel};
 use survey_cad::geometry::Point;
 
 use crate::truck_backend::TruckBackend;
-use crate::{ContextMenu, EntityInspector, MainWindow};
-use crate::ui_state::DrawingMode; // maybe not used? Wait show_inspector functions use render_image etc
 use crate::workspace::refresh_workspace;
+use crate::{ContextMenu, EntityInspector, MainWindow};
 
 pub fn show_context_menu(
     app: &MainWindow,
