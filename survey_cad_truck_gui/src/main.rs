@@ -2,28 +2,24 @@
 
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
-use slint::{Image, Model, PhysicalSize, SharedString, VecModel};
+use slint::{Model, PhysicalSize, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
-use std::error::Error;
 
-use survey_cad::alignment::{Alignment, AlignmentGroup, VerticalAlignment, VerticalElement};
+use survey_cad::alignment::{Alignment, AlignmentGroup, VerticalAlignment};
 use survey_cad::corridor;
 use survey_cad::crs::list_known_crs;
-use survey_cad::dtm::{Tin, SurfaceGroup};
+use survey_cad::dtm::{SurfaceGroup, Tin};
 use survey_cad::geometry::point::PointStyle;
 use survey_cad::geometry::{
-    convex_hull, Arc, Line, LineAnnotation, LineStyle, LineType, LinearDimension, Point,
-    Point3 as ScPoint3, PointSymbol, Polyline,
+    convex_hull, Arc, Line, LineStyle, LineType, LinearDimension, Point, Point3 as ScPoint3,
+    Polyline,
 };
 use survey_cad::io::project::{read_project_json, write_project_json, GridSettings, Project};
 use survey_cad::layers::{Layer, LayerManager as ScLayerManager};
 use survey_cad::point_database::PointDatabase;
-use survey_cad::styles::{
-    format_dms, HatchPattern, LineLabelPosition, LineWeight,
-    TextStyle as ScTextStyle, default_alignment_styles,
-};
+use survey_cad::styles::{default_alignment_styles, LineWeight, TextStyle as ScTextStyle};
 use survey_cad::subassembly;
 use survey_cad::superelevation::SuperelevationPoint;
 mod snap;
@@ -39,34 +35,42 @@ mod truck_backend;
 use truck_backend::{HitObject, TruckBackend};
 mod persistence;
 use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
-mod ui_state;
 mod commands;
+mod cross_section;
+mod inspector;
+mod io_utils;
 mod python;
 mod render;
+mod ui_state;
 mod workspace;
-mod cross_section;
-mod io_utils;
-mod inspector;
 
+use commands::{
+    record_macro, spawn_line, spawn_point, Command, CommandStack, Context, MacroPlaying,
+    MacroRecorder,
+};
+pub use cross_section::{
+    calc_section_params, grade_at, nearest_point, render_cross_section, screen_to_world,
+    SectionParams,
+};
+pub use inspector::{
+    has_selection, show_context_menu, show_inspector_for_point, show_inspector_for_polygon,
+};
+pub use io_utils::{read_arc_csv, read_line_csv, read_points_list};
 use once_cell::sync::Lazy;
-pub use workspace::{render_workspace, refresh_workspace, set_workspace_image_result};
-pub use cross_section::{render_cross_section, calc_section_params, screen_to_world, nearest_point, grade_at, SectionParams};
-pub use io_utils::{read_line_csv, read_points_list, read_arc_csv};
-pub use inspector::{show_context_menu, has_selection, show_inspector_for_point, show_inspector_for_polygon};
-use commands::{Command, CommandStack, Context, MacroPlaying, MacroRecorder, record_macro, spawn_line, spawn_point};
-use python::{MacroContext, PythonContext, play_macro_file, run_python_file};
-use render::{
-    WorkspaceRenderData, RenderState, RenderStyles, draw_text, screen_to_workspace,
-    workspace_to_screen, arc_from_three_points, arc_from_start_end_radius, polyline_to_solid,
-};
-use ui_state::{
-    CursorFeedback, DragSelect, Vec2, DrawingMode, Theme,
-    WorkspaceProfile, load_config, save_config,
-};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use python::{play_macro_file, run_python_file, MacroContext, PythonContext};
+use render::{
+    arc_from_start_end_radius, arc_from_three_points, polyline_to_solid, screen_to_workspace,
+    workspace_to_screen, RenderState, RenderStyles, WorkspaceRenderData,
+};
 use rusttype::Font;
-use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use tiny_skia::Pixmap;
+use ui_state::{
+    load_config, save_config, CursorFeedback, DragSelect, DrawingMode, Theme, Vec2,
+    WorkspaceProfile,
+};
+pub use workspace::{refresh_workspace, render_workspace, set_workspace_image_result};
 
 slint::include_modules!();
 
@@ -74,9 +78,7 @@ slint::include_modules!();
 // the `DEFAULT_FONT_PATH` environment variable, which can be overridden with
 // `SURVEY_CAD_FONT` when building.
 static FONT_DATA: &[u8] = include_bytes!(env!("DEFAULT_FONT_PATH"));
-static FONT: Lazy<Font<'static>> =
-    Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
-
+static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
 
 fn main() -> Result<(), slint::PlatformError> {
     let mut cmd_font: Option<String> = None;
@@ -2275,7 +2277,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             surfaces.borrow_mut().clear();
                             surfaces.borrow_mut().extend(proj.surfaces.clone());
                             surface_groups.borrow_mut().clear();
-                            surface_groups.borrow_mut().extend(proj.surface_groups.clone());
+                            surface_groups
+                                .borrow_mut()
+                                .extend(proj.surface_groups.clone());
                             surface_units_ref.borrow_mut().clear();
                             surface_units_ref
                                 .borrow_mut()
@@ -2291,7 +2295,9 @@ fn main() -> Result<(), slint::PlatformError> {
                             alignments.borrow_mut().clear();
                             alignments.borrow_mut().extend(proj.alignments.clone());
                             alignment_groups.borrow_mut().clear();
-                            alignment_groups.borrow_mut().extend(proj.alignment_groups.clone());
+                            alignment_groups
+                                .borrow_mut()
+                                .extend(proj.alignment_groups.clone());
                             *line_style_indices.borrow_mut() = proj.line_style_indices.clone();
                             *point_style_indices.borrow_mut() = proj.point_style_indices.clone();
                             *polygon_style_indices.borrow_mut() =
@@ -2820,7 +2826,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polygons.borrow().len()
                                             )));
                                             if app.get_workspace_mode() == 0 {
-                                                crate::set_workspace_image_result(&app, &render_image);
+                                                crate::set_workspace_image_result(
+                                                    &app,
+                                                    &render_image,
+                                                );
                                                 app.window().request_redraw();
                                             }
                                         }
@@ -2944,7 +2953,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polylines.borrow().len()
                                             )));
                                             if app.get_workspace_mode() == 0 {
-                                                crate::set_workspace_image_result(&app, &render_image);
+                                                crate::set_workspace_image_result(
+                                                    &app,
+                                                    &render_image,
+                                                );
                                                 app.window().request_redraw();
                                             }
                                         }
@@ -3974,11 +3986,20 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
-                            if let Some(idx) = backend_inner.borrow_mut().add_vertex(sidx, Point3::new(x, y, z)) {
+                            if let Some(idx) = backend_inner
+                                .borrow_mut()
+                                .add_vertex(sidx, Point3::new(x, y, z))
+                            {
                                 command_stack.borrow_mut().push(Command::TinDeleteVertex {
                                     surface: sidx,
                                     index: idx,
@@ -4024,9 +4045,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_y_val().parse::<f64>(),
                         d.get_z_val().parse::<f64>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner
                                 .borrow_mut()
@@ -4070,9 +4097,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_surface_index().parse::<usize>(),
                         d.get_vertex_index().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().delete_vertex(sidx, idx);
                         }
@@ -4113,9 +4146,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v2().parse::<usize>(),
                         d.get_v3().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().add_triangle(sidx, [a, b, c]);
                         }
@@ -4157,9 +4196,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_surface_index().parse::<usize>(),
                         d.get_tri_index().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().delete_triangle(sidx, idx);
                         }
@@ -4199,9 +4244,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().add_breakline(sidx, a, b);
                         }
@@ -4241,9 +4292,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         d.get_v1().parse::<usize>(),
                         d.get_v2().parse::<usize>(),
                     ) {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().remove_breakline(sidx, a, b);
                         }
@@ -4284,9 +4341,15 @@ fn main() -> Result<(), slint::PlatformError> {
                             .split(|c: char| c == ',' || c.is_whitespace())
                             .filter_map(|s| s.parse().ok())
                             .collect();
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().set_boundary(sidx, verts.clone());
                         }
@@ -4323,9 +4386,15 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(surf) = d.get_surface_index().parse::<usize>() {
-                        let targets = if let Some(g) = surface_groups_inner.borrow().iter().find(|g| g.surface_ids.contains(&surf)) {
+                        let targets = if let Some(g) = surface_groups_inner
+                            .borrow()
+                            .iter()
+                            .find(|g| g.surface_ids.contains(&surf))
+                        {
                             g.surface_ids.clone()
-                        } else { vec![surf] };
+                        } else {
+                            vec![surf]
+                        };
                         for sidx in targets {
                             backend_inner.borrow_mut().clear_boundary(sidx);
                         }
@@ -4816,7 +4885,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                                     "Imported {len} points"
                                                 )));
                                                 if app.get_workspace_mode() == 0 {
-                                                    crate::set_workspace_image_result(&app, &render_image);
+                                                    crate::set_workspace_image_result(
+                                                        &app,
+                                                        &render_image,
+                                                    );
                                                 } else {
                                                     let image =
                                                         backend_render.borrow_mut().render();
@@ -4946,7 +5018,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                                     "Imported {len} points"
                                                 )));
                                                 if app.get_workspace_mode() == 0 {
-                                                    crate::set_workspace_image_result(&app, &render_image);
+                                                    crate::set_workspace_image_result(
+                                                        &app,
+                                                        &render_image,
+                                                    );
                                                 } else {
                                                     let image =
                                                         backend_render.borrow_mut().render();
@@ -6050,7 +6125,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     .borrow()
                     .iter()
                     .map(|g| SharedString::from(g.name.clone()))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>(),
             ));
             dlg.set_groups_model(model.clone().into());
             dlg.set_selected_index(-1);
@@ -6059,7 +6134,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 let model = model.clone();
                 dlg.on_create_group(move || {
                     let name = format!("Group {}", surface_groups.borrow().len() + 1);
-                    surface_groups.borrow_mut().push(SurfaceGroup { name: name.clone(), surface_ids: Vec::new() });
+                    surface_groups.borrow_mut().push(SurfaceGroup {
+                        name: name.clone(),
+                        surface_ids: Vec::new(),
+                    });
                     model.push(SharedString::from(name));
                 });
             }
@@ -6067,11 +6145,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 let surface_groups = surface_groups.clone();
                 let model = model.clone();
                 dlg.on_rename_group(move |idx| {
-                    if idx >= 0 { if let Some(g) = surface_groups.borrow_mut().get_mut(idx as usize) {
-                        let new_name = format!("Group {}", idx + 1);
-                        g.name = new_name.clone();
-                        model.set_row_data(idx as usize, SharedString::from(new_name));
-                    } }
+                    if idx >= 0 {
+                        if let Some(g) = surface_groups.borrow_mut().get_mut(idx as usize) {
+                            let new_name = format!("Group {}", idx + 1);
+                            g.name = new_name.clone();
+                            model.set_row_data(idx as usize, SharedString::from(new_name));
+                        }
+                    }
                 });
             }
             dlg.show().unwrap();
@@ -6088,7 +6168,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     .borrow()
                     .iter()
                     .map(|g| SharedString::from(g.name.clone()))
-                    .collect::<Vec<_>>()
+                    .collect::<Vec<_>>(),
             ));
             dlg.set_groups_model(model.clone().into());
             dlg.set_selected_index(-1);
@@ -6097,7 +6177,10 @@ fn main() -> Result<(), slint::PlatformError> {
                 let model = model.clone();
                 dlg.on_create_group(move || {
                     let name = format!("Group {}", alignment_groups.borrow().len() + 1);
-                    alignment_groups.borrow_mut().push(AlignmentGroup { name: name.clone(), alignment_ids: Vec::new() });
+                    alignment_groups.borrow_mut().push(AlignmentGroup {
+                        name: name.clone(),
+                        alignment_ids: Vec::new(),
+                    });
                     model.push(SharedString::from(name));
                 });
             }
@@ -6105,11 +6188,13 @@ fn main() -> Result<(), slint::PlatformError> {
                 let alignment_groups = alignment_groups.clone();
                 let model = model.clone();
                 dlg.on_rename_group(move |idx| {
-                    if idx >= 0 { if let Some(g) = alignment_groups.borrow_mut().get_mut(idx as usize) {
-                        let new_name = format!("Group {}", idx + 1);
-                        g.name = new_name.clone();
-                        model.set_row_data(idx as usize, SharedString::from(new_name));
-                    } }
+                    if idx >= 0 {
+                        if let Some(g) = alignment_groups.borrow_mut().get_mut(idx as usize) {
+                            let new_name = format!("Group {}", idx + 1);
+                            g.name = new_name.clone();
+                            model.set_row_data(idx as usize, SharedString::from(new_name));
+                        }
+                    }
                 });
             }
             dlg.show().unwrap();
@@ -6370,9 +6455,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         _ => Theme::Dark,
                     };
                     cfg.theme = theme;
-                    cfg.font_path = fonts_cloned
-                        .get(d.get_font_index() as usize)
-                        .cloned();
+                    cfg.font_path = fonts_cloned.get(d.get_font_index() as usize).cloned();
                     drop(cfg);
                     if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
                         *crs_ref.borrow_mut() = epsg;

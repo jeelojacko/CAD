@@ -2,17 +2,17 @@ use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
 
-use slint::Image;
+use slint::{ComponentHandle, Image};
 use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
-use survey_cad::geometry::{Line, LineAnnotation, LineType, Point};
+use survey_cad::geometry::{Line, LineAnnotation, LineType};
 use survey_cad::io::project::GridSettings;
 use survey_cad::styles::{format_dms, HatchPattern, LineLabelPosition};
 
 use crate::render::{draw_text, RenderState, RenderStyles, WorkspaceRenderData};
-use crate::ui_state::{CursorFeedback, DragSelect, DrawingMode};
-use crate::{MainWindow, FONT};
 use crate::truck_backend::TruckBackend;
+use crate::ui_state::DrawingMode;
+use crate::{MainWindow, FONT};
 
 pub fn render_workspace(
     data: &WorkspaceRenderData,
@@ -33,9 +33,17 @@ pub fn render_workspace(
         pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     }
     let mut paint = Paint::default();
-    paint.set_color(Color::from_rgba8(grid.color[0], grid.color[1], grid.color[2], 255));
+    paint.set_color(Color::from_rgba8(
+        grid.color[0],
+        grid.color[1],
+        grid.color[2],
+        255,
+    ));
     paint.anti_alias = true;
-    let grid_stroke = Stroke { width: 1.0, ..Stroke::default() };
+    let grid_stroke = Stroke {
+        width: 1.0,
+        ..Stroke::default()
+    };
     let origin_x = width as f32 / 2.0;
     let origin_y = height as f32 / 2.0;
     let zoom_val = *state.zoom.borrow();
@@ -123,8 +131,16 @@ pub fn render_workspace(
         if selected {
             style.color = [255, 255, 0];
         }
-        paint.set_color(Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255));
-        let mut stroke = Stroke { width: style.weight.0, ..Stroke::default() };
+        paint.set_color(Color::from_rgba8(
+            style.color[0],
+            style.color[1],
+            style.color[2],
+            255,
+        ));
+        let mut stroke = Stroke {
+            width: style.weight.0,
+            ..Stroke::default()
+        };
         use tiny_skia::StrokeDash;
         match style.line_type {
             LineType::Dashed => stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0),
@@ -135,7 +151,10 @@ pub fn render_workspace(
         pb.move_to(tx(s.x as f32), ty(s.y as f32));
         pb.line_to(tx(e.x as f32), ty(e.y as f32));
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 1.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 1.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
 
@@ -209,7 +228,13 @@ pub fn render_workspace(
                 pstyle.fill_color[2],
                 255,
             ));
-            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+            pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
 
             if pstyle.hatch_pattern != HatchPattern::None {
                 paint.set_color(Color::from_rgba8(
@@ -218,30 +243,53 @@ pub fn render_workspace(
                     pstyle.hatch_color[2],
                     255,
                 ));
-                let stroke = Stroke { width: 1.0, ..Stroke::default() };
+                let stroke = Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                };
                 {
                     let bb = path.bounds();
                     let step = 10.0;
-                    if matches!(pstyle.hatch_pattern, HatchPattern::Cross | HatchPattern::Grid) {
+                    if matches!(
+                        pstyle.hatch_pattern,
+                        HatchPattern::Cross | HatchPattern::Grid
+                    ) {
                         let mut x = bb.left();
                         while x <= bb.right() {
                             let mut pb = PathBuilder::new();
                             pb.move_to(x, bb.top());
                             pb.line_to(x, bb.bottom());
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             x += step;
                         }
                     }
-                    if matches!(pstyle.hatch_pattern, HatchPattern::Cross | HatchPattern::DiagonalCross) {
+                    if matches!(
+                        pstyle.hatch_pattern,
+                        HatchPattern::ForwardDiagonal
+                            | HatchPattern::BackwardDiagonal
+                            | HatchPattern::Cross
+                    ) {
                         let mut x = bb.left();
                         while x <= bb.right() {
                             let mut pb = PathBuilder::new();
                             pb.move_to(x, bb.top());
                             pb.line_to(x + bb.height(), bb.bottom());
                             if let Some(p) = pb.finish() {
-                                pixmap.stroke_path(&p, &paint, &stroke, Transform::identity(), None);
+                                pixmap.stroke_path(
+                                    &p,
+                                    &paint,
+                                    &stroke,
+                                    Transform::identity(),
+                                    None,
+                                );
                             }
                             x += step;
                         }
@@ -258,7 +306,10 @@ pub fn render_workspace(
         let x2 = ds.start.0.max(ds.end.0);
         let y2 = ds.start.1.max(ds.end.1);
         paint.set_color(Color::from_rgba8(255, 255, 255, 128));
-        let rect_stroke = Stroke { width: 1.0, ..Stroke::default() };
+        let rect_stroke = Stroke {
+            width: 1.0,
+            ..Stroke::default()
+        };
         let mut pb = PathBuilder::new();
         pb.move_to(x1, y1);
         pb.line_to(x2, y1);
@@ -284,7 +335,16 @@ pub fn render_workspace(
         pb.move_to(cf.pos.0, cf.pos.1 - 5.0);
         pb.line_to(cf.pos.0, cf.pos.1 + 5.0);
         if let Some(path) = pb.finish() {
-            pixmap.stroke_path(&path, &paint, &Stroke { width: 1.0, ..Stroke::default() }, Transform::identity(), None);
+            pixmap.stroke_path(
+                &path,
+                &paint,
+                &Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                },
+                Transform::identity(),
+                None,
+            );
         }
     }
 

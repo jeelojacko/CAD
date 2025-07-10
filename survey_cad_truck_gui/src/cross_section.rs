@@ -4,7 +4,7 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 use survey_cad::alignment::{VerticalAlignment, VerticalElement};
 use survey_cad::corridor;
-use survey_cad::geometry::{Line, LineAnnotation, Point, Point3 as ScPoint3};
+use survey_cad::geometry::Point3 as ScPoint3;
 
 /// Parameters for mapping section coordinates to screen coordinates.
 pub struct SectionParams {
@@ -30,12 +30,20 @@ pub fn render_cross_section(
     paint.anti_alias = true;
 
     if section.points.len() >= 2 {
-        let Some(first) = section.points.first() else { return Ok(Image::default()); };
-        let Some(last) = section.points.last() else { return Ok(Image::default()); };
+        let Some(first) = section.points.first() else {
+            return Ok(Image::default());
+        };
+        let Some(last) = section.points.last() else {
+            return Ok(Image::default());
+        };
         let dx = last.x - first.x;
         let dy = last.y - first.y;
         let len = (dx * dx + dy * dy).sqrt();
-        let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+        let dir = if len.abs() < f64::EPSILON {
+            (1.0, 0.0)
+        } else {
+            (dx / len, dy / len)
+        };
         let center = section.points[section.points.len() / 2];
         let mut pts = Vec::new();
         let mut min_x = f32::MAX;
@@ -57,7 +65,8 @@ pub fn render_cross_section(
         if (max_y - min_y).abs() < f32::EPSILON {
             max_y += 1.0;
         }
-        let scale = ((width as f32 * 0.8) / (max_x - min_x)).min((height as f32 * 0.8) / (max_y - min_y));
+        let scale =
+            ((width as f32 * 0.8) / (max_x - min_x)).min((height as f32 * 0.8) / (max_y - min_y));
         let ox = width as f32 / 2.0 - scale * (min_x + max_x) / 2.0;
         let oy = height as f32 / 2.0 + scale * (min_y + max_y) / 2.0;
         let mut pb = PathBuilder::new();
@@ -71,7 +80,10 @@ pub fn render_cross_section(
             }
         }
         if let Some(path) = pb.finish() {
-            let stroke = Stroke { width: 2.0, ..Stroke::default() };
+            let stroke = Stroke {
+                width: 2.0,
+                ..Stroke::default()
+            };
             pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
         }
     }
@@ -97,7 +109,11 @@ pub fn calc_section_params(
     let dx = last.x - first.x;
     let dy = last.y - first.y;
     let len = (dx * dx + dy * dy).sqrt();
-    let dir = if len.abs() < f64::EPSILON { (1.0, 0.0) } else { (dx / len, dy / len) };
+    let dir = if len.abs() < f64::EPSILON {
+        (1.0, 0.0)
+    } else {
+        (dx / len, dy / len)
+    };
     let center = section.points[section.points.len() / 2];
     let mut min_x = f32::MAX;
     let mut max_x = f32::MIN;
@@ -120,7 +136,13 @@ pub fn calc_section_params(
     let scale = ((width * 0.8) / (max_x - min_x)).min((height * 0.8) / (max_y - min_y));
     let ox = width / 2.0 - scale * (min_x + max_x) / 2.0;
     let oy = height / 2.0 + scale * (min_y + max_y) / 2.0;
-    Some(SectionParams { dir, center, scale, ox, oy })
+    Some(SectionParams {
+        dir,
+        center,
+        scale,
+        ox,
+        oy,
+    })
 }
 
 pub fn screen_to_world(
@@ -151,7 +173,8 @@ pub fn nearest_point(
     let mut best = None;
     let mut best_dist = f32::MAX;
     for (i, p) in section.points.iter().enumerate() {
-        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1) as f32;
+        let off = ((p.x - params.center.x) * params.dir.0 + (p.y - params.center.y) * params.dir.1)
+            as f32;
         let elev = (p.z - params.center.z) as f32;
         let sx = params.ox + off * params.scale;
         let sy = params.oy - elev * params.scale;
@@ -163,13 +186,22 @@ pub fn nearest_point(
             best = Some(i);
         }
     }
-    if best_dist.sqrt() <= 10.0 { best } else { None }
+    if best_dist.sqrt() <= 10.0 {
+        best
+    } else {
+        None
+    }
 }
 
 pub fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
     for elem in &profile.elements {
         match *elem {
-            VerticalElement::Grade { start_station, end_station, start_elev, end_elev } => {
+            VerticalElement::Grade {
+                start_station,
+                end_station,
+                start_elev,
+                end_elev,
+            } => {
                 if station >= start_station && station <= end_station {
                     if (end_station - start_station).abs() < f64::EPSILON {
                         return Some(0.0);
@@ -177,7 +209,13 @@ pub fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
                     return Some((end_elev - start_elev) / (end_station - start_station));
                 }
             }
-            VerticalElement::Parabola { start_station, end_station, start_grade, end_grade, .. } => {
+            VerticalElement::Parabola {
+                start_station,
+                end_station,
+                start_grade,
+                end_grade,
+                ..
+            } => {
                 if station >= start_station && station <= end_station {
                     let t = (station - start_station) / (end_station - start_station);
                     return Some(start_grade + (end_grade - start_grade) * t);
