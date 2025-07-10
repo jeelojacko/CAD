@@ -651,8 +651,8 @@ impl TruckBackend {
         }
 
         for i in cand_points {
-            if let Some(p) = self.points.get(i) {
-                if let Some((sx, sy, z)) = self.engine.project_point(p.clone()) {
+            if let Some(&p) = self.points.as_slice().get(i) {
+                if let Some((sx, sy, z)) = self.engine.project_point(p) {
                     let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                     if d2 < 64.0 && z < best_z {
                         best_z = z;
@@ -663,10 +663,10 @@ impl TruckBackend {
         }
 
         for i in cand_lines {
-            if let Some((a, b, _, _)) = self.lines.get(i) {
+            if let Some(&(a, b, _, _)) = self.lines.as_slice().get(i) {
                 if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
-                    self.engine.project_point(a.clone()),
-                    self.engine.project_point(b.clone()),
+                    self.engine.project_point(a),
+                    self.engine.project_point(b),
                 ) {
                     let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
                         / ((bx - ax).powi(2) + (by - ay).powi(2));
