@@ -29,25 +29,39 @@ Enter to execute them. Entered commands are kept in a history list.
 ## Scripts and Plugins
 
 Python scripts located in the `macros/` directory can be executed from the
-**Plugins Panel** available through the `Macro` menu. When a script runs the
-following variables are provided:
+**Plugins Panel** available through the `Macro` menu. See the next section for
+the variables that are provided to a script and a small example.
 
-- `survey_cad_python` &ndash; bindings to the core library.
-- `points`, `lines`, `surfaces` &ndash; all entities in the current project.
-- `selected_points`, `selected_lines` &ndash; the current selection.
-- `view` &ndash; a dictionary with `offset` and `zoom` describing the active view.
+### Available Variables
 
-Scripts can use these values to query or modify the project. An example script:
+Python files must be placed inside the `macros/` directory located at the
+workspace root. When executed from **Macro → Plugins Panel** each script
+receives the following globals:
+
+- `survey_cad_python` – bindings for geometry helpers.
+- `points` – list of all points as `survey_cad_python.Point` objects.
+- `lines` – tuples representing each line segment.
+- `surfaces` – dictionaries with `vertices` and `triangles` for every surface.
+- `selected_points` – indices of the currently selected points.
+- `selected_lines` – selected line segments.
+- `view` – dictionary with the current `offset` and `zoom`.
+
+Errors raised by the script are shown in the application's status bar. A
+successful run reports *"Python script finished"* in the same location.
+
+#### Example – adding a point
+
+Create `macros/add_point.py` with the following contents:
 
 ```python
 from survey_cad_python import Point
 
-for idx in selected_points:
-    p = points[idx]
-    print("Selected:", p.x, p.y)
-
-print("Zoom:", view["zoom"])
+points.append(Point(100.0, 50.0))
+print("Total points:", len(points))
 ```
+
+Running this file from the Plugins Panel appends a new point to the project and
+prints the updated count in the console.
 
 ## Fonts
 
