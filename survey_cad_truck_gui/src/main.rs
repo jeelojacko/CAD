@@ -1273,6 +1273,19 @@ fn refresh_workspace(
     app.window().request_redraw();
 }
 
+pub fn set_workspace_image_result(
+    app: &MainWindow,
+    render_image: &dyn Fn() -> Result<Image, Box<dyn Error>>,
+) {
+    match render_image() {
+        Ok(img) => app.set_workspace_image(img),
+        Err(e) => {
+            eprintln!("Failed to render workspace: {e}");
+            app.set_workspace_image(Image::default());
+        }
+    }
+}
+
 fn show_context_menu(
     app: &MainWindow,
     state: &Rc<RefCell<Option<slint::Weak<ContextMenu>>>>,
@@ -1982,7 +1995,7 @@ fn main() -> Result<(), slint::PlatformError> {
     ));
 
     // prepare initial 2D workspace image and schedule continuous redraws
-    app.set_workspace_image(render_image());
+    crate::set_workspace_image_result(&app, &render_image);
     app.window().request_redraw();
 
     {
@@ -2111,7 +2124,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     recorder.borrow_mut().file = None;
                     if let Some(app) = weak.upgrade() {
                         if app.get_workspace_mode() == 0 {
-                            app.set_workspace_image(render_image());
+                            crate::set_workspace_image_result(&app, &render_image);
                             app.window().request_redraw();
                         }
                         refresh_workspace(&app, &render_image, &backend_render);
@@ -2465,7 +2478,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         surfaces.borrow().len()
                     )));
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                     } else {
                         let image = backend_render.borrow_mut().render();
                         app.set_workspace_texture(image);
@@ -2770,7 +2783,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_zoom_level(*zoom.borrow());
                 if app.get_workspace_mode() == 0 {
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.window().request_redraw();
                 }
             }
@@ -2786,7 +2799,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_zoom_level(*zoom.borrow());
                 if app.get_workspace_mode() == 0 {
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.window().request_redraw();
                 }
             }
@@ -2803,7 +2816,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 app.set_workspace_mode(mode);
                 app.set_zoom_level(*zoom.borrow());
                 if mode == 0 {
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.set_status(SharedString::from("Camera: Middle drag pan, scroll zoom"));
                 } else {
                     let image = backend_render.borrow_mut().render();
@@ -2823,7 +2836,7 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_point_numbers_changed(move |_| {
             if let Some(app) = weak.upgrade() {
                 if app.get_workspace_mode() == 0 {
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.window().request_redraw();
                 }
             }
@@ -2937,7 +2950,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 *drawing_mode.borrow_mut() = DrawingMode::None;
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -2953,7 +2966,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 drop(dm);
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -3258,7 +3271,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         drop(mode);
                         if app.get_workspace_mode() == 0 {
-                            app.set_workspace_image(render_image());
+                            crate::set_workspace_image_result(&app, &render_image);
                             app.window().request_redraw();
                         }
                         if let Some(app) = weak.upgrade() {
@@ -3412,7 +3425,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if update {
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -3544,7 +3557,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 offset.borrow_mut().y += -dy2 / z;
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -3554,7 +3567,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 drag_select.borrow_mut().end = (x, y);
                 if let Some(app) = weak.upgrade() {
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -3613,7 +3626,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -3675,7 +3688,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         *z
                     };
                     app.set_zoom_level(new_zoom);
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.window().request_redraw();
                 }
             }
@@ -4036,7 +4049,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             lines.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                         refresh_workspace(&app, &render_image, &backend_render);
@@ -4125,7 +4138,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             lines.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                         refresh_workspace(&app, &render_image, &backend_render);
@@ -4208,7 +4221,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             "Loaded {len} points"
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                     }
@@ -4279,7 +4292,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             point_db.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                     }
@@ -4349,7 +4362,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polygons.borrow().len()
                                             )));
                                             if app.get_workspace_mode() == 0 {
-                                                app.set_workspace_image(render_image());
+                                                crate::set_workspace_image_result(&app, &render_image);
                                                 app.window().request_redraw();
                                             }
                                         }
@@ -4418,7 +4431,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         polygons.borrow().len()
                                     )));
                                     if app.get_workspace_mode() == 0 {
-                                        app.set_workspace_image(render_image());
+                                        crate::set_workspace_image_result(&app, &render_image);
                                         app.window().request_redraw();
                                     }
                                 }
@@ -4473,7 +4486,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                 polylines.borrow().len()
                                             )));
                                             if app.get_workspace_mode() == 0 {
-                                                app.set_workspace_image(render_image());
+                                                crate::set_workspace_image_result(&app, &render_image);
                                                 app.window().request_redraw();
                                             }
                                         }
@@ -4544,7 +4557,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                         polylines.borrow().len()
                                     )));
                                     if app.get_workspace_mode() == 0 {
-                                        app.set_workspace_image(render_image());
+                                        crate::set_workspace_image_result(&app, &render_image);
                                         app.window().request_redraw();
                                     }
                                 }
@@ -4596,7 +4609,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             arcs.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                     }
@@ -4649,7 +4662,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                             arcs.borrow().len()
                                         )));
                                         if app.get_workspace_mode() == 0 {
-                                            app.set_workspace_image(render_image());
+                                            crate::set_workspace_image_result(&app, &render_image);
                                             app.window().request_redraw();
                                         }
                                     }
@@ -4704,7 +4717,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         polygons.borrow().len()
                     )));
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -4949,7 +4962,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     if let Some(app) = weak2.upgrade() {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                     let _ = d.hide();
@@ -5064,7 +5077,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                     if let Some(app) = weak2.upgrade() {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                     let _ = d.hide();
@@ -5185,7 +5198,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 idxs.clear();
             }
             if let Some(app) = weak.upgrade() {
-                app.set_workspace_image(render_image());
+                crate::set_workspace_image_result(&app, &render_image);
                 app.window().request_redraw();
             }
         });
@@ -5907,7 +5920,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -5953,7 +5966,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6005,7 +6018,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6054,7 +6067,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6113,7 +6126,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} points"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6170,7 +6183,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {count} polylines"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6220,7 +6233,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     "Imported {len} polygons"
                                 )));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -6345,7 +6358,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                     "Imported {len} points"
                                                 )));
                                                 if app.get_workspace_mode() == 0 {
-                                                    app.set_workspace_image(render_image());
+                                                    crate::set_workspace_image_result(&app, &render_image);
                                                 } else {
                                                     let image =
                                                         backend_render.borrow_mut().render();
@@ -6475,7 +6488,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                                     "Imported {len} points"
                                                 )));
                                                 if app.get_workspace_mode() == 0 {
-                                                    app.set_workspace_image(render_image());
+                                                    crate::set_workspace_image_result(&app, &render_image);
                                                 } else {
                                                     let image =
                                                         backend_render.borrow_mut().render();
@@ -7063,7 +7076,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         if let Some(app) = weak.upgrade() {
                             if app.get_workspace_mode() == 0 {
-                                app.set_workspace_image(render_image());
+                                crate::set_workspace_image_result(&app, &render_image);
                                 app.window().request_redraw();
                             }
                         }
@@ -7232,7 +7245,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                         if let Some(app) = weak.upgrade() {
                             if app.get_workspace_mode() == 0 {
-                                app.set_workspace_image(render_image());
+                                crate::set_workspace_image_result(&app, &render_image);
                                 app.window().request_redraw();
                             }
                         }
@@ -7725,7 +7738,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     if let Some(app) = weak.upgrade() {
                         if app.get_workspace_mode() == 0 {
-                            app.set_workspace_image(render_image());
+                            crate::set_workspace_image_result(&app, &render_image);
                         } else {
                             let image = backend_render.borrow_mut().render();
                             app.set_workspace_texture(image);
@@ -8002,7 +8015,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported surface"));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -8044,7 +8057,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));
                                 if app.get_workspace_mode() == 0 {
-                                    app.set_workspace_image(render_image());
+                                    crate::set_workspace_image_result(&app, &render_image);
                                 } else {
                                     let image = backend_render.borrow_mut().render();
                                     app.set_workspace_texture(image);
@@ -8198,7 +8211,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     }
                     drop(mode);
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                 }
@@ -8270,7 +8283,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         point_db.borrow().len()
                     )));
                     if app.get_workspace_mode() == 0 {
-                        app.set_workspace_image(render_image());
+                        crate::set_workspace_image_result(&app, &render_image);
                         app.window().request_redraw();
                     }
                     refresh_workspace(&app, &render_image, &backend_render);
@@ -8320,7 +8333,7 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("Cleared workspace"));
                 if app.get_workspace_mode() == 0 {
-                    app.set_workspace_image(render_image());
+                    crate::set_workspace_image_result(&app, &render_image);
                     app.window().request_redraw();
                 }
             }
