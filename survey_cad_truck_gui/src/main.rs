@@ -62,14 +62,12 @@ use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 slint::include_modules!();
 
-// Load font from the crate's `assets` directory. The binary font file is not
-// committed to the repository; place `DejaVuSans.ttf` inside the `assets`
-// folder next to this crate's `Cargo.toml`.
-static FONT_DATA: &[u8] = include_bytes!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/assets/DejaVuSans.ttf"
-));
-static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
+// The default font embedded at build time. The path is provided by build.rs via
+// the `DEFAULT_FONT_PATH` environment variable, which can be overridden with
+// `SURVEY_CAD_FONT` when building.
+static FONT_DATA: &[u8] = include_bytes!(env!("DEFAULT_FONT_PATH"));
+static FONT: Lazy<Font<'static>> =
+    Lazy::new(|| Font::try_from_bytes(FONT_DATA).unwrap());
 
 
 fn render_workspace(
@@ -1650,7 +1648,21 @@ fn show_inspector_for_polygon(
 }
 
 fn main() -> Result<(), slint::PlatformError> {
-    let cfg = load_config();
+    let mut cmd_font: Option<String> = None;
+    let mut args = std::env::args().skip(1);
+    while let Some(arg) = args.next() {
+        if arg == "--font-path" {
+            if let Some(p) = args.next() {
+                cmd_font = Some(p);
+            }
+        }
+    }
+
+    let mut cfg = load_config();
+    if let Some(p) = cmd_font {
+        cfg.font_path = Some(p);
+        save_config(&cfg);
+    }
     let config = Rc::new(RefCell::new(cfg));
 
     let _ = fs::create_dir_all(MACRO_DIR);
@@ -1664,7 +1676,15 @@ fn main() -> Result<(), slint::PlatformError> {
     // that built-in controls can resolve their default fonts while we still
     // provide our bundled DejaVuSans.
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
-    sharedfontdb::register_font_from_memory(FONT_DATA).expect("failed to register embedded font");
+    if let Some(path) = config.borrow().font_path.as_ref() {
+        if let Err(_) = sharedfontdb::register_font_from_path(Path::new(path)) {
+            sharedfontdb::register_font_from_memory(FONT_DATA)
+                .expect("failed to register embedded font");
+        }
+    } else {
+        sharedfontdb::register_font_from_memory(FONT_DATA)
+            .expect("failed to register embedded font");
+    }
     match config.borrow().theme {
         Theme::Dark => std::env::set_var("SLINT_STYLE", "fluent-dark"),
         Theme::Light => std::env::set_var("SLINT_STYLE", "fluent-light"),
@@ -7864,7 +7884,32 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_crs_epsg(SharedString::from(workspace_crs.borrow().to_string()));
             dlg.set_profile_index(config_ref.borrow().profile as i32);
             dlg.set_theme_index(config_ref.borrow().theme as i32);
+            let mut fonts: Vec<String> = Vec::new();
+            if let Ok(dir) = fs::read_dir("assets") {
+                for e in dir.flatten() {
+                    let p = e.path();
+                    if p.extension().and_then(|s| s.to_str()) == Some("ttf") {
+                        fonts.push(p.to_string_lossy().to_string());
+                    }
+                }
+            }
+            if let Some(fp) = config_ref.borrow().font_path.clone() {
+                if !fonts.contains(&fp) {
+                    fonts.push(fp);
+                }
+            }
+            let font_items: Vec<SharedString> =
+                fonts.iter().cloned().map(SharedString::from).collect();
+            dlg.set_font_list(Rc::new(VecModel::from(font_items)).into());
+            let current_idx = config_ref
+                .borrow()
+                .font_path
+                .as_ref()
+                .and_then(|p| fonts.iter().position(|f| f == p))
+                .unwrap_or(0);
+            dlg.set_font_index(current_idx as i32);
             drop(gs);
+            let fonts_cloned = fonts.clone();
             let dlg_weak = dlg.as_weak();
             let gs_ref = grid_settings.clone();
             let weak_app = weak.clone();
@@ -7894,6 +7939,9 @@ fn main() -> Result<(), slint::PlatformError> {
                         _ => Theme::Dark,
                     };
                     cfg.theme = theme;
+                    cfg.font_path = fonts_cloned
+                        .get(d.get_font_index() as usize)
+                        .cloned();
                     drop(cfg);
                     if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
                         *crs_ref.borrow_mut() = epsg;

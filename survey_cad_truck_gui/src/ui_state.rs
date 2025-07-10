@@ -96,6 +96,8 @@ pub struct Config {
     pub profile: WorkspaceProfile,
     #[serde(default)]
     pub theme: Theme,
+    #[serde(default)]
+    pub font_path: Option<String>,
 }
 
 impl Default for Config {
@@ -109,6 +111,7 @@ impl Default for Config {
             quick_scripts: Vec::new(),
             profile: WorkspaceProfile::default(),
             theme: Theme::default(),
+            font_path: None,
         }
     }
 }
