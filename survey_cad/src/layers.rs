@@ -4,7 +4,7 @@ use crate::geometry::LineType;
 use crate::styles::{LineWeight, TextStyle};
 
 /// Representation of a drawing layer.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Layer {
     pub name: String,
     pub is_on: bool,
@@ -33,7 +33,7 @@ impl Layer {
 }
 
 /// Manager for an arbitrary number of layers.
-#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LayerManager {
     layers: HashMap<String, Layer>,
 }
