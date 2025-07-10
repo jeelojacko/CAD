@@ -4,6 +4,7 @@ use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
 use truck_meshalgo::prelude::*;
 use truck_meshalgo::tessellation::MeshableShape;
+use rstar::{RTree, RTreeObject, AABB};
 
 pub enum HitObject {
     Point(usize),
@@ -27,6 +28,24 @@ struct SurfaceData {
     boundary: Option<Vec<usize>>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SpatialElement {
+    Point(usize),
+    Line(usize),
+    Surface(usize),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SpatialItem {
+    bbox: AABB<[f64; 3]>,
+    elem: SpatialElement,
+}
+
+impl RTreeObject for SpatialItem {
+    type Envelope = AABB<[f64; 3]>;
+    fn envelope(&self) -> Self::Envelope { self.bbox }
+}
+
 pub struct TruckBackend {
     engine: TruckCadEngine,
     point_ids: Vec<Option<usize>>,
@@ -41,13 +60,14 @@ pub struct TruckBackend {
     handles: Option<(HandleTarget, Vec<usize>)>,
     hover_surface: Option<usize>,
     hover_handle: Option<usize>,
+    spatial_index: RTree<SpatialItem>,
 }
 
 impl TruckBackend {
     pub fn new(width: u32, height: u32) -> Self {
         let mut engine = TruckCadEngine::new(width, height);
         engine.add_unit_cube();
-        Self {
+        let mut backend = Self {
             engine,
             point_ids: Vec::new(),
             line_ids: Vec::new(),
@@ -61,6 +81,45 @@ impl TruckBackend {
             handles: None,
             hover_surface: None,
             hover_handle: None,
+            spatial_index: RTree::new(),
+        };
+        backend.rebuild_index();
+        backend
+    }
+
+    fn rebuild_index(&mut self) {
+        self.spatial_index = RTree::new();
+        for (i, p) in self.points.iter().enumerate() {
+            self.spatial_index.insert(SpatialItem {
+                bbox: AABB::from_corners([p.x, p.y, p.z], [p.x, p.y, p.z]),
+                elem: SpatialElement::Point(i),
+            });
+        }
+        for (i, (a, b, _, _)) in self.lines.iter().enumerate() {
+            let min = [a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)];
+            let max = [a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)];
+            self.spatial_index.insert(SpatialItem {
+                bbox: AABB::from_corners(min, max),
+                elem: SpatialElement::Line(i),
+            });
+        }
+        for (i, surf) in self.surfaces.iter().enumerate() {
+            if let Some(first) = surf.vertices.first() {
+                let mut min = [first.x, first.y, first.z];
+                let mut max = min;
+                for v in &surf.vertices {
+                    if v.x < min[0] { min[0] = v.x; }
+                    if v.y < min[1] { min[1] = v.y; }
+                    if v.z < min[2] { min[2] = v.z; }
+                    if v.x > max[0] { max[0] = v.x; }
+                    if v.y > max[1] { max[1] = v.y; }
+                    if v.z > max[2] { max[2] = v.z; }
+                }
+                self.spatial_index.insert(SpatialItem {
+                    bbox: AABB::from_corners(min, max),
+                    elem: SpatialElement::Surface(i),
+                });
+            }
         }
     }
 
@@ -88,7 +147,9 @@ impl TruckBackend {
         let id = self.engine.add_point_marker(Point3::new(x, y, z));
         self.point_ids.push(Some(id));
         self.points.push(Point3::new(x, y, z));
-        self.point_ids.len() - 1
+        let idx = self.point_ids.len() - 1;
+        self.rebuild_index();
+        idx
     }
 
     pub fn update_point(&mut self, idx: usize, x: f64, y: f64, z: f64) {
@@ -98,6 +159,7 @@ impl TruckBackend {
         if let Some(p) = self.points.get_mut(idx) {
             *p = Point3::new(x, y, z);
         }
+        self.rebuild_index();
     }
 
     pub fn remove_point(&mut self, idx: usize) {
@@ -109,6 +171,7 @@ impl TruckBackend {
                 self.points.remove(idx);
             }
         }
+        self.rebuild_index();
     }
 
     pub fn add_line(
@@ -132,7 +195,9 @@ impl TruckBackend {
             col,
             weight,
         ));
-        self.line_ids.len() - 1
+        let idx = self.line_ids.len() - 1;
+        self.rebuild_index();
+        idx
     }
 
     #[allow(dead_code)]
@@ -161,6 +226,7 @@ impl TruckBackend {
                 weight,
             );
         }
+        self.rebuild_index();
     }
 
     pub fn remove_line(&mut self, idx: usize) {
@@ -172,6 +238,7 @@ impl TruckBackend {
                 self.lines.remove(idx);
             }
         }
+        self.rebuild_index();
     }
 
     /// Add a dimension represented as a simple line between two points.
@@ -211,7 +278,9 @@ impl TruckBackend {
             breaklines: Vec::new(),
             boundary: None,
         });
-        self.surface_ids.len() - 1
+        let idx = self.surface_ids.len() - 1;
+        self.rebuild_index();
+        idx
     }
 
     pub fn add_solid(&mut self, solid: Solid) {
@@ -231,6 +300,7 @@ impl TruckBackend {
             surf.breaklines.clear();
             surf.boundary = None;
         }
+        self.rebuild_index();
     }
 
     pub fn remove_surface(&mut self, idx: usize) {
@@ -242,6 +312,7 @@ impl TruckBackend {
                 self.surfaces.remove(idx);
             }
         }
+        self.rebuild_index();
     }
 
     pub fn add_vertex(&mut self, surface: usize, p: Point3) -> Option<usize> {
@@ -249,6 +320,7 @@ impl TruckBackend {
         if let (Some(idx), Some(surf)) = (res, self.surfaces.get_mut(surface)) {
             surf.vertices.push(p);
         }
+        self.rebuild_index();
         res
     }
 
@@ -259,6 +331,7 @@ impl TruckBackend {
                 surf.vertices[idx] = p;
             }
         }
+        self.rebuild_index();
     }
 
     pub fn delete_vertex(&mut self, surface: usize, idx: usize) {
@@ -276,6 +349,7 @@ impl TruckBackend {
                 }
             }
         }
+        self.rebuild_index();
     }
 
     pub fn add_triangle(&mut self, surface: usize, tri: [usize; 3]) {
@@ -283,6 +357,7 @@ impl TruckBackend {
         if let Some(surf) = self.surfaces.get_mut(surface) {
             surf.triangles.push(tri);
         }
+        self.rebuild_index();
     }
 
     pub fn delete_triangle(&mut self, surface: usize, tri_idx: usize) {
@@ -292,6 +367,7 @@ impl TruckBackend {
                 surf.triangles.remove(tri_idx);
             }
         }
+        self.rebuild_index();
     }
 
     pub fn add_breakline(&mut self, surface: usize, a: usize, b: usize) {
@@ -357,6 +433,7 @@ impl TruckBackend {
                 self.engine.remove_point_marker(id);
             }
         }
+        self.rebuild_index();
     }
 
     /// Highlight or un-highlight a surface.
@@ -518,7 +595,6 @@ impl TruckBackend {
         }
     }
 
-    /// Hit test screen coordinates against existing objects.
     pub fn hit_test(&mut self, x: f64, y: f64) -> Option<HitObject> {
         let mut result = None;
         let mut best_z = f64::INFINITY;
@@ -540,41 +616,57 @@ impl TruckBackend {
             }
         }
 
-        for (i, p) in self.points.iter().enumerate() {
-            if let Some((sx, sy, z)) = self.engine.project_point(*p) {
-                let d2 = (sx - x).powi(2) + (sy - y).powi(2);
-                if d2 < 64.0 && z < best_z {
-                    best_z = z;
-                    result = Some(HitObject::Point(i));
-                }
+        let ray = self.engine.screen_ray(x, y);
+        let cam = self.engine.camera();
+        let start = ray.origin() + ray.direction() * cam.near_clip;
+        let end = ray.origin() + ray.direction() * cam.far_clip;
+        let expand = 0.5;
+        let min = [
+            start.x.min(end.x) - expand,
+            start.y.min(end.y) - expand,
+            start.z.min(end.z) - expand,
+        ];
+        let max = [
+            start.x.max(end.x) + expand,
+            start.y.max(end.y) + expand,
+            start.z.max(end.z) + expand,
+        ];
+        let env = AABB::from_corners(min, max);
+        let candidates: Vec<_> = self
+            .spatial_index
+            .locate_in_envelope_intersecting(&env)
+            .cloned()
+            .collect();
+
+        use std::collections::HashSet;
+        let mut cand_points = HashSet::new();
+        let mut cand_lines = HashSet::new();
+        let mut cand_surfaces = HashSet::new();
+        for c in candidates {
+            match c.elem {
+                SpatialElement::Point(i) => { cand_points.insert(i); }
+                SpatialElement::Line(i) => { cand_lines.insert(i); }
+                SpatialElement::Surface(i) => { cand_surfaces.insert(i); }
             }
         }
 
-        for (i, (a, b, _, _)) in self.lines.iter().enumerate() {
-            if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
-                self.engine.project_point(*a),
-                self.engine.project_point(*b),
-            ) {
-                let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
-                    / ((bx - ax).powi(2) + (by - ay).powi(2));
-                if (0.0..=1.0).contains(&t) {
-                    let lx = ax + t * (bx - ax);
-                    let ly = ay + t * (by - ay);
-                    let lz = az + t * (bz - az);
-                    let d2 = (x - lx).powi(2) + (y - ly).powi(2);
-                    if d2 < 36.0 && lz < best_z {
-                        best_z = lz;
-                        result = Some(HitObject::Line(i));
+        for i in cand_points {
+            if let Some(p) = self.points.get(i) {
+                if let Some((sx, sy, z)) = self.engine.project_point(p.clone()) {
+                    let d2 = (sx - x).powi(2) + (sy - y).powi(2);
+                    if d2 < 64.0 && z < best_z {
+                        best_z = z;
+                        result = Some(HitObject::Point(i));
                     }
                 }
             }
         }
 
-        for (si, surf) in self.surfaces.iter().enumerate() {
-            for (bi, &(i1, i2)) in surf.breaklines.iter().enumerate() {
+        for i in cand_lines {
+            if let Some((a, b, _, _)) = self.lines.get(i) {
                 if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
-                    self.engine.project_point(surf.vertices[i1]),
-                    self.engine.project_point(surf.vertices[i2]),
+                    self.engine.project_point(a.clone()),
+                    self.engine.project_point(b.clone()),
                 ) {
                     let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
                         / ((bx - ax).powi(2) + (by - ay).powi(2));
@@ -585,16 +677,16 @@ impl TruckBackend {
                         let d2 = (x - lx).powi(2) + (y - ly).powi(2);
                         if d2 < 36.0 && lz < best_z {
                             best_z = lz;
-                            let _ = (si, bi); // indices currently unused
-                            result = Some(HitObject::Breakline);
+                            result = Some(HitObject::Line(i));
                         }
                     }
                 }
             }
-            if let Some(bound) = &surf.boundary {
-                for (bi, window) in bound.windows(2).enumerate() {
-                    let i1 = window[0];
-                    let i2 = window[1];
+        }
+
+        for si in cand_surfaces {
+            if let Some(surf) = self.surfaces.get(si) {
+                for (bi, &(i1, i2)) in surf.breaklines.iter().enumerate() {
                     if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
                         self.engine.project_point(surf.vertices[i1]),
                         self.engine.project_point(surf.vertices[i2]),
@@ -609,59 +701,79 @@ impl TruckBackend {
                             if d2 < 36.0 && lz < best_z {
                                 best_z = lz;
                                 let _ = (si, bi);
-                                result = Some(HitObject::Boundary);
+                                result = Some(HitObject::Breakline);
                             }
                         }
                     }
                 }
-                // close edge from last to first
-                if bound.len() > 1 {
-                    let i1 = bound[bound.len() - 1];
-                    let i2 = bound[0];
-                    if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
-                        self.engine.project_point(surf.vertices[i1]),
-                        self.engine.project_point(surf.vertices[i2]),
+                if let Some(bound) = &surf.boundary {
+                    for (bi, window) in bound.windows(2).enumerate() {
+                        let i1 = window[0];
+                        let i2 = window[1];
+                        if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
+                            self.engine.project_point(surf.vertices[i1]),
+                            self.engine.project_point(surf.vertices[i2]),
+                        ) {
+                            let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
+                                / ((bx - ax).powi(2) + (by - ay).powi(2));
+                            if (0.0..=1.0).contains(&t) {
+                                let lx = ax + t * (bx - ax);
+                                let ly = ay + t * (by - ay);
+                                let lz = az + t * (bz - az);
+                                let d2 = (x - lx).powi(2) + (y - ly).powi(2);
+                                if d2 < 36.0 && lz < best_z {
+                                    best_z = lz;
+                                    let _ = (si, bi);
+                                    result = Some(HitObject::Boundary);
+                                }
+                            }
+                        }
+                    }
+                    if bound.len() > 1 {
+                        let i1 = bound[bound.len() - 1];
+                        let i2 = bound[0];
+                        if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
+                            self.engine.project_point(surf.vertices[i1]),
+                            self.engine.project_point(surf.vertices[i2]),
+                        ) {
+                            let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
+                                / ((bx - ax).powi(2) + (by - ay).powi(2));
+                            if (0.0..=1.0).contains(&t) {
+                                let lx = ax + t * (bx - ax);
+                                let ly = ay + t * (by - ay);
+                                let lz = az + t * (bz - az);
+                                let d2 = (x - lx).powi(2) + (y - ly).powi(2);
+                                if d2 < 36.0 && lz < best_z {
+                                    best_z = lz;
+                                    let _ = (si, bound.len() - 1);
+                                    result = Some(HitObject::Boundary);
+                                }
+                            }
+                        }
+                    }
+                }
+                for tri in &surf.triangles {
+                    let p0 = surf.vertices[tri[0]];
+                    let p1 = surf.vertices[tri[1]];
+                    let p2 = surf.vertices[tri[2]];
+                    if let (Some(a), Some(b), Some(c)) = (
+                        self.engine.project_point(p0),
+                        self.engine.project_point(p1),
+                        self.engine.project_point(p2),
                     ) {
-                        let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
-                            / ((bx - ax).powi(2) + (by - ay).powi(2));
-                        if (0.0..=1.0).contains(&t) {
-                            let lx = ax + t * (bx - ax);
-                            let ly = ay + t * (by - ay);
-                            let lz = az + t * (bz - az);
-                            let d2 = (x - lx).powi(2) + (y - ly).powi(2);
-                            if d2 < 36.0 && lz < best_z {
-                                best_z = lz;
-                                let _ = (si, bound.len() - 1);
-                                result = Some(HitObject::Boundary);
-                            }
+                        let denom = (b.1 - c.1) * (a.0 - c.0) + (c.0 - b.0) * (a.1 - c.1);
+                        if denom.abs() < f64::EPSILON {
+                            continue;
                         }
-                    }
-                }
-            }
-        }
-
-        for (i, surf) in self.surfaces.iter().enumerate() {
-            for tri in &surf.triangles {
-                let p0 = surf.vertices[tri[0]];
-                let p1 = surf.vertices[tri[1]];
-                let p2 = surf.vertices[tri[2]];
-                if let (Some(a), Some(b), Some(c)) = (
-                    self.engine.project_point(p0),
-                    self.engine.project_point(p1),
-                    self.engine.project_point(p2),
-                ) {
-                    let denom = (b.1 - c.1) * (a.0 - c.0) + (c.0 - b.0) * (a.1 - c.1);
-                    if denom.abs() < f64::EPSILON {
-                        continue;
-                    }
-                    let w1 = ((b.1 - c.1) * (x - c.0) + (c.0 - b.0) * (y - c.1)) / denom;
-                    let w2 = ((c.1 - a.1) * (x - c.0) + (a.0 - c.0) * (y - c.1)) / denom;
-                    let w3 = 1.0 - w1 - w2;
-                    if w1 >= 0.0 && w2 >= 0.0 && w3 >= 0.0 {
-                        let z = w1 * a.2 + w2 * b.2 + w3 * c.2;
-                        if z < best_z {
-                            best_z = z;
-                            result = Some(HitObject::Surface(i));
+                        let w1 = ((b.1 - c.1) * (x - c.0) + (c.0 - b.0) * (y - c.1)) / denom;
+                        let w2 = ((c.1 - a.1) * (x - c.0) + (a.0 - c.0) * (y - c.1)) / denom;
+                        let w3 = 1.0 - w1 - w2;
+                        if w1 >= 0.0 && w2 >= 0.0 && w3 >= 0.0 {
+                            let z = w1 * a.2 + w2 * b.2 + w3 * c.2;
+                            if z < best_z {
+                                best_z = z;
+                                result = Some(HitObject::Surface(si));
+                            }
                         }
                     }
                 }
@@ -705,4 +817,4 @@ impl TruckBackend {
 
         result
     }
-}
+    }
