@@ -66,6 +66,16 @@ prints the updated count in the console.
 ## Fonts
 
 This application bundles the `DejaVuSans.ttf` font located in the `assets/`
-directory. The build script checks for this file and aborts if it is missing.
-Replace it with a different font by copying the `.ttf` file into `assets/` before
-running `cargo build`.
+directory. The font can be replaced in three different ways:
+
+1. **Command Line** – pass `--font-path /path/to/font.ttf` when launching the
+   application to use a specific font. This also updates the saved
+   configuration.
+2. **Configuration** – `config.json` now contains a `font_path` entry that can
+   be edited manually.
+3. **User Interface** – the *Workspace Settings* dialog includes a drop down
+   listing available `.ttf` files from the `assets/` directory.
+
+The build script accepts the `SURVEY_CAD_FONT` environment variable to embed a
+different default font at compile time. Without it the bundled `DejaVuSans.ttf`
+is used.

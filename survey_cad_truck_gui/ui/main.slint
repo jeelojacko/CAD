@@ -771,6 +771,8 @@ export component SettingsDialog inherits Window {
     in-out property <bool> auto_tin;
     in-out property <int> profile_index;
     in-out property <int> theme_index;
+    in-out property <[string]> font_list;
+    in-out property <int> font_index;
     callback accept();
     callback cancel();
     title: "Workspace Settings";
@@ -804,6 +806,13 @@ export component SettingsDialog inherits Window {
             ComboBox {
                 model: ["Dark", "Light"];
                 current-index <=> root.theme_index;
+            }
+        }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Font:"; }
+            ComboBox {
+                model: root.font_list;
+                current-index <=> root.font_index;
             }
         }
         HorizontalBox {
