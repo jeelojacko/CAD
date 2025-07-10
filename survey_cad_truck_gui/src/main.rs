@@ -1677,7 +1677,7 @@ fn main() -> Result<(), slint::PlatformError> {
     // provide our bundled DejaVuSans.
     sharedfontdb::FONT_DB.with_borrow_mut(|db| db.make_mut().load_system_fonts());
     if let Some(path) = config.borrow().font_path.as_ref() {
-        if let Err(_) = sharedfontdb::register_font_from_path(Path::new(path)) {
+        if sharedfontdb::register_font_from_path(Path::new(path)).is_err() {
             sharedfontdb::register_font_from_memory(FONT_DATA)
                 .expect("failed to register embedded font");
         }
