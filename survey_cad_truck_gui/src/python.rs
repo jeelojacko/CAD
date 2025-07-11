@@ -7,6 +7,7 @@ use pyo3::types::PyDict;
 use slint::{Image, SharedString, ComponentHandle};
 use slint::{Timer, TimerMode};
 use crate::ImportProgressDialog;
+use crate::error::GuiError;
 use std::sync::mpsc;
 
 use survey_cad::dtm::Tin;
@@ -88,15 +89,15 @@ pub fn play_macro_file(path: &Path, ctx: &MacroContext) {
     }
 }
 
-pub fn run_python_file(path: &Path, ctx: &PythonContext) {
+pub fn run_python_file(path: &Path, ctx: &PythonContext) -> Result<(), GuiError> {
     match std::fs::read_to_string(path) {
         Ok(code) => {
             use std::thread;
-            let dlg = ImportProgressDialog::new().unwrap();
+            let dlg = ImportProgressDialog::new()?;
             dlg.set_message(SharedString::from("Running Python script"));
             dlg.set_progress(0.0);
             let dlg_weak = dlg.as_weak();
-            dlg.show().unwrap();
+            dlg.show()?;
 
             let points: Vec<Point> = ctx.point_db.borrow().iter().copied().collect();
             let lines_vec: Vec<(Point, Point)> = ctx.lines.borrow().clone();
@@ -170,7 +171,7 @@ pub fn run_python_file(path: &Path, ctx: &PythonContext) {
 
                     py.run_bound(&code, Some(&globals), None)
                 });
-                let _ = tx.send(result.map_err(|e| e.to_string()));
+                let _ = tx.send(result.map_err(GuiError::from));
             });
 
             let timer = Rc::new(Timer::default());
@@ -202,6 +203,8 @@ pub fn run_python_file(path: &Path, ctx: &PythonContext) {
             if let Some(app) = ctx.weak.upgrade() {
                 app.set_status(SharedString::from(format!("Failed to read: {e}")));
             }
+            return Err(GuiError::from(e));
         }
     }
+    Ok(())
 }
