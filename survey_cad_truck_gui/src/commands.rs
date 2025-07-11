@@ -25,6 +25,12 @@ pub struct CommandStack {
     redo: Vec<Command>,
 }
 
+impl Default for CommandStack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Default)]
 pub struct MacroRecorder {
     pub file: Option<std::fs::File>,

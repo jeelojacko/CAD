@@ -30,6 +30,12 @@ pub struct GeometryStore {
     pub solids: Vec<Vec<Point3>>, // triangulated positions for snapping
 }
 
+impl Default for GeometryStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GeometryStore {
     pub fn new() -> Self {
         Self {
