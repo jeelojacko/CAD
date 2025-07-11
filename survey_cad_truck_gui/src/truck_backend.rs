@@ -411,18 +411,11 @@ impl TruckBackend {
     }
 
     pub fn clear(&mut self) {
-        for _ in 0..self.point_ids.len() {
-            self.remove_point(0);
-        }
-        for _ in 0..self.line_ids.len() {
-            self.remove_line(0);
-        }
-        for _ in 0..self.dimension_ids.len() {
-            self.remove_dimension(0);
-        }
-        for _ in 0..self.surface_ids.len() {
-            self.remove_surface(0);
-        }
+        self.engine.clear_scene();
+        self.point_ids.clear();
+        self.line_ids.clear();
+        self.dimension_ids.clear();
+        self.surface_ids.clear();
         self.points.clear();
         self.lines.clear();
         self.dimensions.clear();

@@ -293,6 +293,15 @@ impl TruckCadEngine {
         }
     }
 
+    /// Remove all objects from the scene.
+    pub fn clear_scene(&mut self) {
+        self.scene.clear_objects();
+        self.instances.clear();
+        self.point_markers.clear();
+        self.lines.clear();
+        self.surfaces.clear();
+    }
+
     /// Add a vertex to an existing surface and return its index.
     pub fn add_surface_vertex(
         &mut self,
