@@ -277,7 +277,9 @@ impl TruckBackend {
     pub fn add_vertex(&mut self, surface: usize, p: Point3) -> Option<usize> {
         let res = self.engine.add_surface_vertex(surface, p);
         if let Some(idx) = res {
-            let _ = self.geometry.add_vertex(surface, p);
+            if let Some(g_idx) = self.geometry.add_vertex(surface, p) {
+                debug_assert_eq!(idx, g_idx);
+            }
         }
         self.rebuild_index();
         res
