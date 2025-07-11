@@ -36,6 +36,7 @@ use truck_backend::{HitObject, TruckBackend};
 mod persistence;
 use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
 mod commands;
+mod error;
 mod cross_section;
 mod inspector;
 mod io_utils;
@@ -744,7 +745,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             offset: offset.clone(),
                             zoom: zoom.clone(),
                         };
-                        run_python_file(&path, &ctx_py);
+                        if let Err(e) = run_python_file(&path, &ctx_py) {
+                            if let Some(app) = weak_run.upgrade() {
+                                app.set_status(SharedString::from(format!("Python error: {e}")));
+                            }
+                        }
                     } else {
                         let ctx = MacroContext {
                             playing: playing_run.clone(),
@@ -840,7 +845,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         offset: offset_run.clone(),
                         zoom: zoom_run.clone(),
                     };
-                    run_python_file(&path, &ctx_py);
+                    if let Err(e) = run_python_file(&path, &ctx_py) {
+                        if let Some(app) = weak_run.upgrade() {
+                            app.set_status(SharedString::from(format!("Python error: {e}")));
+                        }
+                    }
                 }
             });
 
@@ -888,7 +897,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         offset: offset.clone(),
                         zoom: zoom.clone(),
                     };
-                    run_python_file(&path, &ctx_py);
+                    if let Err(e) = run_python_file(&path, &ctx_py) {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Python error: {e}")));
+                        }
+                    }
                 } else {
                     let ctx = MacroContext {
                         playing: playing.clone(),
@@ -4802,7 +4815,15 @@ fn main() -> Result<(), slint::PlatformError> {
                             atomic::{AtomicBool, Ordering},
                             Arc,
                         };
-                        let dlg = ImportProgressDialog::new().unwrap();
+                        let dlg = match ImportProgressDialog::new() {
+                            Ok(d) => d,
+                            Err(e) => {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from(format!("UI error: {e}")));
+                                }
+                                return;
+                            }
+                        };
                         dlg.set_message(SharedString::from("Importing LAS"));
                         dlg.set_progress(0.0);
                         let cancel = Arc::new(AtomicBool::new(false));
@@ -4811,7 +4832,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         dlg.on_cancel(move || {
                             cancel_dlg.store(true, Ordering::SeqCst);
                         });
-                        dlg.show().unwrap();
+                        if let Err(e) = dlg.show() {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("UI error: {e}")));
+                            }
+                            return;
+                        }
                         use slint::{Timer, TimerMode};
                         use std::sync::mpsc;
 
@@ -4935,7 +4961,15 @@ fn main() -> Result<(), slint::PlatformError> {
                             atomic::{AtomicBool, Ordering},
                             Arc,
                         };
-                        let dlg = ImportProgressDialog::new().unwrap();
+                        let dlg = match ImportProgressDialog::new() {
+                            Ok(d) => d,
+                            Err(e) => {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from(format!("UI error: {e}")));
+                                }
+                                return;
+                            }
+                        };
                         dlg.set_message(SharedString::from("Importing E57"));
                         dlg.set_progress(0.0);
                         let cancel = Arc::new(AtomicBool::new(false));
@@ -4944,7 +4978,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         dlg.on_cancel(move || {
                             cancel_dlg.store(true, Ordering::SeqCst);
                         });
-                        dlg.show().unwrap();
+                        if let Err(e) = dlg.show() {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("UI error: {e}")));
+                            }
+                            return;
+                        }
                         use slint::{Timer, TimerMode};
                         use std::sync::mpsc;
 

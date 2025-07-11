@@ -9708,6 +9708,7 @@ dependencies = [
  "survey_cad",
  "survey_cad_python",
  "tempfile",
+ "thiserror 1.0.69",
  "tiny-skia",
  "truck-meshalgo",
  "truck-modeling",
