@@ -11,3 +11,15 @@ pub enum GuiError {
     #[error("{0}")]
     Msg(String),
 }
+
+impl From<String> for GuiError {
+    fn from(msg: String) -> Self {
+        GuiError::Msg(msg)
+    }
+}
+
+impl From<&str> for GuiError {
+    fn from(msg: &str) -> Self {
+        GuiError::Msg(msg.to_string())
+    }
+}
