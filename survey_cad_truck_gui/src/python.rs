@@ -5,6 +5,9 @@ use std::rc::Rc;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use slint::{Image, SharedString, ComponentHandle};
+use slint::{Timer, TimerMode};
+use crate::ImportProgressDialog;
+use std::sync::mpsc;
 
 use survey_cad::dtm::Tin;
 use survey_cad::geometry::Point;
@@ -88,87 +91,112 @@ pub fn play_macro_file(path: &Path, ctx: &MacroContext) {
 pub fn run_python_file(path: &Path, ctx: &PythonContext) {
     match std::fs::read_to_string(path) {
         Ok(code) => {
-            let result = Python::with_gil(|py| {
-                let module = PyModule::new_bound(py, "survey_cad_python")?;
-                survey_cad_python::init(py, &module)?;
+            use std::thread;
+            let dlg = ImportProgressDialog::new().unwrap();
+            dlg.set_message(SharedString::from("Running Python script"));
+            dlg.set_progress(0.0);
+            let dlg_weak = dlg.as_weak();
+            dlg.show().unwrap();
 
-                let pts: Vec<Py<survey_cad_python::Point>> = ctx
-                    .point_db
-                    .borrow()
-                    .iter()
-                    .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
-                    .collect::<PyResult<_>>()?;
+            let points: Vec<Point> = ctx.point_db.borrow().iter().copied().collect();
+            let lines_vec: Vec<(Point, Point)> = ctx.lines.borrow().clone();
+            let surfaces_vec: Vec<Tin> = ctx.surfaces.borrow().clone();
+            let selected_pts = ctx.selected_points.borrow().clone();
+            let selected_lines_vec: Vec<(Point, Point)> = ctx.selected_lines.borrow().clone();
+            let offset_val = ctx.offset.borrow().clone();
+            let zoom_val = *ctx.zoom.borrow();
+            let weak_app = ctx.weak.clone();
 
-                let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
-                    ctx.lines
-                        .borrow()
+            let (tx, rx) = mpsc::channel();
+
+            thread::spawn(move || {
+                let result = Python::with_gil(|py| {
+                    let module = PyModule::new_bound(py, "survey_cad_python")?;
+                    survey_cad_python::init(py, &module)?;
+
+                    let pts: Vec<Py<survey_cad_python::Point>> = points
                         .iter()
-                        .map(|(a, b)| {
-                            Ok((
-                                Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
-                                Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
-                            ))
+                        .map(|p| Py::new(py, survey_cad_python::Point::new(p.x, p.y)))
+                        .collect::<PyResult<_>>()?;
+
+                    let lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
+                        lines_vec
+                            .iter()
+                            .map(|(a, b)| {
+                                Ok((
+                                    Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                    Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                                ))
+                            })
+                            .collect::<PyResult<_>>()?;
+
+                    let surfs: Vec<Py<PyAny>> = surfaces_vec
+                        .iter()
+                        .map(|s| {
+                            let dict = PyDict::new_bound(py);
+                            let verts: Vec<(f64, f64, f64)> =
+                                s.vertices.iter().map(|v| (v.x, v.y, v.z)).collect();
+                            let tris: Vec<(usize, usize, usize)> =
+                                s.triangles.iter().map(|t| (t[0], t[1], t[2])).collect();
+                            dict.set_item("vertices", verts)?;
+                            dict.set_item("triangles", tris)?;
+                            Ok(dict.into())
                         })
                         .collect::<PyResult<_>>()?;
 
-                let surfs: Vec<Py<PyAny>> = ctx
-                    .surfaces
-                    .borrow()
-                    .iter()
-                    .map(|s| {
-                        let dict = PyDict::new_bound(py);
-                        let verts: Vec<(f64, f64, f64)> =
-                            s.vertices.iter().map(|v| (v.x, v.y, v.z)).collect();
-                        let tris: Vec<(usize, usize, usize)> =
-                            s.triangles.iter().map(|t| (t[0], t[1], t[2])).collect();
-                        dict.set_item("vertices", verts)?;
-                        dict.set_item("triangles", tris)?;
-                        Ok(dict.into())
-                    })
-                    .collect::<PyResult<_>>()?;
+                    let selected_lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> =
+                        selected_lines_vec
+                            .iter()
+                            .map(|(a, b)| {
+                                Ok((
+                                    Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
+                                    Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
+                                ))
+                            })
+                            .collect::<PyResult<_>>()?;
 
-                let selected_pts: Vec<usize> = ctx.selected_points.borrow().to_vec();
-                let selected_lines_py: Vec<(Py<survey_cad_python::Point>, Py<survey_cad_python::Point>)> = ctx
-                    .selected_lines
-                    .borrow()
-                    .iter()
-                    .map(|(a, b)| {
-                        Ok((
-                            Py::new(py, survey_cad_python::Point::new(a.x, a.y))?,
-                            Py::new(py, survey_cad_python::Point::new(b.x, b.y))?,
-                        ))
-                    })
-                    .collect::<PyResult<_>>()?;
+                    let view = PyDict::new_bound(py);
+                    view.set_item("offset", (offset_val.x, offset_val.y))?;
+                    view.set_item("zoom", zoom_val)?;
 
-                let view = PyDict::new_bound(py);
-                let off = ctx.offset.borrow();
-                view.set_item("offset", (off.x, off.y))?;
-                view.set_item("zoom", *ctx.zoom.borrow())?;
+                    let globals = PyDict::new_bound(py);
+                    globals.set_item("survey_cad_python", module)?;
+                    globals.set_item("points", pts)?;
+                    globals.set_item("lines", lines_py)?;
+                    globals.set_item("surfaces", surfs)?;
+                    globals.set_item("selected_points", selected_pts)?;
+                    globals.set_item("selected_lines", selected_lines_py)?;
+                    globals.set_item("view", view)?;
 
-                let globals = PyDict::new_bound(py);
-                globals.set_item("survey_cad_python", module)?;
-                globals.set_item("points", pts)?;
-                globals.set_item("lines", lines_py)?;
-                globals.set_item("surfaces", surfs)?;
-                globals.set_item("selected_points", selected_pts)?;
-                globals.set_item("selected_lines", selected_lines_py)?;
-                globals.set_item("view", view)?;
-
-                py.run_bound(&code, Some(&globals), None)
+                    py.run_bound(&code, Some(&globals), None)
+                });
+                let _ = tx.send(result.map_err(|e| e.to_string()));
             });
 
-            match result {
-                Ok(_) => {
-                    if let Some(app) = ctx.weak.upgrade() {
-                        app.set_status(SharedString::from("Python script finished"));
+            let timer = Rc::new(Timer::default());
+            let timer_handle = timer.clone();
+            timer.start(
+                TimerMode::Repeated,
+                core::time::Duration::from_millis(50),
+                move || {
+                    if let Ok(res) = rx.try_recv() {
+                        timer_handle.stop();
+                        let dlg_weak_clone = dlg_weak.clone();
+                        let weak_app_clone = weak_app.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(d) = dlg_weak_clone.upgrade() {
+                                let _ = d.hide();
+                            }
+                            if let Some(app) = weak_app_clone.upgrade() {
+                                match res {
+                                    Ok(_) => app.set_status(SharedString::from("Python script finished")),
+                                    Err(e) => app.set_status(SharedString::from(format!("Python error: {e}"))),
+                                }
+                            }
+                        });
                     }
-                }
-                Err(e) => {
-                    if let Some(app) = ctx.weak.upgrade() {
-                        app.set_status(SharedString::from(format!("Python error: {e}")));
-                    }
-                }
-            }
+                },
+            );
         }
         Err(e) => {
             if let Some(app) = ctx.weak.upgrade() {
