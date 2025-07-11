@@ -43,6 +43,7 @@ mod python;
 mod render;
 mod ui_state;
 mod workspace;
+mod dialogs;
 
 use commands::{
     record_macro, spawn_line, spawn_point, Command, CommandStack, Context, MacroPlaying,
@@ -2239,11 +2240,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_groups = surface_groups.clone();
         let alignment_groups = alignment_groups.clone();
         app.on_open_project(move || {
-            let mut dialog = rfd::FileDialog::new();
-            if let Some(dir) = last_dir.borrow().as_ref() {
-                dialog = dialog.set_directory(dir);
-            }
-            if let Some(path) = dialog.add_filter("Project", &["json"]).pick_file() {
+            if let Some(path) = dialogs::open_project_file(last_dir.borrow().as_deref().map(Path::new)) {
                 *last_dir.borrow_mut() = path.parent().map(|p| p.to_string_lossy().to_string());
                 config_rc.borrow_mut().last_open_dir = last_dir.borrow().clone();
                 save_config(&config_rc.borrow());
