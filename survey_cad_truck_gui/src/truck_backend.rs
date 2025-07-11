@@ -2,8 +2,8 @@ use slint::Image;
 use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
-use truck_meshalgo::prelude::*;
-use truck_meshalgo::tessellation::MeshableShape;
+
+use crate::geometry::GeometryStore;
 use rstar::{RTree, RTreeObject, AABB};
 
 pub enum HitObject {
@@ -19,13 +19,6 @@ enum HandleTarget {
     Point(usize),
     Line(usize),
     Surface(usize),
-}
-
-struct SurfaceData {
-    vertices: Vec<Point3>,
-    triangles: Vec<[usize; 3]>,
-    breaklines: Vec<(usize, usize)>,
-    boundary: Option<Vec<usize>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,11 +45,7 @@ pub struct TruckBackend {
     line_ids: Vec<Option<usize>>,
     dimension_ids: Vec<Option<usize>>,
     surface_ids: Vec<Option<usize>>,
-    points: Vec<Point3>,
-    lines: Vec<(Point3, Point3, Vector4, f32)>,
-    dimensions: Vec<(Point3, Point3)>,
-    surfaces: Vec<SurfaceData>,
-    solids: Vec<Vec<Point3>>,
+    geometry: GeometryStore,
     handles: Option<(HandleTarget, Vec<usize>)>,
     hover_surface: Option<usize>,
     hover_handle: Option<usize>,
@@ -73,11 +62,7 @@ impl TruckBackend {
             line_ids: Vec::new(),
             dimension_ids: Vec::new(),
             surface_ids: Vec::new(),
-            points: Vec::new(),
-            lines: Vec::new(),
-            dimensions: Vec::new(),
-            surfaces: Vec::new(),
-            solids: Vec::new(),
+            geometry: GeometryStore::new(),
             handles: None,
             hover_surface: None,
             hover_handle: None,
@@ -89,13 +74,13 @@ impl TruckBackend {
 
     fn rebuild_index(&mut self) {
         self.spatial_index = RTree::new();
-        for (i, p) in self.points.iter().enumerate() {
+        for (i, p) in self.geometry.points.iter().enumerate() {
             self.spatial_index.insert(SpatialItem {
                 bbox: AABB::from_corners([p.x, p.y, p.z], [p.x, p.y, p.z]),
                 elem: SpatialElement::Point(i),
             });
         }
-        for (i, (a, b, _, _)) in self.lines.iter().enumerate() {
+        for (i, (a, b, _, _)) in self.geometry.lines.iter().enumerate() {
             let min = [a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)];
             let max = [a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)];
             self.spatial_index.insert(SpatialItem {
@@ -103,7 +88,7 @@ impl TruckBackend {
                 elem: SpatialElement::Line(i),
             });
         }
-        for (i, surf) in self.surfaces.iter().enumerate() {
+        for (i, surf) in self.geometry.surfaces.iter().enumerate() {
             if let Some(first) = surf.vertices.first() {
                 let mut min = [first.x, first.y, first.z];
                 let mut max = min;
@@ -146,19 +131,16 @@ impl TruckBackend {
     pub fn add_point(&mut self, x: f64, y: f64, z: f64) -> usize {
         let id = self.engine.add_point_marker(Point3::new(x, y, z));
         self.point_ids.push(Some(id));
-        self.points.push(Point3::new(x, y, z));
-        let idx = self.point_ids.len() - 1;
+        let idx = self.geometry.add_point(Point3::new(x, y, z));
         self.rebuild_index();
         idx
     }
 
     pub fn update_point(&mut self, idx: usize, x: f64, y: f64, z: f64) {
         if let Some(Some(id)) = self.point_ids.get(idx) {
-            self.engine.update_point_marker(id, Point3::new(x, y, z));
+            self.engine.update_point_marker(*id, Point3::new(x, y, z));
         }
-        if let Some(p) = self.points.get_mut(idx) {
-            *p = Point3::new(x, y, z);
-        }
+        self.geometry.update_point(idx, Point3::new(x, y, z));
         self.rebuild_index();
     }
 
@@ -167,9 +149,7 @@ impl TruckBackend {
             if let Some(id) = self.point_ids.remove(idx) {
                 self.engine.remove_point_marker(id);
             }
-            if idx < self.points.len() {
-                self.points.remove(idx);
-            }
+            self.geometry.remove_point(idx);
         }
         self.rebuild_index();
     }
@@ -189,13 +169,12 @@ impl TruckBackend {
             weight,
         );
         self.line_ids.push(Some(id));
-        self.lines.push((
+        let idx = self.geometry.add_line(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
             col,
             weight,
-        ));
-        let idx = self.line_ids.len() - 1;
+        );
         self.rebuild_index();
         idx
     }
@@ -211,21 +190,20 @@ impl TruckBackend {
     ) {
         if let Some(Some(id)) = self.line_ids.get(idx) {
             self.engine.update_line(
-                id,
+                *id,
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
                 Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
                 weight,
             );
         }
-        if let Some(line) = self.lines.get_mut(idx) {
-            *line = (
-                Point3::new(a[0], a[1], a[2]),
-                Point3::new(b[0], b[1], b[2]),
-                Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
-                weight,
-            );
-        }
+        self.geometry.update_line(
+            idx,
+            Point3::new(a[0], a[1], a[2]),
+            Point3::new(b[0], b[1], b[2]),
+            Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+            weight,
+        );
         self.rebuild_index();
     }
 
@@ -234,9 +212,7 @@ impl TruckBackend {
             if let Some(id) = self.line_ids.remove(idx) {
                 self.engine.remove_line(id);
             }
-            if idx < self.lines.len() {
-                self.lines.remove(idx);
-            }
+            self.geometry.remove_line(idx);
         }
         self.rebuild_index();
     }
@@ -250,11 +226,11 @@ impl TruckBackend {
             weight,
         );
         self.dimension_ids.push(Some(id));
-        self.dimensions.push((
+        let idx = self.geometry.add_dimension(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
-        ));
-        self.dimension_ids.len() - 1
+        );
+        idx
     }
 
     /// Remove an existing dimension.
@@ -263,43 +239,29 @@ impl TruckBackend {
             if let Some(id) = self.dimension_ids.remove(idx) {
                 self.engine.remove_line(id);
             }
-            if idx < self.dimensions.len() {
-                self.dimensions.remove(idx);
-            }
+            self.geometry.remove_dimension(idx);
         }
     }
 
     pub fn add_surface(&mut self, vertices: &[Point3], triangles: &[[usize; 3]]) -> usize {
         let id = self.engine.add_surface(vertices, triangles);
         self.surface_ids.push(Some(id));
-        self.surfaces.push(SurfaceData {
-            vertices: vertices.to_vec(),
-            triangles: triangles.to_vec(),
-            breaklines: Vec::new(),
-            boundary: None,
-        });
-        let idx = self.surface_ids.len() - 1;
+        let idx = self.geometry.add_surface(vertices, triangles);
         self.rebuild_index();
         idx
     }
 
     pub fn add_solid(&mut self, solid: Solid) {
-        let mesh = solid.triangulation(0.01).to_polygon();
-        self.solids.push(mesh.positions().clone());
+        self.geometry.add_solid(solid.clone());
         self.engine.add_solid(solid);
     }
 
     #[allow(dead_code)]
     pub fn update_surface(&mut self, idx: usize, vertices: &[Point3], triangles: &[[usize; 3]]) {
         if let Some(Some(id)) = self.surface_ids.get(idx) {
-            self.engine.update_surface(id, vertices, triangles);
+            self.engine.update_surface(*id, vertices, triangles);
         }
-        if let Some(surf) = self.surfaces.get_mut(idx) {
-            surf.vertices = vertices.to_vec();
-            surf.triangles = triangles.to_vec();
-            surf.breaklines.clear();
-            surf.boundary = None;
-        }
+        self.geometry.update_surface(idx, vertices, triangles);
         self.rebuild_index();
     }
 
@@ -308,17 +270,15 @@ impl TruckBackend {
             if let Some(id) = self.surface_ids.remove(idx) {
                 self.engine.remove_surface(id);
             }
-            if idx < self.surfaces.len() {
-                self.surfaces.remove(idx);
-            }
+            self.geometry.remove_surface(idx);
         }
         self.rebuild_index();
     }
 
     pub fn add_vertex(&mut self, surface: usize, p: Point3) -> Option<usize> {
         let res = self.engine.add_surface_vertex(surface, p);
-        if let (Some(idx), Some(surf)) = (res, self.surfaces.get_mut(surface)) {
-            surf.vertices.push(p);
+        if let Some(idx) = res {
+            let _ = self.geometry.add_vertex(surface, p);
         }
         self.rebuild_index();
         res
@@ -326,88 +286,42 @@ impl TruckBackend {
 
     pub fn move_vertex(&mut self, surface: usize, idx: usize, p: Point3) {
         self.engine.move_surface_vertex(surface, idx, p);
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if idx < surf.vertices.len() {
-                surf.vertices[idx] = p;
-            }
-        }
+        self.geometry.move_vertex(surface, idx, p);
         self.rebuild_index();
     }
 
     pub fn delete_vertex(&mut self, surface: usize, idx: usize) {
         self.engine.delete_surface_vertex(surface, idx);
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if idx < surf.vertices.len() {
-                surf.vertices.remove(idx);
-                surf.triangles.retain(|t| !t.contains(&idx));
-                for tri in &mut surf.triangles {
-                    for v in tri.iter_mut() {
-                        if *v > idx {
-                            *v -= 1;
-                        }
-                    }
-                }
-            }
-        }
+        self.geometry.delete_vertex(surface, idx);
         self.rebuild_index();
     }
 
     pub fn add_triangle(&mut self, surface: usize, tri: [usize; 3]) {
         self.engine.add_surface_triangle(surface, tri);
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            surf.triangles.push(tri);
-        }
+        self.geometry.add_triangle(surface, tri);
         self.rebuild_index();
     }
 
     pub fn delete_triangle(&mut self, surface: usize, tri_idx: usize) {
         self.engine.delete_surface_triangle(surface, tri_idx);
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if tri_idx < surf.triangles.len() {
-                surf.triangles.remove(tri_idx);
-            }
-        }
+        self.geometry.delete_triangle(surface, tri_idx);
         self.rebuild_index();
     }
 
     pub fn add_breakline(&mut self, surface: usize, a: usize, b: usize) {
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if a < surf.vertices.len()
-                && b < surf.vertices.len()
-                && !surf
-                    .breaklines
-                    .iter()
-                    .any(|&(x, y)| (x == a && y == b) || (x == b && y == a))
-            {
-                surf.breaklines.push((a, b));
-            }
-        }
+        self.geometry.add_breakline(surface, a, b);
     }
 
     pub fn remove_breakline(&mut self, surface: usize, a: usize, b: usize) {
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if let Some(pos) = surf
-                .breaklines
-                .iter()
-                .position(|&(x, y)| (x == a && y == b) || (x == b && y == a))
-            {
-                surf.breaklines.remove(pos);
-            }
-        }
+        self.geometry.remove_breakline(surface, a, b);
     }
 
     pub fn set_boundary(&mut self, surface: usize, boundary: Vec<usize>) {
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            if boundary.iter().all(|&i| i < surf.vertices.len()) && boundary.len() >= 3 {
-                surf.boundary = Some(boundary);
-            }
-        }
+        self.geometry.set_boundary(surface, boundary);
     }
 
     pub fn clear_boundary(&mut self, surface: usize) {
-        if let Some(surf) = self.surfaces.get_mut(surface) {
-            surf.boundary = None;
-        }
+        self.geometry.clear_boundary(surface);
     }
 
     pub fn clear(&mut self) {
@@ -416,11 +330,7 @@ impl TruckBackend {
         self.line_ids.clear();
         self.dimension_ids.clear();
         self.surface_ids.clear();
-        self.points.clear();
-        self.lines.clear();
-        self.dimensions.clear();
-        self.surfaces.clear();
-        self.solids.clear();
+        self.geometry.clear();
         if let Some((_, handles)) = self.handles.take() {
             for id in handles {
                 self.engine.remove_point_marker(id);
@@ -442,7 +352,7 @@ impl TruckBackend {
     /// Show editing handles for the given surface.
     pub fn show_surface_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if let Some(surf) = self.surfaces.get(idx) {
+        if let Some(surf) = self.geometry.surfaces.get(idx) {
             let mut ids = Vec::new();
             for v in &surf.vertices {
                 ids.push(self.engine.add_point_marker(*v));
@@ -454,8 +364,8 @@ impl TruckBackend {
     /// Show handle for a single point.
     pub fn show_point_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if idx < self.points.len() {
-            let p = self.points[idx];
+        if idx < self.geometry.points.len() {
+            let p = self.geometry.points[idx];
             let id = self.engine.add_point_marker(p);
             self.handles = Some((HandleTarget::Point(idx), vec![id]));
         }
@@ -464,8 +374,8 @@ impl TruckBackend {
     /// Show handles for a line's endpoints.
     pub fn show_line_handles(&mut self, idx: usize) {
         self.hide_handles();
-        if idx < self.lines.len() {
-            let (a, b, _, _) = self.lines[idx];
+        if idx < self.geometry.lines.len() {
+            let (a, b, _, _) = self.geometry.lines[idx];
             let ids = vec![
                 self.engine.add_point_marker(a),
                 self.engine.add_point_marker(b),
@@ -501,7 +411,7 @@ impl TruckBackend {
                     }
                 }
                 HandleTarget::Line(idx) => {
-                    let (p0, p1, col, weight) = if let Some(line) = self.lines.get_mut(idx) {
+                    let (p0, p1, col, weight) = if let Some(line) = self.geometry.lines.get_mut(idx) {
                         if handle_idx == 0 {
                             line.0 = new_pos;
                         } else if handle_idx == 1 {
@@ -568,20 +478,21 @@ impl TruckBackend {
     /// Collect geometry for snapping.
     pub fn snap_scene(&self) -> crate::snap::Scene3D {
         let lines = self
+            .geometry
             .lines
             .iter()
             .map(|(a, b, _, _)| (*a, *b))
             .collect();
         let mut surface_vertices = Vec::new();
-        for s in &self.surfaces {
+        for s in &self.geometry.surfaces {
             surface_vertices.extend_from_slice(&s.vertices);
         }
         let mut solid_vertices = Vec::new();
-        for verts in &self.solids {
+        for verts in &self.geometry.solids {
             solid_vertices.extend_from_slice(verts);
         }
         crate::snap::Scene3D {
-            points: self.points.clone(),
+            points: self.geometry.points.clone(),
             lines,
             surface_vertices,
             solid_vertices,
@@ -644,7 +555,7 @@ impl TruckBackend {
         }
 
         for i in cand_points {
-            if let Some(&p) = self.points.as_slice().get(i) {
+            if let Some(&p) = self.geometry.points.as_slice().get(i) {
                 if let Some((sx, sy, z)) = self.engine.project_point(p) {
                     let d2 = (sx - x).powi(2) + (sy - y).powi(2);
                     if d2 < 64.0 && z < best_z {
@@ -656,7 +567,7 @@ impl TruckBackend {
         }
 
         for i in cand_lines {
-            if let Some(&(a, b, _, _)) = self.lines.as_slice().get(i) {
+            if let Some(&(a, b, _, _)) = self.geometry.lines.as_slice().get(i) {
                 if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
                     self.engine.project_point(a),
                     self.engine.project_point(b),
@@ -678,7 +589,7 @@ impl TruckBackend {
         }
 
         for si in cand_surfaces {
-            if let Some(surf) = self.surfaces.get(si) {
+            if let Some(surf) = self.geometry.surfaces.get(si) {
                 for (bi, &(i1, i2)) in surf.breaklines.iter().enumerate() {
                     if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
                         self.engine.project_point(surf.vertices[i1]),

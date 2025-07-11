@@ -45,6 +45,7 @@ mod render;
 mod ui_state;
 mod workspace;
 mod dialogs;
+mod geometry;
 
 use commands::{
     record_macro, spawn_line, spawn_point, Command, CommandStack, Context, MacroPlaying,
