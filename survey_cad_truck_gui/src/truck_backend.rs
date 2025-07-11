@@ -226,11 +226,10 @@ impl TruckBackend {
             weight,
         );
         self.dimension_ids.push(Some(id));
-        let idx = self.geometry.add_dimension(
+        self.geometry.add_dimension(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
-        );
-        idx
+        )
     }
 
     /// Remove an existing dimension.
