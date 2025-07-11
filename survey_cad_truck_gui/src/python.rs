@@ -90,6 +90,13 @@ pub fn play_macro_file(path: &Path, ctx: &MacroContext) {
 }
 
 pub fn run_python_file(path: &Path, ctx: &PythonContext) -> Result<(), GuiError> {
+    if !path.exists() {
+        return Err(GuiError::Msg(format!("File not found: {}", path.display())));
+    }
+    if path.extension().and_then(|e| e.to_str()) != Some("py") {
+        return Err(GuiError::Msg(format!("Not a Python file: {}", path.display())));
+    }
+
     match std::fs::read_to_string(path) {
         Ok(code) => {
             use std::thread;
