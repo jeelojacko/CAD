@@ -14,7 +14,7 @@ fn load_default_when_missing() {
     assert_eq!(cfg.window_width, 800);
     assert_eq!(cfg.window_height, 600);
     assert!(cfg.last_open_dir.is_none());
-    assert!(cfg.auto_tin == false);
+    assert!(!cfg.auto_tin);
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn config_round_trip() {
     assert_eq!(loaded.window_width, 1024);
     assert_eq!(loaded.window_height, 768);
     assert_eq!(loaded.last_open_dir.as_deref(), Some("dir"));
-    assert_eq!(loaded.auto_tin, true);
+    assert!(loaded.auto_tin);
     assert_eq!(loaded.quick_scripts, vec!["q".to_string()]);
     assert_eq!(loaded.profile as u8, cfg.profile as u8);
     assert_eq!(loaded.theme as u8, cfg.theme as u8);
