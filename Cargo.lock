@@ -9368,6 +9368,7 @@ dependencies = [
  "once_cell",
  "open",
  "pyo3",
+ "pyo3-build-config",
  "rfd",
  "rstar",
  "rusttype 0.9.3",
