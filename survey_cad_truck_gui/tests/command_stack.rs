@@ -15,7 +15,7 @@ fn undo_redo_point() {
     let backend = Rc::new(RefCell::new(TruckBackend::new(1,1)));
 
     let mut stack = CommandStack::new();
-    let mut ctx = Context {
+    let ctx = Context {
         points: &points,
         point_styles: &styles,
         lines: &lines,
@@ -44,7 +44,7 @@ fn pushing_clears_redo() {
     let dims = Rc::new(RefCell::new(Vec::new()));
     let backend = Rc::new(RefCell::new(TruckBackend::new(1,1)));
     let mut stack = CommandStack::new();
-    let mut ctx = Context {
+    let ctx = Context {
         points: &points,
         point_styles: &styles,
         lines: &lines,
