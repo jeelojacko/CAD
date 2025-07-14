@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.11'
+      - name: Install Python 3.11 headers
+        run: sudo apt-get update && sudo apt-get install -y python3.11-dev
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -26,6 +32,8 @@ jobs:
           df -h
       - name: Build survey_cad_cli
         run: cargo build -p survey_cad_cli --release
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
