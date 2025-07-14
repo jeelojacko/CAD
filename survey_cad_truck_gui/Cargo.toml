@@ -27,6 +27,7 @@ thiserror = "1"
 
 [build-dependencies]
 slint-build = "1"
+pyo3-build-config = "0.21"
 
 [features]
 default = []

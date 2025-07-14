@@ -1,6 +1,9 @@
 use std::path::Path;
 
 fn main() {
+    // Propagate PyO3's build configuration so the Python interpreter links
+    // correctly when this binary is built.
+    pyo3_build_config::use_pyo3_cfgs();
     // Allow overriding the bundled font at build time via the SURVEY_CAD_FONT
     // environment variable. Otherwise fall back to the default font shipped in
     // the assets directory.
