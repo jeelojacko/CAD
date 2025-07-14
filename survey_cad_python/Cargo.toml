@@ -9,4 +9,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 survey_cad = { path = "../survey_cad", default-features = false }
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.21", default-features = false }
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
