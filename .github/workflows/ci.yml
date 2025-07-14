@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: '3.11'
+      - name: Install Python 3.11 headers
+        run: sudo apt-get update && sudo apt-get install -y python3.11-dev
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -27,5 +33,9 @@ jobs:
           df -h
       - name: Run cargo clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
       - name: Run cargo test
         run: cargo test --all
+        env:
+          PYO3_PYTHON: ${{ steps.python.outputs.python-path }}
