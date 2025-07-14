@@ -164,6 +164,10 @@ $ cd survey_cad_python
 $ maturin develop
 ```
 
+Building the bindings and any crates that depend on them requires the Python
+development headers. Make sure Python 3.11 and the matching `python3.11-dev`
+package are installed before compiling the workspace.
+
 Example:
 
 ```python
