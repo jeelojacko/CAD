@@ -37,7 +37,7 @@ pub enum DrawingMode {
     Dimension { start: Option<Point> },
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct SnapPrefs {
     pub snap_to_grid: bool,
     pub snap_to_entities: bool,
@@ -68,7 +68,7 @@ impl Default for SnapPrefs {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq, Debug)]
 pub enum WorkspaceProfile {
     #[default]
     Surveyor,
@@ -76,14 +76,14 @@ pub enum WorkspaceProfile {
     Gis,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq, Debug)]
 pub enum Theme {
     #[default]
     Dark,
     Light,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct Config {
     pub window_width: u32,
     pub window_height: u32,
