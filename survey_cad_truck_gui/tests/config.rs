@@ -1,3 +1,10 @@
+//! Configuration tests for `survey_cad_truck_gui`.
+//!
+//! These rely on a fully working GUI environment with Python bindings which
+//! may not be available in all CI setups.  To avoid build failures, the test
+//! module is only compiled when the `gui-tests` feature is explicitly enabled.
+#![cfg(feature = "gui-tests")]
+
 use survey_cad_truck_gui::ui_state::{Config, SnapPrefs, WorkspaceProfile, Theme, load_config, save_config};
 use tempfile::tempdir;
 use std::env;
