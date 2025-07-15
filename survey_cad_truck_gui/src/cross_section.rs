@@ -1,5 +1,7 @@
 use slint::Image;
-use std::error::Error;
+use log::error;
+
+use crate::error::GuiError;
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 use survey_cad::alignment::{VerticalAlignment, VerticalElement};
@@ -19,11 +21,14 @@ pub fn render_cross_section(
     section: &corridor::CrossSection,
     width: u32,
     height: u32,
-) -> Result<Image, Box<dyn Error>> {
+) -> Result<Image, GuiError> {
     if width == 0 || height == 0 {
         return Ok(Image::default());
     }
-    let mut pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
+    let mut pixmap = Pixmap::new(width, height).ok_or_else(|| {
+        error!("Failed to create pixmap {width}x{height}");
+        GuiError::from("failed to create pixmap")
+    })?;
     pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     let mut paint = Paint::default();
     paint.set_color(Color::from_rgba8(0, 255, 0, 255));

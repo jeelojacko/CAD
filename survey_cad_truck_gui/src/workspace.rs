@@ -1,6 +1,7 @@
 use std::cell::RefCell;
-use std::error::Error;
 use std::rc::Rc;
+
+use log::error;
 
 use slint::{ComponentHandle, Image};
 use tiny_skia::{Color, FillRule, Paint, PathBuilder, Pixmap, Stroke, Transform};
@@ -13,6 +14,7 @@ use crate::render::{draw_text, RenderState, RenderStyles, WorkspaceRenderData};
 use crate::truck_backend::TruckBackend;
 use crate::ui_state::DrawingMode;
 use crate::{MainWindow, FONT};
+use crate::error::GuiError;
 
 pub fn render_workspace(
     data: &WorkspaceRenderData,
@@ -22,13 +24,16 @@ pub fn render_workspace(
     grid: &GridSettings,
     width: u32,
     height: u32,
-) -> Result<Image, Box<dyn Error>> {
+) -> Result<Image, GuiError> {
     if width == 0 || height == 0 {
         return Ok(Image::default());
     }
     let mut pixmap = state.pixmap.borrow_mut();
     if pixmap.width() != width || pixmap.height() != height {
-        *pixmap = Pixmap::new(width, height).ok_or("failed to create pixmap")?;
+        *pixmap = Pixmap::new(width, height).ok_or_else(|| {
+            error!("Failed to create pixmap {width}x{height}");
+            GuiError::from("failed to create pixmap")
+        })?;
     } else {
         pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
     }
@@ -358,7 +363,7 @@ pub fn render_workspace(
 
 pub fn refresh_workspace(
     app: &MainWindow,
-    render_image: &dyn Fn() -> Result<Image, Box<dyn Error>>,
+    render_image: &dyn Fn() -> Result<Image, GuiError>,
     backend_render: &Rc<RefCell<TruckBackend>>,
 ) {
     if app.get_workspace_mode() == 0 {
@@ -378,7 +383,7 @@ pub fn refresh_workspace(
 
 pub fn set_workspace_image_result(
     app: &MainWindow,
-    render_image: &dyn Fn() -> Result<Image, Box<dyn Error>>,
+    render_image: &dyn Fn() -> Result<Image, GuiError>,
 ) {
     match render_image() {
         Ok(img) => app.set_workspace_image(img),

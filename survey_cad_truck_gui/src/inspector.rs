@@ -1,6 +1,7 @@
 use std::cell::RefCell;
-use std::error::Error;
 use std::rc::Rc;
+
+use crate::error::GuiError;
 
 use slint::{ComponentHandle, Image, SharedString, VecModel};
 
@@ -88,7 +89,7 @@ pub fn show_inspector_for_point(
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
-    render_image: Rc<dyn Fn() -> Result<Image, Box<dyn Error>>>,
+    render_image: Rc<dyn Fn() -> Result<Image, GuiError>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx {
@@ -252,7 +253,7 @@ pub fn show_inspector_for_polygon(
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
     inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
-    render_image: Rc<dyn Fn() -> Result<Image, Box<dyn Error>>>,
+    render_image: Rc<dyn Fn() -> Result<Image, GuiError>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
     while layers.borrow().len() <= idx {

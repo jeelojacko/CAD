@@ -24,6 +24,7 @@ survey_cad_python = { path = "../survey_cad_python", default-features = false }
 open = "5"
 rstar = "0.9"
 thiserror = "1"
+log = "0.4"
 
 [build-dependencies]
 slint-build = "1"
