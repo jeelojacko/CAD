@@ -9365,6 +9365,7 @@ version = "0.1.0"
 dependencies = [
  "dirs",
  "i-slint-common",
+ "log",
  "once_cell",
  "open",
  "pyo3",

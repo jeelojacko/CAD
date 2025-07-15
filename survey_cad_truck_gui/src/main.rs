@@ -2,7 +2,7 @@
 
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
-use slint::{Model, PhysicalSize, SharedString, VecModel};
+use slint::{Model, PhysicalSize, SharedString, VecModel, Image};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -67,6 +67,7 @@ use render::{
     arc_from_start_end_radius, arc_from_three_points, polyline_to_solid, screen_to_workspace,
     workspace_to_screen, RenderState, RenderStyles, WorkspaceRenderData,
 };
+use error::GuiError;
 use rusttype::Font;
 use tiny_skia::Pixmap;
 use ui_state::{
@@ -356,7 +357,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_label_style = point_label_style.clone();
         let grid_settings_ref = grid_settings.clone();
         move || {
-            let size = app_weak.upgrade().map(|a| a.window().size()).unwrap();
+            let Some(app) = app_weak.upgrade() else {
+                return Err(GuiError::Msg("window closed".into()));
+            };
+            let size = app.window().size();
+            if size.width == 0 || size.height == 0 {
+                return Ok(Image::default());
+            }
             let show_numbers = app_weak
                 .upgrade()
                 .map(|a| a.get_show_point_numbers())

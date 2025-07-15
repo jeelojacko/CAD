@@ -27,7 +27,7 @@ pub struct MacroContext {
     pub lines: Rc<RefCell<Vec<(Point, Point)>>>,
     pub line_styles: Rc<RefCell<Vec<usize>>>,
     pub backend: Rc<RefCell<TruckBackend>>,
-    pub render_image: Rc<dyn Fn() -> Result<Image, Box<dyn std::error::Error>>>,
+    pub render_image: Rc<dyn Fn() -> Result<Image, GuiError>>,
     pub weak: slint::Weak<MainWindow>,
 }
 
