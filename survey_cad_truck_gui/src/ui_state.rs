@@ -37,35 +37,28 @@ pub enum DrawingMode {
     Dimension { start: Option<Point> },
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
 pub struct SnapPrefs {
+    #[serde(default)]
     pub snap_to_grid: bool,
+    #[serde(default)]
     pub snap_to_entities: bool,
+    #[serde(default)]
     pub snap_points: bool,
+    #[serde(default)]
     pub snap_endpoints: bool,
+    #[serde(default)]
     pub snap_midpoints: bool,
+    #[serde(default)]
     pub snap_intersections: bool,
+    #[serde(default)]
     pub snap_nearest: bool,
+    #[serde(default)]
     pub snap_surfaces: bool,
+    #[serde(default)]
     pub snap_solids: bool,
+    #[serde(default)]
     pub snap_tolerance: f32,
-}
-
-impl Default for SnapPrefs {
-    fn default() -> Self {
-        Self {
-            snap_to_grid: true,
-            snap_to_entities: true,
-            snap_points: true,
-            snap_endpoints: true,
-            snap_midpoints: true,
-            snap_intersections: true,
-            snap_nearest: true,
-            snap_surfaces: true,
-            snap_solids: true,
-            snap_tolerance: 5.0,
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default, PartialEq, Debug)]
