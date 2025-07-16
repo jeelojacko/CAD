@@ -29,13 +29,15 @@ Enter to execute them. Entered commands are kept in a history list.
 ## Scripts and Plugins
 
 Python scripts located in the `macros/` directory can be executed from the
-**Plugins Panel** available through the `Macro` menu. See the next section for
+**Plugins Panel** available through the `Macro` menu. The directory can be
+changed using the `--macro-dir` command line option or the `macro_dir`
+configuration entry. See the next section for
 the variables that are provided to a script and a small example.
 
 ### Available Variables
 
-Python files must be placed inside the `macros/` directory located at the
-workspace root. When executed from **Macro → Plugins Panel** each script
+Python files must be placed inside the configured macros directory located at
+the workspace root. When executed from **Macro → Plugins Panel** each script
 receives the following globals:
 
 - `survey_cad_python` – bindings for geometry helpers.

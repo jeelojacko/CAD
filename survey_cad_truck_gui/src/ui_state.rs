@@ -91,6 +91,8 @@ pub struct Config {
     pub theme: Theme,
     #[serde(default)]
     pub font_path: Option<String>,
+    #[serde(default)]
+    pub macro_dir: Option<String>,
 }
 
 impl Default for Config {
@@ -105,6 +107,7 @@ impl Default for Config {
             profile: WorkspaceProfile::default(),
             theme: Theme::default(),
             font_path: None,
+            macro_dir: None,
         }
     }
 }

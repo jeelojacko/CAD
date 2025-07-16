@@ -29,7 +29,10 @@ use truck_modeling::base::InnerSpace;
 use truck_modeling::base::Point3;
 use truck_modeling::base::Vector3;
 
-const MACRO_DIR: &str = "macros";
+/// Default directory for recorded macros and Python scripts.
+/// Can be overridden using the `--macro-dir` command line option or the
+/// `macro_dir` entry in the saved configuration.
+const DEFAULT_MACRO_DIR: &str = "macros";
 
 mod truck_backend;
 use truck_backend::{HitObject, TruckBackend};
@@ -104,12 +107,21 @@ static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).
 
 fn main() -> Result<(), slint::PlatformError> {
     let mut cmd_font: Option<String> = None;
+    let mut cmd_macro_dir: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
-        if arg == "--font-path" {
-            if let Some(p) = args.next() {
-                cmd_font = Some(p);
+        match arg.as_str() {
+            "--font-path" => {
+                if let Some(p) = args.next() {
+                    cmd_font = Some(p);
+                }
             }
+            "--macro-dir" => {
+                if let Some(p) = args.next() {
+                    cmd_macro_dir = Some(p);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -118,9 +130,20 @@ fn main() -> Result<(), slint::PlatformError> {
         cfg.font_path = Some(p);
         save_config(&cfg);
     }
+    if let Some(p) = cmd_macro_dir {
+        cfg.macro_dir = Some(p);
+        save_config(&cfg);
+    }
     let config = Rc::new(RefCell::new(cfg));
 
-    let _ = fs::create_dir_all(MACRO_DIR);
+    let macro_dir: Rc<String> = Rc::new(
+        config
+            .borrow()
+            .macro_dir
+            .clone()
+            .unwrap_or_else(|| DEFAULT_MACRO_DIR.to_string()),
+    );
+    let _ = fs::create_dir_all(&*macro_dir);
 
     let backend = Rc::new(RefCell::new(TruckBackend::new(
         config.borrow().window_width,
@@ -536,12 +559,13 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let recorder = macro_recorder.clone();
+        let macro_dir = macro_dir.clone();
         app.on_macro_record(move || {
             if recorder.borrow().file.is_some() {
                 recorder.borrow_mut().file = None;
             } else if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Text", &["txt"])
-                .set_directory(MACRO_DIR)
+                .set_directory(&*macro_dir)
                 .save_file()
             {
                 if let Ok(f) = std::fs::File::create(&path) {
@@ -560,11 +584,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_styles = line_style_indices.clone();
         let backend_render = backend.clone();
         let render_image = render_image.clone();
+        let macro_dir = macro_dir.clone();
         let weak = app.as_weak();
         app.on_macro_play(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Text", &["txt"])
-                .set_directory(MACRO_DIR)
+                .set_directory(&*macro_dir)
                 .pick_file()
             {
                 if let Ok(content) = std::fs::read_to_string(&path) {
@@ -627,11 +652,12 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let lines_ref = lines.clone();
         let surfaces_ref = surfaces.clone();
+        let macro_dir = macro_dir.clone();
         #[cfg(feature = "python")]
         app.on_run_python_script(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Python", &["py"])
-                .set_directory(MACRO_DIR)
+                .set_directory(&*macro_dir)
                 .pick_file()
             {
                 match std::fs::read_to_string(&path) {
@@ -727,13 +753,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         let render_image = render_image.clone();
         let cfg = config.clone();
+        let macro_dir = macro_dir.clone();
         let selected_indices_ml = selected_indices.clone();
         let selected_lines_ml = selected_lines.clone();
         let offset_ml = offset.clone();
         let zoom_ml = zoom.clone();
         app.on_show_macro_list(move || {
             let mut items = Vec::new();
-            if let Ok(rd) = fs::read_dir(MACRO_DIR) {
+            if let Ok(rd) = fs::read_dir(&*macro_dir) {
                 for ent in rd.flatten() {
                     if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
                         if ext == "txt" || ext == "py" {
@@ -764,9 +791,10 @@ fn main() -> Result<(), slint::PlatformError> {
             let selected_lines = selected_lines_ml.clone();
             let offset = offset_ml.clone();
             let zoom = zoom_ml.clone();
+            let macro_dir = macro_dir.clone();
             dlg.on_run(move |idx| {
                 if let Some(name) = items_run.get(idx as usize) {
-                    let path = Path::new(MACRO_DIR).join(name.as_str());
+                    let path = Path::new(&*macro_dir).join(name.as_str());
                     if name.ends_with(".py") {
                         #[cfg(feature = "python")]
                         let ctx_py = PythonContext {
@@ -844,9 +872,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_lines_ref = selected_lines.clone();
         let offset_ref = offset.clone();
         let zoom_ref = zoom.clone();
+        let macro_dir = macro_dir.clone();
         app.on_open_script_panel(move || {
             let mut items = Vec::new();
-            if let Ok(rd) = fs::read_dir(MACRO_DIR) {
+            if let Ok(rd) = fs::read_dir(&*macro_dir) {
                 for ent in rd.flatten() {
                     if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
                         if ext == "py" {
@@ -871,9 +900,10 @@ fn main() -> Result<(), slint::PlatformError> {
             let selected_lines_run = selected_lines_ref.clone();
             let offset_run = offset_ref.clone();
             let zoom_run = zoom_ref.clone();
+            let macro_dir = macro_dir.clone();
             panel.on_run(move |idx| {
                 if let Some(name) = items_run.get(idx as usize) {
-                    let path = Path::new(MACRO_DIR).join(name.as_str());
+                    let path = Path::new(&*macro_dir).join(name.as_str());
                     #[cfg(feature = "python")]
                     let ctx_py = PythonContext {
                         weak: weak_run.clone(),
@@ -921,13 +951,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_lines = selected_lines.clone();
         let offset = offset.clone();
         let zoom = zoom.clone();
+        let macro_dir = macro_dir.clone();
         app.on_run_quick_script(move |slot| {
             let scripts = &cfg.borrow().quick_scripts;
             if let Some(name) = scripts.get(slot as usize) {
                 if name.is_empty() {
                     return;
                 }
-                let path = Path::new(MACRO_DIR).join(name);
+                let path = Path::new(&*macro_dir).join(name);
                 if name.ends_with(".py") {
                     #[cfg(feature = "python")]
                     let ctx_py = PythonContext {
