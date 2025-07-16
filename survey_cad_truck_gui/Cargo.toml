@@ -37,6 +37,7 @@ las = ["survey_cad/las"]
 kml = ["survey_cad/kml"]
 fgdb = ["survey_cad/fgdb"]
 e57 = ["survey_cad/e57"]
+gui-tests = []
 
 [dev-dependencies]
 tempfile = "3"
