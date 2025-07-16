@@ -115,8 +115,7 @@ pub fn show_inspector_for_point(
         layer_names
             .borrow()
             .iter()
-            .cloned()
-            .map(SharedString::from)
+            .map(|s| SharedString::from(s.as_str()))
             .collect::<Vec<_>>(),
     ));
     let style_model = Rc::new(VecModel::from(style_names.to_vec()));
@@ -124,8 +123,7 @@ pub fn show_inspector_for_point(
         data_set_names
             .borrow()
             .iter()
-            .cloned()
-            .map(SharedString::from)
+            .map(|s| SharedString::from(s.as_str()))
             .collect::<Vec<_>>(),
     ));
 
@@ -143,9 +141,9 @@ pub fn show_inspector_for_point(
     dlg.set_entity_type(SharedString::from("Point"));
     dlg.set_layer_index(layers.borrow()[idx] as i32);
     dlg.set_style_index(styles.borrow()[idx] as i32);
-    dlg.set_metadata(SharedString::from(metadata.borrow()[idx].clone()));
-    dlg.set_elevation(SharedString::from(elevation.borrow()[idx].clone()));
-    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].clone()));
+    dlg.set_metadata(SharedString::from(metadata.borrow()[idx].as_str()));
+    dlg.set_elevation(SharedString::from(elevation.borrow()[idx].as_str()));
+    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
     dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
@@ -273,8 +271,7 @@ pub fn show_inspector_for_polygon(
         layer_names
             .borrow()
             .iter()
-            .cloned()
-            .map(SharedString::from)
+            .map(|s| SharedString::from(s.as_str()))
             .collect::<Vec<_>>(),
     ));
     let hatch_model = Rc::new(VecModel::from(hatch_names.to_vec()));
@@ -282,8 +279,7 @@ pub fn show_inspector_for_polygon(
         data_set_names
             .borrow()
             .iter()
-            .cloned()
-            .map(SharedString::from)
+            .map(|s| SharedString::from(s.as_str()))
             .collect::<Vec<_>>(),
     ));
 
@@ -303,7 +299,7 @@ pub fn show_inspector_for_polygon(
     dlg.set_layer_index(layers.borrow()[idx] as i32);
     dlg.set_hatch_index(hatches.borrow()[idx] as i32);
     dlg.set_metadata(SharedString::from(""));
-    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].clone()));
+    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
     dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
