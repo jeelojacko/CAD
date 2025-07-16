@@ -6,7 +6,45 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
 use survey_cad::alignment::{VerticalAlignment, VerticalElement};
 use survey_cad::corridor;
+use survey_cad::subassembly;
 use survey_cad::geometry::Point3 as ScPoint3;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Lane {
+    pub width: f64,
+    pub slope: f64,
+}
+
+impl Lane {
+    pub fn to_subassembly(&self) -> corridor::Subassembly {
+        subassembly::lane(self.width, self.slope)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Shoulder {
+    pub width: f64,
+    pub slope: f64,
+}
+
+impl Shoulder {
+    pub fn to_subassembly(&self) -> corridor::Subassembly {
+        subassembly::shoulder(self.width, self.slope)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Ditch {
+    pub depth: f64,
+    pub bottom_width: f64,
+    pub side_slope: f64,
+}
+
+impl Ditch {
+    pub fn to_subassembly(&self) -> corridor::Subassembly {
+        subassembly::ditch(self.depth, self.bottom_width, self.side_slope)
+    }
+}
 
 /// Parameters for mapping section coordinates to screen coordinates.
 pub struct SectionParams {
@@ -196,6 +234,29 @@ pub fn nearest_point(
     } else {
         None
     }
+}
+
+pub fn handle_positions(
+    section: &corridor::CrossSection,
+    width: f32,
+    height: f32,
+) -> Vec<(f32, f32)> {
+    let Some(params) = calc_section_params(section, width, height) else {
+        return Vec::new();
+    };
+    section
+        .points
+        .iter()
+        .map(|p| {
+            let off = ((p.x - params.center.x) * params.dir.0
+                + (p.y - params.center.y) * params.dir.1) as f32;
+            let elev = (p.z - params.center.z) as f32;
+            (
+                params.ox + off * params.scale,
+                params.oy - elev * params.scale,
+            )
+        })
+        .collect()
 }
 
 pub fn grade_at(profile: &VerticalAlignment, station: f64) -> Option<f64> {
