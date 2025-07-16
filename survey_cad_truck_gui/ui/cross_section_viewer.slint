@@ -1,10 +1,16 @@
 import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
 
+export struct HandlePoint {
+    x: length,
+    y: length,
+}
+
 export component CrossSectionViewer inherits Window {
     in-out property <image> section_image;
     in-out property <string> station_label;
     in-out property <string> elevation_label;
     in-out property <string> slope_label;
+    in-out property <[HandlePoint]> handles_model;
     callback pointer_pressed(length, length);
     callback pointer_moved(length, length);
     callback pointer_released();
@@ -24,22 +30,33 @@ export component CrossSectionViewer inherits Window {
             Text { color: #FFFFFF; text: root.slope_label; }
             Button { text: "Next"; clicked => { root.next(); } }
         }
-        Image {
-            source: root.section_image;
-            image-fit: fill;
+        Rectangle {
             width: 100%;
             height: 100%;
-        }
-        TouchArea {
-            width: 100%;
-            height: 100%;
-            pointer-event(event) => {
-                if event.kind == PointerEventKind.down {
-                    root.pointer_pressed(self.mouse-x, self.mouse-y);
-                } else if event.kind == PointerEventKind.up {
-                    root.pointer_released();
-                } else if event.kind == PointerEventKind.move {
-                    root.pointer_moved(self.mouse-x, self.mouse-y);
+            Image {
+                source: root.section_image;
+                image-fit: fill;
+                width: 100%;
+                height: 100%;
+            }
+            for h[i] in root.handles_model : Rectangle {
+                x: h.x - 4px;
+                y: h.y - 4px;
+                width: 8px;
+                height: 8px;
+                background: #FF0000;
+            }
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down {
+                        root.pointer_pressed(self.mouse-x, self.mouse-y);
+                    } else if event.kind == PointerEventKind.up {
+                        root.pointer_released();
+                    } else if event.kind == PointerEventKind.move {
+                        root.pointer_moved(self.mouse-x, self.mouse-y);
+                    }
                 }
             }
         }

@@ -71,8 +71,8 @@ use commands::{
     MacroRecorder,
 };
 pub use cross_section::{
-    calc_section_params, grade_at, nearest_point, render_cross_section, screen_to_world,
-    SectionParams,
+    calc_section_params, grade_at, handle_positions, nearest_point, render_cross_section,
+    screen_to_world, SectionParams,
 };
 pub use inspector::{
     has_selection, show_context_menu, show_inspector_for_point, show_inspector_for_polygon,
@@ -3931,6 +3931,11 @@ fn main() -> Result<(), slint::PlatformError> {
             if let Ok(img) = render_cross_section(&sections[0], 600, 300) {
                 viewer.set_section_image(img);
             }
+            let handles0: Vec<HandlePoint> = handle_positions(&sections[0], 600.0, 300.0)
+                .into_iter()
+                .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
+                .collect();
+            viewer.set_handles_model(VecModel::from(handles0).into());
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(RefCell::new(sections));
             let drag_index = Rc::new(RefCell::new(None::<usize>));
@@ -3956,6 +3961,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
                                 v.set_section_image(img);
                             }
+                            let handles: Vec<HandlePoint> = handle_positions(&secs_b[i], 600.0, 300.0)
+                                .into_iter()
+                                .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
+                                .collect();
+                            v.set_handles_model(VecModel::from(handles).into());
                         }
                     }
                 });
@@ -4003,6 +4013,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let current_m = current.clone();
                 let drag_m = drag_index.clone();
                 let viewer_weak_m = viewer_weak.clone();
+                let surfaces_m = surfaces.clone();
+                let backend_m = backend.clone();
                 viewer.on_pointer_moved(move |x, y| {
                     if let Some(idx) = *drag_m.borrow() {
                         if let Some(p) = screen_to_world(
@@ -4021,6 +4033,30 @@ fn main() -> Result<(), slint::PlatformError> {
                                 ) {
                                     v.set_section_image(img);
                                 }
+                                let handles: Vec<HandlePoint> = handle_positions(
+                                    &secs_m.borrow()[*current_m.borrow()],
+                                    600.0,
+                                    300.0,
+                                )
+                                .into_iter()
+                                .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
+                                .collect();
+                                v.set_handles_model(VecModel::from(handles).into());
+                            }
+                            let tin = corridor::surface_from_cross_sections(&secs_m.borrow());
+                            let verts: Vec<Point3> = tin
+                                .vertices
+                                .iter()
+                                .map(|p| Point3::new(p.x, p.y, p.z))
+                                .collect();
+                            if surfaces_m.borrow().is_empty() {
+                                backend_m.borrow_mut().add_surface(&verts, &tin.triangles);
+                                surfaces_m.borrow_mut().push(tin);
+                            } else {
+                                backend_m
+                                    .borrow_mut()
+                                    .update_surface(0, &verts, &tin.triangles);
+                                surfaces_m.borrow_mut()[0] = tin;
                             }
                         }
                     }
@@ -4030,6 +4066,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 let surfaces_r = surfaces.clone();
                 let backend_r = backend.clone();
                 let drag_r = drag_index.clone();
+                let current = current.clone();
+                let viewer_weak = viewer_weak.clone();
                 viewer.on_pointer_released(move || {
                     if drag_r.borrow().is_some() {
                         *drag_r.borrow_mut() = None;
@@ -4047,6 +4085,17 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .borrow_mut()
                                 .update_surface(0, &verts, &tin.triangles);
                             surfaces_r.borrow_mut()[0] = tin;
+                        }
+                        if let Some(v) = viewer_weak.upgrade() {
+                            let handles: Vec<HandlePoint> = handle_positions(
+                                &secs_r.borrow()[*current.borrow()],
+                                600.0,
+                                300.0,
+                            )
+                            .into_iter()
+                            .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
+                            .collect();
+                            v.set_handles_model(VecModel::from(handles).into());
                         }
                     }
                 });
