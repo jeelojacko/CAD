@@ -1,6 +1,5 @@
-use survey_cad::geometry::{Arc, Line, Point, Polyline};
-use survey_cad::io::DxfEntity;
-use survey_cad::snap::{snap_point_with_settings, SnapSettings};
+use survey_cad::geometry::{distance, Arc, Line, Point, Polyline};
+use survey_cad::surveying::line_intersection;
 use truck_modeling::base::{Point3, Vector3};
 use truck_modeling::cgmath::InnerSpace;
 
@@ -29,36 +28,103 @@ pub fn resolve_snap(
     tol: f64,
     opts: SnapOptions,
 ) -> Option<Point> {
-    let mut ents: Vec<DxfEntity> = Vec::new();
+    let mut candidates: Vec<Point> = Vec::new();
+    let mut lines: Vec<Line> = Vec::new();
+
     if opts.snap_points {
-        for p in scene.points {
-            ents.push(DxfEntity::Point { point: *p, layer: None });
-        }
+        candidates.extend_from_slice(scene.points);
     }
+
     if opts.snap_endpoints || opts.snap_midpoints || opts.snap_intersections || opts.snap_nearest {
         for (s, e) in scene.lines {
-            ents.push(DxfEntity::Line { line: Line::new(*s, *e), layer: None });
+            let line = Line::new(*s, *e);
+            if opts.snap_endpoints {
+                candidates.push(*s);
+                candidates.push(*e);
+            }
+            if opts.snap_midpoints {
+                candidates.push(line.midpoint());
+            }
+            lines.push(line);
         }
         for poly in scene.polygons {
-            ents.push(DxfEntity::Polyline { polyline: Polyline::new(poly.clone()), layer: None });
+            for seg in poly.windows(2) {
+                let l = Line::new(seg[0], seg[1]);
+                if opts.snap_endpoints {
+                    candidates.push(l.start);
+                    candidates.push(l.end);
+                }
+                if opts.snap_midpoints {
+                    candidates.push(l.midpoint());
+                }
+                lines.push(l);
+            }
         }
         for pl in scene.polylines {
-            ents.push(DxfEntity::Polyline { polyline: pl.clone(), layer: None });
+            for seg in pl.vertices.windows(2) {
+                let l = Line::new(seg[0], seg[1]);
+                if opts.snap_endpoints {
+                    candidates.push(l.start);
+                    candidates.push(l.end);
+                }
+                if opts.snap_midpoints {
+                    candidates.push(l.midpoint());
+                }
+                lines.push(l);
+            }
         }
         for arc in scene.arcs {
-            ents.push(DxfEntity::Arc { arc: *arc, layer: None });
+            if opts.snap_endpoints {
+                candidates.push(arc.start_point());
+                candidates.push(arc.end_point());
+            }
+            if opts.snap_midpoints {
+                candidates.push(arc.midpoint());
+            }
+        }
+
+        if opts.snap_intersections {
+            for i in 0..lines.len() {
+                for j in (i + 1)..lines.len() {
+                    if let Some(p) = line_intersection(lines[i].start, lines[i].end, lines[j].start, lines[j].end) {
+                        candidates.push(p);
+                    }
+                }
+            }
         }
     }
-    let settings = SnapSettings {
-        endpoints: opts.snap_points || opts.snap_endpoints,
-        midpoints: opts.snap_midpoints,
-        intersections: opts.snap_intersections,
-        nearest: opts.snap_nearest,
-    };
-    if ents.is_empty() {
-        return None;
+
+    let mut best = None;
+    let mut best_dist = tol;
+
+    for c in &candidates {
+        let d = distance(target, *c);
+        if d < best_dist {
+            best_dist = d;
+            best = Some(*c);
+        }
     }
-    snap_point_with_settings(target, &ents, tol, settings)
+
+    if opts.snap_nearest {
+        for l in &lines {
+            let p = l.nearest_point(target);
+            let d = distance(target, p);
+            if d < best_dist {
+                best_dist = d;
+                best = Some(p);
+            }
+        }
+        for arc in scene.arcs {
+            let p = arc.nearest_point(target);
+            let d = distance(target, p);
+            if d < best_dist {
+                best_dist = d;
+                best = Some(p);
+            }
+        }
+    }
+
+    best
 }
 
 pub struct Scene3D {
