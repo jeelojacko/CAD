@@ -40,7 +40,23 @@ mod error;
 mod cross_section;
 mod inspector;
 mod io_utils;
+#[cfg(feature = "python")]
 mod python;
+#[cfg(not(feature = "python"))]
+mod python {
+    use crate::error::GuiError;
+    use std::path::Path;
+
+    #[derive(Clone)]
+    pub struct MacroContext;
+    #[derive(Clone)]
+    pub struct PythonContext;
+
+    pub fn play_macro_file(_path: &Path, _ctx: &MacroContext) {}
+    pub fn run_python_file(_path: &Path, _ctx: &PythonContext) -> Result<(), GuiError> {
+        Err(GuiError::Msg("Python support disabled".into()))
+    }
+}
 mod render;
 mod ui_state;
 mod workspace;
@@ -60,7 +76,9 @@ pub use inspector::{
 };
 pub use io_utils::{read_arc_csv, read_line_csv, read_points_list};
 use once_cell::sync::Lazy;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::PyDict;
 use python::{play_macro_file, run_python_file, MacroContext, PythonContext};
 use render::{
@@ -609,6 +627,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_db = point_db.clone();
         let lines_ref = lines.clone();
         let surfaces_ref = surfaces.clone();
+        #[cfg(feature = "python")]
         app.on_run_python_script(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("Python", &["py"])
@@ -688,6 +707,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             }
         });
+        #[cfg(not(feature = "python"))]
+        app.on_run_python_script(move || {
+            if let Some(app) = weak.upgrade() {
+                app.set_status(SharedString::from("Python support disabled"));
+            }
+        });
     }
 
     {
@@ -743,6 +768,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
                     if name.ends_with(".py") {
+                        #[cfg(feature = "python")]
                         let ctx_py = PythonContext {
                             weak: weak_run.clone(),
                             point_db: point_db_run.clone(),
@@ -753,12 +779,15 @@ fn main() -> Result<(), slint::PlatformError> {
                             offset: offset.clone(),
                             zoom: zoom.clone(),
                         };
+                        #[cfg(not(feature = "python"))]
+                        let ctx_py = PythonContext;
                         if let Err(e) = run_python_file(&path, &ctx_py) {
                             if let Some(app) = weak_run.upgrade() {
                                 app.set_status(SharedString::from(format!("Python error: {e}")));
                             }
                         }
                     } else {
+                        #[cfg(feature = "python")]
                         let ctx = MacroContext {
                             playing: playing_run.clone(),
                             recorder: recorder_run.clone(),
@@ -770,6 +799,8 @@ fn main() -> Result<(), slint::PlatformError> {
                             render_image: Rc::new(render_image_run.clone()),
                             weak: weak_run.clone(),
                         };
+                        #[cfg(not(feature = "python"))]
+                        let ctx = MacroContext;
                         play_macro_file(&path, &ctx);
                     }
                 }
@@ -843,6 +874,7 @@ fn main() -> Result<(), slint::PlatformError> {
             panel.on_run(move |idx| {
                 if let Some(name) = items_run.get(idx as usize) {
                     let path = Path::new(MACRO_DIR).join(name.as_str());
+                    #[cfg(feature = "python")]
                     let ctx_py = PythonContext {
                         weak: weak_run.clone(),
                         point_db: point_db_run.clone(),
@@ -853,6 +885,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         offset: offset_run.clone(),
                         zoom: zoom_run.clone(),
                     };
+                    #[cfg(not(feature = "python"))]
+                    let ctx_py = PythonContext;
                     if let Err(e) = run_python_file(&path, &ctx_py) {
                         if let Some(app) = weak_run.upgrade() {
                             app.set_status(SharedString::from(format!("Python error: {e}")));
@@ -895,6 +929,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
                 let path = Path::new(MACRO_DIR).join(name);
                 if name.ends_with(".py") {
+                    #[cfg(feature = "python")]
                     let ctx_py = PythonContext {
                         weak: weak.clone(),
                         point_db: point_db.clone(),
@@ -905,12 +940,15 @@ fn main() -> Result<(), slint::PlatformError> {
                         offset: offset.clone(),
                         zoom: zoom.clone(),
                     };
+                    #[cfg(not(feature = "python"))]
+                    let ctx_py = PythonContext;
                     if let Err(e) = run_python_file(&path, &ctx_py) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Python error: {e}")));
                         }
                     }
                 } else {
+                    #[cfg(feature = "python")]
                     let ctx = MacroContext {
                         playing: playing.clone(),
                         recorder: recorder.clone(),
@@ -922,6 +960,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         render_image: Rc::new(render_image.clone()),
                         weak: weak.clone(),
                     };
+                    #[cfg(not(feature = "python"))]
+                    let ctx = MacroContext;
                     play_macro_file(&path, &ctx);
                 }
             }

@@ -1,4 +1,6 @@
 use thiserror::Error;
+#[cfg(feature = "python")]
+use pyo3::PyErr;
 
 #[derive(Debug, Error)]
 pub enum GuiError {
@@ -6,8 +8,9 @@ pub enum GuiError {
     Io(#[from] std::io::Error),
     #[error("UI error: {0}")]
     Slint(#[from] slint::PlatformError),
+    #[cfg(feature = "python")]
     #[error("Python error: {0}")]
-    Python(#[from] pyo3::PyErr),
+    Python(#[from] PyErr),
     #[error("{0}")]
     Msg(String),
 }
