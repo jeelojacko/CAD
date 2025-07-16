@@ -6499,7 +6499,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             }
             let font_items: Vec<SharedString> =
-                fonts.iter().cloned().map(SharedString::from).collect();
+                fonts.iter().map(|s| SharedString::from(s.as_str())).collect();
             dlg.set_font_list(Rc::new(VecModel::from(font_items)).into());
             let current_idx = config_ref
                 .borrow()
