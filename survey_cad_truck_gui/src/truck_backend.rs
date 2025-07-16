@@ -2,6 +2,7 @@ use slint::Image;
 use truck_cad_engine::TruckCadEngine;
 use truck_modeling::base::{Point3, Vector4};
 use truck_modeling::topology::Solid;
+use truck_rendimpl::PolygonState;
 
 use crate::geometry::GeometryStore;
 use rstar::{RTree, RTreeObject, AABB};
@@ -154,6 +155,16 @@ impl TruckBackend {
         self.rebuild_index();
     }
 
+    /// Add multiple points in a single operation.
+    pub fn add_points(&mut self, points: &[Point3]) {
+        for p in points {
+            let id = self.engine.add_point_marker(*p);
+            self.point_ids.push(Some(id));
+            self.geometry.add_point(*p);
+        }
+        self.rebuild_index();
+    }
+
     pub fn add_line(
         &mut self,
         a: [f64; 3],
@@ -217,6 +228,27 @@ impl TruckBackend {
         self.rebuild_index();
     }
 
+    /// Add multiple lines at once.
+    pub fn add_lines(&mut self, lines: &[([f64; 3], [f64; 3], [f32; 4], f32)]) {
+        for (a, b, color, weight) in lines {
+            let col = Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64);
+            let id = self.engine.add_line(
+                Point3::new(a[0], a[1], a[2]),
+                Point3::new(b[0], b[1], b[2]),
+                col,
+                *weight,
+            );
+            self.line_ids.push(Some(id));
+            self.geometry.add_line(
+                Point3::new(a[0], a[1], a[2]),
+                Point3::new(b[0], b[1], b[2]),
+                col,
+                *weight,
+            );
+        }
+        self.rebuild_index();
+    }
+
     /// Add a dimension represented as a simple line between two points.
     pub fn add_dimension(&mut self, a: [f64; 3], b: [f64; 3], color: [f32; 4], weight: f32) -> usize {
         let id = self.engine.add_line(
@@ -248,6 +280,19 @@ impl TruckBackend {
         let idx = self.geometry.add_surface(vertices, triangles);
         self.rebuild_index();
         idx
+    }
+
+    /// Add many surfaces using the engine's batching API.
+    pub fn add_surfaces(&mut self, surfs: &[(&[Point3], &[[usize; 3]])]) {
+        let mut engine_meshes = Vec::new();
+        for (v, t) in surfs {
+            self.surface_ids.push(None);
+            self.geometry.add_surface(v, t);
+            engine_meshes.push((v.to_vec(), t.to_vec()));
+        }
+        self.engine
+            .add_batched_mesh(&engine_meshes, &PolygonState::default());
+        self.rebuild_index();
     }
 
     pub fn add_solid(&mut self, solid: Solid) {

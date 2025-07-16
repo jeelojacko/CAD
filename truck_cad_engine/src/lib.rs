@@ -106,6 +106,43 @@ impl TruckCadEngine {
         self.add_solid(cube);
     }
 
+    /// Add multiple triangulated meshes sharing the same [`PolygonState`].
+    pub fn add_batched_mesh(
+        &mut self,
+        meshes: &[(Vec<truck::base::Point3>, Vec<[usize; 3]>)],
+        state: &PolygonState,
+    ) {
+        let mut vertices = Vec::new();
+        let mut triangles = Vec::new();
+        for (verts, tris) in meshes {
+            let offset = vertices.len();
+            vertices.extend_from_slice(verts);
+            triangles.extend(tris.iter().map(|t| [t[0] + offset, t[1] + offset, t[2] + offset]));
+        }
+        if vertices.is_empty() {
+            return;
+        }
+        let attrs = StandardAttributes {
+            positions: vertices,
+            ..Default::default()
+        };
+        let tri_faces: Vec<[StandardVertex; 3]> = triangles
+            .iter()
+            .map(|t| {
+                [
+                    StandardVertex { pos: t[0], uv: None, nor: None },
+                    StandardVertex { pos: t[1], uv: None, nor: None },
+                    StandardVertex { pos: t[2], uv: None, nor: None },
+                ]
+            })
+            .collect();
+        let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
+        let mesh = PolygonMesh::new(attrs, faces);
+        let instance = self.creator.create_instance(&mesh, state);
+        self.scene.add_object(&instance);
+        self.instances.push(instance);
+    }
+
     /// Add a small cube to visualize a point.
     pub fn add_point_marker(&mut self, p: truck::base::Point3) -> usize {
         let v: truck::topology::Vertex =
