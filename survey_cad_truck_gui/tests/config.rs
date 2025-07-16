@@ -27,6 +27,7 @@ fn save_and_load_config() {
         profile: WorkspaceProfile::default(),
         theme: Theme::default(),
         font_path: Some("font/path".into()),
+        macro_dir: Some("/tmp/macros".into()),
     };
 
     save_config(&cfg);
