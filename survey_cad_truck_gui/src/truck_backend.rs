@@ -7,6 +7,11 @@ use truck_rendimpl::PolygonState;
 use crate::geometry::GeometryStore;
 use rstar::{RTree, RTreeObject, AABB};
 
+/// Line definition used for batch additions.
+type LineInput = ([f64; 3], [f64; 3], [f32; 4], f32);
+/// Surface definition used for batch additions.
+type SurfaceInput<'a> = (&'a [Point3], &'a [[usize; 3]]);
+
 pub enum HitObject {
     Point(usize),
     Line(usize),
@@ -229,7 +234,7 @@ impl TruckBackend {
     }
 
     /// Add multiple lines at once.
-    pub fn add_lines(&mut self, lines: &[([f64; 3], [f64; 3], [f32; 4], f32)]) {
+    pub fn add_lines(&mut self, lines: &[LineInput]) {
         for (a, b, color, weight) in lines {
             let col = Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64);
             let id = self.engine.add_line(
@@ -283,7 +288,7 @@ impl TruckBackend {
     }
 
     /// Add many surfaces using the engine's batching API.
-    pub fn add_surfaces(&mut self, surfs: &[(&[Point3], &[[usize; 3]])]) {
+    pub fn add_surfaces(&mut self, surfs: &[SurfaceInput<'_>]) {
         let mut engine_meshes = Vec::new();
         for (v, t) in surfs {
             self.surface_ids.push(None);
