@@ -3933,7 +3933,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             let handles0: Vec<HandlePoint> = handle_positions(&sections[0], 600.0, 300.0)
                 .into_iter()
-                .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
+                .map(|(x, y)| HandlePoint { x, y })
                 .collect();
             viewer.set_handles_model(Rc::new(VecModel::from(handles0)).into());
             let viewer_weak = viewer.as_weak();
@@ -3963,7 +3963,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                             let handles: Vec<HandlePoint> = handle_positions(&secs_b[i], 600.0, 300.0)
                                 .into_iter()
-                                .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
+                                .map(|(x, y)| HandlePoint { x, y })
                                 .collect();
                             v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
@@ -4039,7 +4039,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                     300.0,
                                 )
                                 .into_iter()
-                                .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
+                                .map(|(hx, hy)| HandlePoint { x: hx, y: hy })
                                 .collect();
                                 v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                             }
@@ -4093,7 +4093,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 300.0,
                             )
                             .into_iter()
-                            .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
+                            .map(|(hx, hy)| HandlePoint { x: hx, y: hy })
                             .collect();
                             v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
