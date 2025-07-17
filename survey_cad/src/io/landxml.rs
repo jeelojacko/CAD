@@ -634,3 +634,103 @@ pub fn write_landxml_superelevation(path: &str, table: &[SuperelevationPoint]) -
     writeln!(&mut xml, "</LandXML>").unwrap();
     write_string(path, &xml)
 }
+pub fn write_landxml(
+    path: &str,
+    points: &[crate::geometry::Point],
+    alignments: &[crate::alignment::Alignment],
+    surfaces: &[crate::dtm::Tin],
+) -> io::Result<()> {
+    use crate::alignment::HorizontalElement;
+    let mut xml = String::new();
+    writeln!(&mut xml, "<?xml version=\"1.0\"?>").unwrap();
+    writeln!(&mut xml, "<LandXML>").unwrap();
+    if !points.is_empty() {
+        writeln!(&mut xml, "  <CgPoints>").unwrap();
+        for (i, p) in points.iter().enumerate() {
+            writeln!(&mut xml, "    <P id=\"{}\">{} {}</P>", i + 1, p.x, p.y).unwrap();
+        }
+        writeln!(&mut xml, "  </CgPoints>").unwrap();
+    }
+    if !alignments.is_empty() {
+        writeln!(&mut xml, "  <Alignments>").unwrap();
+        for (i, al) in alignments.iter().enumerate() {
+            writeln!(&mut xml, "    <Alignment name=\"AL{}\">", i + 1).unwrap();
+            writeln!(&mut xml, "      <CoordGeom>").unwrap();
+            for elem in &al.horizontal.elements {
+                match elem {
+                    HorizontalElement::Tangent { start, end } => {
+                        writeln!(&mut xml, "        <Line>").unwrap();
+                        writeln!(&mut xml, "          <Start>{} {}</Start>", start.x, start.y).unwrap();
+                        writeln!(&mut xml, "          <End>{} {}</End>", end.x, end.y).unwrap();
+                        writeln!(&mut xml, "        </Line>").unwrap();
+                    }
+                    HorizontalElement::Curve { arc } => {
+                        writeln!(&mut xml, "        <Curve radius=\"{}\">", arc.radius).unwrap();
+                        let sp = crate::geometry::Point::new(
+                            arc.center.x + arc.radius * arc.start_angle.cos(),
+                            arc.center.y + arc.radius * arc.start_angle.sin(),
+                        );
+                        let ep = crate::geometry::Point::new(
+                            arc.center.x + arc.radius * arc.end_angle.cos(),
+                            arc.center.y + arc.radius * arc.end_angle.sin(),
+                        );
+                        writeln!(&mut xml, "          <Start>{} {}</Start>", sp.x, sp.y).unwrap();
+                        writeln!(&mut xml, "          <End>{} {}</End>", ep.x, ep.y).unwrap();
+                        writeln!(
+                            &mut xml,
+                            "          <Center>{} {}</Center>",
+                            arc.center.x, arc.center.y
+                        ).unwrap();
+                        writeln!(&mut xml, "        </Curve>").unwrap();
+                    }
+                    HorizontalElement::Spiral { spiral } => {
+                        let s = spiral.start_point();
+                        let e = spiral.end_point();
+                        writeln!(&mut xml, "        <Spiral>").unwrap();
+                        writeln!(&mut xml, "          <Start>{} {}</Start>", s.x, s.y).unwrap();
+                        writeln!(&mut xml, "          <End>{} {}</End>", e.x, e.y).unwrap();
+                        writeln!(&mut xml, "        </Spiral>").unwrap();
+                    }
+                }
+            }
+            writeln!(&mut xml, "      </CoordGeom>").unwrap();
+            writeln!(&mut xml, "    </Alignment>").unwrap();
+        }
+        writeln!(&mut xml, "  </Alignments>").unwrap();
+    }
+    if !surfaces.is_empty() {
+        writeln!(&mut xml, "  <Surfaces>").unwrap();
+        for (i, tin) in surfaces.iter().enumerate() {
+            writeln!(&mut xml, "    <Surface name=\"TIN{}\">", i + 1).unwrap();
+            writeln!(&mut xml, "      <Definition surfType=\"TIN\">").unwrap();
+            writeln!(&mut xml, "        <Pnts>").unwrap();
+            for (j, v) in tin.vertices.iter().enumerate() {
+                writeln!(
+                    &mut xml,
+                    "          <P id=\"{}\">{} {} {}</P>",
+                    j + 1,
+                    v.x,
+                    v.y,
+                    v.z
+                ).unwrap();
+            }
+            writeln!(&mut xml, "        </Pnts>").unwrap();
+            writeln!(&mut xml, "        <Faces>").unwrap();
+            for t in &tin.triangles {
+                writeln!(
+                    &mut xml,
+                    "          <F>{} {} {}</F>",
+                    t[0] + 1,
+                    t[1] + 1,
+                    t[2] + 1
+                ).unwrap();
+            }
+            writeln!(&mut xml, "        </Faces>").unwrap();
+            writeln!(&mut xml, "      </Definition>").unwrap();
+            writeln!(&mut xml, "    </Surface>").unwrap();
+        }
+        writeln!(&mut xml, "  </Surfaces>").unwrap();
+    }
+    writeln!(&mut xml, "</LandXML>").unwrap();
+    write_string(path, &xml)
+}
