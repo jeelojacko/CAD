@@ -3935,7 +3935,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .into_iter()
                 .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
                 .collect();
-            viewer.set_handles_model(VecModel::from(handles0).into());
+            viewer.set_handles_model(Rc::new(VecModel::from(handles0)).into());
             let viewer_weak = viewer.as_weak();
             let secs = Rc::new(RefCell::new(sections));
             let drag_index = Rc::new(RefCell::new(None::<usize>));
@@ -3965,7 +3965,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .into_iter()
                                 .map(|(x, y)| HandlePoint { x: x.into(), y: y.into() })
                                 .collect();
-                            v.set_handles_model(VecModel::from(handles).into());
+                            v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
                     }
                 });
@@ -4041,7 +4041,7 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .into_iter()
                                 .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
                                 .collect();
-                                v.set_handles_model(VecModel::from(handles).into());
+                                v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                             }
                             let tin = corridor::surface_from_cross_sections(&secs_m.borrow());
                             let verts: Vec<Point3> = tin
@@ -4095,7 +4095,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             .into_iter()
                             .map(|(hx, hy)| HandlePoint { x: hx.into(), y: hy.into() })
                             .collect();
-                            v.set_handles_model(VecModel::from(handles).into());
+                            v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
                     }
                 });
