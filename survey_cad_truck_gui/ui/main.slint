@@ -994,6 +994,7 @@ export component MainWindow inherits Window {
     callback export_polygons_shp();
     callback export_las();
     callback export_e57();
+    callback export_landxml();
     callback export_landxml_surface();
     callback export_landxml_alignment();
     callback export_landxml_sections();
@@ -1065,6 +1066,7 @@ export component MainWindow inherits Window {
                 MenuItem { title: "Polygon SHP"; activated => { root.export_polygons_shp(); }}
                 MenuItem { title: "LAS"; activated => { root.export_las(); }}
                 MenuItem { title: "E57"; activated => { root.export_e57(); }}
+                MenuItem { title: "LandXML"; activated => { root.export_landxml(); }}
                 MenuItem { title: "LandXML Surface"; activated => { root.export_landxml_surface(); }}
                 MenuItem { title: "LandXML Alignment"; activated => { root.export_landxml_alignment(); }}
                 MenuItem { title: "LandXML Sections"; activated => { root.export_landxml_sections(); }}

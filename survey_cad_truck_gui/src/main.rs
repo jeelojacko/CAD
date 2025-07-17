@@ -5491,6 +5491,34 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let alignments = alignments.clone();
+        let surfaces = surfaces.clone();
+        app.on_export_landxml(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("LandXML", &["xml"])
+                .save_file()
+            {
+                if let Some(p) = path.to_str() {
+                    let pts = point_db.borrow().points().to_vec();
+                    let als = alignments.borrow().clone();
+                    let surfs = surfaces.borrow().clone();
+                    if let Err(e) =
+                        survey_cad::io::landxml::write_landxml(p, &pts, &als, &surfs)
+                    {
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!("Failed to export: {e}")));
+                        }
+                    } else if let Some(app) = weak.upgrade() {
+                        app.set_status(SharedString::from("Exported"));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let surfaces = surfaces.clone();
         let surface_units_clone = surface_units.clone();
         let surface_styles_clone = surface_styles.clone();
@@ -6719,6 +6747,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_units = surface_units.clone();
         let surface_styles = surface_styles.clone();
         let surface_descriptions = surface_descriptions.clone();
+        let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_import_landxml_surface(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -6736,6 +6766,10 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .borrow_mut()
                                 .add_surface(&verts, &tin.triangles);
                             surfaces.borrow_mut().push(tin);
+                            for v in &verts {
+                                point_db.borrow_mut().push(Point::new(v.x, v.y));
+                                point_style_indices.borrow_mut().push(0);
+                            }
                             surface_units
                                 .borrow_mut()
                                 .push(extras.units.unwrap_or_default());
@@ -6774,6 +6808,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments = alignments.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let point_db = point_db.clone();
+        let point_style_indices = point_style_indices.clone();
         app.on_import_landxml_alignment(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("LandXML", &["xml"])
@@ -6786,6 +6822,37 @@ fn main() -> Result<(), slint::PlatformError> {
                                 .unwrap_or_else(|_| {
                                     VerticalAlignment::new(vec![(0.0, 0.0), (hal.length(), 0.0)])
                                 });
+                            for elem in &hal.elements {
+                                use survey_cad::alignment::HorizontalElement::*;
+                                match elem {
+                                    Tangent { start, end } => {
+                                        point_db.borrow_mut().push(*start);
+                                        point_style_indices.borrow_mut().push(0);
+                                        point_db.borrow_mut().push(*end);
+                                        point_style_indices.borrow_mut().push(0);
+                                    }
+                                    Curve { arc } => {
+                                        let s = Point::new(
+                                            arc.center.x + arc.radius * arc.start_angle.cos(),
+                                            arc.center.y + arc.radius * arc.start_angle.sin(),
+                                        );
+                                        let e = Point::new(
+                                            arc.center.x + arc.radius * arc.end_angle.cos(),
+                                            arc.center.y + arc.radius * arc.end_angle.sin(),
+                                        );
+                                        point_db.borrow_mut().push(s);
+                                        point_style_indices.borrow_mut().push(0);
+                                        point_db.borrow_mut().push(e);
+                                        point_style_indices.borrow_mut().push(0);
+                                    }
+                                    Spiral { spiral } => {
+                                        point_db.borrow_mut().push(spiral.start_point());
+                                        point_style_indices.borrow_mut().push(0);
+                                        point_db.borrow_mut().push(spiral.end_point());
+                                        point_style_indices.borrow_mut().push(0);
+                                    }
+                                }
+                            }
                             alignments.borrow_mut().push(Alignment::new(hal, val));
                             if let Some(app) = weak.upgrade() {
                                 app.set_status(SharedString::from("Imported alignment"));
