@@ -3903,6 +3903,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let pipe_editor = pipe_editor.clone();
         let weak = app.as_weak();
         app.on_pipe_editor(move || {
+            let net = { pipe_editor.borrow().network.clone() };
+            pipe_editor.borrow_mut().set_network(net);
             let dlg_s = StructureManager::new().unwrap();
             let dlg_p = PipeManager::new().unwrap();
 
