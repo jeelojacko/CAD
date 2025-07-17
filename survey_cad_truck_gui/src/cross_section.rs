@@ -10,38 +10,44 @@ use survey_cad::subassembly;
 use survey_cad::geometry::Point3 as ScPoint3;
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct Lane {
     pub width: f64,
     pub slope: f64,
 }
 
+#[allow(dead_code)]
 impl Lane {
-    pub fn to_subassembly(&self) -> corridor::Subassembly {
+    pub fn to_subassembly(self) -> corridor::Subassembly {
         subassembly::lane(self.width, self.slope)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct Shoulder {
     pub width: f64,
     pub slope: f64,
 }
 
+#[allow(dead_code)]
 impl Shoulder {
-    pub fn to_subassembly(&self) -> corridor::Subassembly {
+    pub fn to_subassembly(self) -> corridor::Subassembly {
         subassembly::shoulder(self.width, self.slope)
     }
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub struct Ditch {
     pub depth: f64,
     pub bottom_width: f64,
     pub side_slope: f64,
 }
 
+#[allow(dead_code)]
 impl Ditch {
-    pub fn to_subassembly(&self) -> corridor::Subassembly {
+    pub fn to_subassembly(self) -> corridor::Subassembly {
         subassembly::ditch(self.depth, self.bottom_width, self.side_slope)
     }
 }
