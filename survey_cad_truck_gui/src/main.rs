@@ -65,6 +65,7 @@ mod ui_state;
 mod workspace;
 mod dialogs;
 mod geometry;
+mod pipe_editor;
 
 use commands::{
     record_macro, spawn_line, spawn_point, Command, CommandStack, Context, MacroPlaying,
@@ -78,6 +79,7 @@ pub use inspector::{
     has_selection, show_context_menu, show_inspector_for_point, show_inspector_for_polygon,
 };
 pub use io_utils::{read_arc_csv, read_line_csv, read_points_list};
+use crate::pipe_editor::{PipeEditor, Pipe, Structure};
 use once_cell::sync::Lazy;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -198,6 +200,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let polylines = Rc::new(RefCell::new(Vec::<Polyline>::new()));
     let arcs = Rc::new(RefCell::new(Vec::<Arc>::new()));
     let dimensions = Rc::new(RefCell::new(Vec::<LinearDimension>::new()));
+    let pipe_editor = Rc::new(RefCell::new(PipeEditor::new(backend.clone())));
     let surfaces = Rc::new(RefCell::new(Vec::<Tin>::new()));
     let surface_groups = Rc::new(RefCell::new(Vec::<SurfaceGroup>::new()));
     let surface_units = Rc::new(RefCell::new(Vec::<String>::new()));
@@ -3893,6 +3896,196 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             dlg.show().unwrap();
+        });
+    }
+
+    {
+        let pipe_editor = pipe_editor.clone();
+        let weak = app.as_weak();
+        app.on_pipe_editor(move || {
+            let dlg_s = StructureManager::new().unwrap();
+            let dlg_p = PipeManager::new().unwrap();
+
+            let structs = pipe_editor
+                .borrow()
+                .network
+                .structures
+                .iter()
+                .map(|s| StructureRow {
+                    id: SharedString::from(s.id.clone()),
+                    x: SharedString::from(format!("{:.2}", s.x)),
+                    y: SharedString::from(format!("{:.2}", s.y)),
+                    z: SharedString::from(format!("{:.2}", s.z)),
+                })
+                .collect::<Vec<_>>();
+            let struct_model = Rc::new(VecModel::from(structs));
+            dlg_s.set_structures_model(struct_model.clone().into());
+            dlg_s.set_selected_index(-1);
+
+            let pipes = pipe_editor
+                .borrow()
+                .network
+                .pipes
+                .iter()
+                .map(|p| PipeRow {
+                    id: SharedString::from(p.id.clone()),
+                    from: SharedString::from(p.from.clone()),
+                    to: SharedString::from(p.to.clone()),
+                    diameter: SharedString::from(format!("{:.2}", p.diameter)),
+                })
+                .collect::<Vec<_>>();
+            let pipe_model = Rc::new(VecModel::from(pipes));
+            dlg_p.set_pipes_model(pipe_model.clone().into());
+            dlg_p.set_selected_index(-1);
+
+            {
+                let pipe_editor = pipe_editor.clone();
+                let struct_model = struct_model.clone();
+                dlg_s.on_add_structure(move || {
+                    let mut editor = pipe_editor.borrow_mut();
+                    let id = format!("S{}", editor.network.structures.len() + 1);
+                    editor.network.structures.push(Structure { id: id.clone(), x: 0.0, y: 0.0, z: 0.0 });
+                    struct_model.push(StructureRow { id: id.into(), x: "0".into(), y: "0".into(), z: "0".into() });
+                    editor.refresh_render();
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                let struct_model = struct_model.clone();
+                dlg_s.on_remove_structure(move |idx| {
+                    if idx >= 0 {
+                        let mut editor = pipe_editor.borrow_mut();
+                        if (idx as usize) < editor.network.structures.len() {
+                            editor.network.structures.remove(idx as usize);
+                            struct_model.remove(idx as usize);
+                            editor.refresh_render();
+                        }
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_s.on_edit_id(move |idx, text| {
+                    if idx >= 0 {
+                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                            s.id = text.to_string();
+                        }
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_s.on_edit_x(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                            s.x = v;
+                            pipe_editor.borrow_mut().refresh_render();
+                        }
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_s.on_edit_y(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                            s.y = v;
+                            pipe_editor.borrow_mut().refresh_render();
+                        }
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_s.on_edit_z(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                            s.z = v;
+                            pipe_editor.borrow_mut().refresh_render();
+                        }
+                    }
+                });
+            }
+
+            {
+                let pipe_editor = pipe_editor.clone();
+                let pipe_model = pipe_model.clone();
+                dlg_p.on_add_pipe(move || {
+                    let mut editor = pipe_editor.borrow_mut();
+                    let id = format!("P{}", editor.network.pipes.len() + 1);
+                    let from = editor.network.structures.first().map(|s| s.id.clone()).unwrap_or_default();
+                    let to = from.clone();
+                    editor.network.pipes.push(Pipe {
+                        id: id.clone(),
+                        from: from.clone(),
+                        to: to.clone(),
+                        diameter: 0.3,
+                        c: 100.0,
+                        start_invert: 0.0,
+                        end_invert: 0.0,
+                        design_flow: 0.0,
+                    });
+                    pipe_model.push(PipeRow { id: id.into(), from: from.into(), to: to.into(), diameter: "0.3".into() });
+                    editor.refresh_render();
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                let pipe_model = pipe_model.clone();
+                dlg_p.on_remove_pipe(move |idx| {
+                    if idx >= 0 {
+                        let mut editor = pipe_editor.borrow_mut();
+                        if (idx as usize) < editor.network.pipes.len() {
+                            editor.network.pipes.remove(idx as usize);
+                            pipe_model.remove(idx as usize);
+                            editor.refresh_render();
+                        }
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_p.on_edit_id(move |idx, text| {
+                    if let Some(p) = pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize) {
+                        p.id = text.to_string();
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_p.on_edit_from(move |idx, text| {
+                    if let Some(p) = pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize) {
+                        p.from = text.to_string();
+                        pipe_editor.borrow_mut().refresh_render();
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_p.on_edit_to(move |idx, text| {
+                    if let Some(p) = pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize) {
+                        p.to = text.to_string();
+                        pipe_editor.borrow_mut().refresh_render();
+                    }
+                });
+            }
+            {
+                let pipe_editor = pipe_editor.clone();
+                dlg_p.on_edit_diameter(move |idx, text| {
+                    if let Ok(v) = text.parse::<f64>() {
+                        if let Some(p) = pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize) {
+                            p.diameter = v;
+                            pipe_editor.borrow_mut().refresh_render();
+                        }
+                    }
+                });
+            }
+
+            dlg_s.show().unwrap();
+            dlg_p.show().unwrap();
+            if let Some(app) = weak.upgrade() {
+                app.window().request_redraw();
+            }
         });
     }
 

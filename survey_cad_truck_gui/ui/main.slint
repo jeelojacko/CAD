@@ -11,6 +11,8 @@ export { SuperelevationEditor } from "superelevation_editor.slint";
 export { EntityInspector } from "entity_inspector.slint";
 export { ImportProgressDialog } from "import_progress.slint";
 export { ScriptPanel } from "script_panel.slint";
+export { StructureManager } from "structure_manager.slint";
+export { PipeManager } from "pipe_manager.slint";
 
 // Button used in toolbars that emits hover events
 component ToolButton {
@@ -84,6 +86,7 @@ component Ribbon inherits TabWidget {
     callback design_cross_sections();
     callback view_cross_sections();
     callback extrude_polyline();
+    callback pipe_editor();
     callback clear_workspace();
     callback view_changed(int);
     callback cogo_selected(int);
@@ -136,7 +139,15 @@ component Ribbon inherits TabWidget {
             ToolButton { tip: "Corridor Volume"; icon: @image-url("../assets/icons/corridor_volume.png"); clicked => { root.corridor_volume(); } hovered(t) => { root.button_hovered(t); } }
             ToolButton { tip: "Edit Superelevation"; icon: @image-url("../assets/icons/superelevation.png"); clicked => { root.superelevation_editor(); } hovered(t) => { root.button_hovered(t); } }
             ToolButton { tip: "Design Cross Sections"; icon: @image-url("../assets/icons/design_sections.png"); clicked => { root.design_cross_sections(); } hovered(t) => { root.button_hovered(t); } }
-            ToolButton { tip: "View Cross Sections"; icon: @image-url("../assets/icons/cross_sections.png"); clicked => { root.view_cross_sections(); } hovered(t) => { root.button_hovered(t); } }
+        ToolButton { tip: "View Cross Sections"; icon: @image-url("../assets/icons/cross_sections.png"); clicked => { root.view_cross_sections(); } hovered(t) => { root.button_hovered(t); } }
+        }
+    }
+
+    Tab {
+        title: "Pipe Network";
+        HorizontalBox {
+            spacing: 6px;
+            ToolButton { tip: "Pipe Editor"; icon: @image-url("../assets/icons/inspector.png"); clicked => { root.pipe_editor(); } hovered(t) => { root.button_hovered(t); } }
         }
     }
 
@@ -1021,6 +1032,7 @@ export component MainWindow inherits Window {
     callback rotate_entity();
     callback delete_selected();
     callback extrude_polyline();
+    callback pipe_editor();
     callback zoom_in();
     callback zoom_out();
     callback snap_settings();
@@ -1192,6 +1204,7 @@ export component MainWindow inherits Window {
             design_cross_sections => { root.design_cross_sections(); }
             view_cross_sections => { root.view_cross_sections(); }
             extrude_polyline => { root.extrude_polyline(); }
+            pipe_editor => { root.pipe_editor(); }
             clear_workspace => { root.clear_workspace(); }
             view_changed(i) => { root.view_changed(i); }
             cogo_selected(i) => { root.cogo_selected(i); }

@@ -20,6 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 shell-words = "1.1"
 dirs = "6"
+pipe_network = { path = "../pipe_network" }
 pyo3 = { version = "0.21", features = ["auto-initialize", "abi3-py311"], optional = true }
 survey_cad_python = { path = "../survey_cad_python", default-features = false, optional = true }
 open = "5"
