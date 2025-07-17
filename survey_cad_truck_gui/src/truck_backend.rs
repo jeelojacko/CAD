@@ -6,6 +6,8 @@ use truck_rendimpl::PolygonState;
 
 use crate::geometry::GeometryStore;
 use rstar::{RTree, RTreeObject, AABB};
+use survey_cad::alignment::{Alignment, HorizontalAlignment, VerticalAlignment};
+use survey_cad::geometry::Point;
 
 /// Line definition used for batch additions.
 type LineInput = ([f64; 3], [f64; 3], [f32; 4], f32);
@@ -25,6 +27,8 @@ enum HandleTarget {
     Point(usize),
     Line(usize),
     Surface(usize),
+    AlignmentPi,
+    VerticalVertex,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -435,6 +439,67 @@ impl TruckBackend {
         }
     }
 
+    /// Show handles for horizontal alignment PI points.
+    pub fn show_alignment_pi_handles(&mut self, align: &Alignment) {
+        use survey_cad::alignment::HorizontalElement;
+        self.hide_handles();
+        let mut ids = Vec::new();
+        if let Some(first) = align.horizontal.elements.first() {
+            let p = match first {
+                HorizontalElement::Tangent { start, .. } => *start,
+                HorizontalElement::Curve { arc } => Point::new(
+                    arc.center.x + arc.radius * arc.start_angle.cos(),
+                    arc.center.y + arc.radius * arc.start_angle.sin(),
+                ),
+                HorizontalElement::Spiral { spiral } => spiral.start_point(),
+            };
+            ids.push(self.engine.add_point_marker(Point3::new(p.x, p.y, 0.0)));
+        }
+        for elem in &align.horizontal.elements {
+            let p = match elem {
+                HorizontalElement::Tangent { end, .. } => *end,
+                HorizontalElement::Curve { arc } => Point::new(
+                    arc.center.x + arc.radius * arc.end_angle.cos(),
+                    arc.center.y + arc.radius * arc.end_angle.sin(),
+                ),
+                HorizontalElement::Spiral { spiral } => spiral.end_point(),
+            };
+            ids.push(self.engine.add_point_marker(Point3::new(p.x, p.y, 0.0)));
+        }
+        self.handles = Some((HandleTarget::AlignmentPi, ids));
+    }
+
+    /// Show handles for vertical profile vertices projected into 3D.
+    pub fn show_vertical_handles(&mut self, align: &Alignment) {
+        use survey_cad::alignment::VerticalElement;
+        self.hide_handles();
+        let mut ids = Vec::new();
+        let va = &align.vertical;
+        if let Some(first) = va.elements.first() {
+            let (s, z) = match first {
+                VerticalElement::Grade { start_station, start_elev, .. } => (*start_station, *start_elev),
+                VerticalElement::Parabola { start_station, start_elev, .. } => (*start_station, *start_elev),
+            };
+            if let Some(p) = align.horizontal.point_at(s) {
+                ids.push(self.engine.add_point_marker(Point3::new(p.x, p.y, z)));
+            }
+        }
+        for e in &va.elements {
+            let (s, z) = match e {
+                VerticalElement::Grade { end_station, end_elev, .. } => (*end_station, *end_elev),
+                VerticalElement::Parabola { start_station, end_station, start_elev, start_grade, end_grade } => {
+                    let l = end_station - start_station;
+                    let dz = start_grade * l + 0.5 * (end_grade - start_grade) * l;
+                    (*end_station, start_elev + dz)
+                }
+            };
+            if let Some(p) = align.horizontal.point_at(s) {
+                ids.push(self.engine.add_point_marker(Point3::new(p.x, p.y, z)));
+            }
+        }
+        self.handles = Some((HandleTarget::VerticalVertex, ids));
+    }
+
     /// Remove all editing handles.
     pub fn hide_handles(&mut self) {
         if let Some((_, handles)) = self.handles.take() {
@@ -481,6 +546,88 @@ impl TruckBackend {
                         weight,
                     );
                 }
+                HandleTarget::AlignmentPi | HandleTarget::VerticalVertex => {}
+            }
+        }
+    }
+
+    /// Move a horizontal alignment PI handle.
+    pub fn move_alignment_pi_handle(&mut self, alignment: &mut Alignment, handle_idx: usize, pos: Point3) {
+        use survey_cad::alignment::HorizontalElement;
+        if let Some((HandleTarget::AlignmentPi, ref handles)) = self.handles {
+            if let Some(id) = handles.get(handle_idx) {
+                self.engine.update_point_marker(*id, pos);
+            }
+        }
+        let p = Point::new(pos.x, pos.y);
+        if handle_idx == 0 {
+            if let Some(HorizontalElement::Tangent { start, .. }) = alignment.horizontal.elements.get_mut(0) {
+                *start = p;
+            }
+        }
+        if handle_idx > 0 {
+            if let Some(HorizontalElement::Tangent { end, .. }) = alignment.horizontal.elements.get_mut(handle_idx - 1) {
+                *end = p;
+            }
+        }
+        if let Some(elem) = alignment.horizontal.elements.get_mut(handle_idx) {
+            if let HorizontalElement::Tangent { start, .. } = elem {
+                *start = p;
+            }
+        }
+    }
+
+    /// Move a vertical profile handle.
+    pub fn move_vertical_handle(
+        &mut self,
+        hal: &HorizontalAlignment,
+        valign: &mut VerticalAlignment,
+        idx: usize,
+        pos: Point3,
+    ) {
+        use survey_cad::alignment::VerticalElement;
+        if let Some((HandleTarget::VerticalVertex, ref handles)) = self.handles {
+            if let Some(id) = handles.get(idx) {
+                self.engine.update_point_marker(*id, pos);
+            }
+        }
+        let station = Self::nearest_station(hal, Point::new(pos.x, pos.y));
+        let elev = pos.z;
+        if idx == 0 {
+            match &mut valign.elements[0] {
+                VerticalElement::Grade { start_station, start_elev, .. } => {
+                    *start_station = station;
+                    *start_elev = elev;
+                }
+                VerticalElement::Parabola { start_station, start_elev, .. } => {
+                    *start_station = station;
+                    *start_elev = elev;
+                }
+            }
+        }
+        if idx > 0 {
+            if let Some(prev) = valign.elements.get_mut(idx - 1) {
+                match prev {
+                    VerticalElement::Grade { end_station, end_elev, .. } => {
+                        *end_station = station;
+                        *end_elev = elev;
+                    }
+                    VerticalElement::Parabola { end_station, .. } => {
+                        *end_station = station;
+                    }
+                }
+            }
+        }
+        if let Some(cur) = valign.elements.get_mut(idx) {
+            match cur {
+                VerticalElement::Grade { start_station, start_elev, .. } => {
+                    *start_station = station;
+                    *start_elev = elev;
+                }
+                VerticalElement::Parabola { start_station, start_elev, .. } => {
+                    *start_station = station;
+                    *start_elev = elev;
+                }
             }
         }
     }
@@ -524,6 +671,41 @@ impl TruckBackend {
             (z - orig.z) / dir.z
         };
         orig + dir * t
+    }
+
+    fn nearest_station(hal: &HorizontalAlignment, p: Point) -> f64 {
+        use survey_cad::alignment::HorizontalElement;
+        let mut sta = 0.0;
+        let mut best = 0.0;
+        let mut best_d2 = f64::INFINITY;
+        for elem in &hal.elements {
+            match elem {
+                HorizontalElement::Tangent { start, end } => {
+                    let dx = end.x - start.x;
+                    let dy = end.y - start.y;
+                    let len2 = dx * dx + dy * dy;
+                    if len2 > 0.0 {
+                        let t = ((p.x - start.x) * dx + (p.y - start.y) * dy) / len2;
+                        let t = t.clamp(0.0, 1.0);
+                        let px = start.x + dx * t;
+                        let py = start.y + dy * t;
+                        let d2 = (p.x - px).powi(2) + (p.y - py).powi(2);
+                        if d2 < best_d2 {
+                            best_d2 = d2;
+                            best = sta + (len2.sqrt() * t);
+                        }
+                        sta += len2.sqrt();
+                    }
+                }
+                HorizontalElement::Curve { arc } => {
+                    sta += arc.length();
+                }
+                HorizontalElement::Spiral { spiral } => {
+                    sta += spiral.length;
+                }
+            }
+        }
+        best
     }
 
     /// Collect geometry for snapping.
