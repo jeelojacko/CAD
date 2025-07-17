@@ -570,10 +570,10 @@ impl TruckBackend {
                 *end = p;
             }
         }
-        if let Some(elem) = alignment.horizontal.elements.get_mut(handle_idx) {
-            if let HorizontalElement::Tangent { start, .. } = elem {
-                *start = p;
-            }
+        if let Some(HorizontalElement::Tangent { start, .. }) =
+            alignment.horizontal.elements.get_mut(handle_idx)
+        {
+            *start = p;
         }
     }
 
