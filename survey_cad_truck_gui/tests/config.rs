@@ -28,6 +28,7 @@ fn save_and_load_config() {
         theme: Theme::default(),
         font_path: Some("font/path".into()),
         macro_dir: Some("/tmp/macros".into()),
+        crs_epsg: 4326,
     };
 
     save_config(&cfg);

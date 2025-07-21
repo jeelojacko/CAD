@@ -2307,7 +2307,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 *workspace_crs.borrow_mut() = epsg;
                 if let Some(idx) = crs_entries_rc
                     .iter()
-                    .position(|e| e.code == format!("EPSG:{}", epsg))
+                    .position(|e| e.code == format!("EPSG:{epsg}"))
                 {
                     app.set_crs_index(idx as i32);
                 }
