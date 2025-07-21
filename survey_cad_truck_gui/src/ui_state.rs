@@ -93,6 +93,8 @@ pub struct Config {
     pub font_path: Option<String>,
     #[serde(default)]
     pub macro_dir: Option<String>,
+    #[serde(default)]
+    pub crs_epsg: u32,
 }
 
 impl Default for Config {
@@ -108,6 +110,7 @@ impl Default for Config {
             theme: Theme::default(),
             font_path: None,
             macro_dir: None,
+            crs_epsg: 4326,
         }
     }
 }
