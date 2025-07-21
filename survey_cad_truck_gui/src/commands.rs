@@ -5,6 +5,7 @@ use std::rc::Rc;
 use survey_cad::geometry::{Point, LinearDimension};
 use survey_cad::point_database::PointDatabase;
 use truck_modeling::base::Point3;
+use shell_words;
 
 use crate::truck_backend::TruckBackend;
 
@@ -42,6 +43,67 @@ pub struct MacroPlaying(pub bool);
 pub fn record_macro(rec: &mut MacroRecorder, line: &str) {
     if let Some(file) = &mut rec.file {
         let _ = writeln!(file, "{line}");
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ParsedCommand {
+    Point(Point),
+    Line(Point, Point),
+    Circle { center: Point, radius: f64 },
+    Arc { p1: Point, p2: Point, p3: Point },
+    Load(String),
+    Export(String),
+    Undo,
+    Redo,
+}
+
+pub fn parse_command(cmd: &str) -> Option<ParsedCommand> {
+    let parts = shell_words::split(cmd).ok()?;
+    if parts.is_empty() {
+        return None;
+    }
+    match parts[0].as_str() {
+        "point" if parts.len() >= 3 => {
+            let x = parts[1].parse().ok()?;
+            let y = parts[2].parse().ok()?;
+            Some(ParsedCommand::Point(Point::new(x, y)))
+        }
+        "line" if parts.len() >= 5 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let x2 = parts[3].parse().ok()?;
+            let y2 = parts[4].parse().ok()?;
+            Some(ParsedCommand::Line(Point::new(x1, y1), Point::new(x2, y2)))
+        }
+        "circle" if parts.len() >= 4 => {
+            let x = parts[1].parse().ok()?;
+            let y = parts[2].parse().ok()?;
+            let r = parts[3].parse().ok()?;
+            Some(ParsedCommand::Circle { center: Point::new(x, y), radius: r })
+        }
+        "arc" if parts.len() >= 7 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let x2 = parts[3].parse().ok()?;
+            let y2 = parts[4].parse().ok()?;
+            let x3 = parts[5].parse().ok()?;
+            let y3 = parts[6].parse().ok()?;
+            Some(ParsedCommand::Arc {
+                p1: Point::new(x1, y1),
+                p2: Point::new(x2, y2),
+                p3: Point::new(x3, y3),
+            })
+        }
+        "load" if parts.len() >= 2 => {
+            Some(ParsedCommand::Load(parts[1..].join(" ")))
+        }
+        "export" if parts.len() >= 2 => {
+            Some(ParsedCommand::Export(parts[1..].join(" ")))
+        }
+        "undo" => Some(ParsedCommand::Undo),
+        "redo" => Some(ParsedCommand::Redo),
+        _ => None,
     }
 }
 

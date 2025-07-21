@@ -193,15 +193,21 @@ component Ribbon inherits TabWidget {
 
 component CommandLine inherits VerticalBox {
     in-out property <[string]> history;
+    in-out property <[string]> suggestions;
     in-out property <string> text;
     callback entered(string);
+    callback command_text_changed(string);
     spacing: 2px;
     ListView {
         vertical-stretch: 1;
         for h in root.history : Text { color: #FFFFFF; text: h; }
     }
+    ListView {
+        for s in root.suggestions : Text { color: #AAAAAA; text: s; }
+    }
     LineEdit {
         text <=> root.text;
+        edited(text) => { root.text = text; root.command_text_changed(text); }
         accepted => {
             root.entered(root.text);
             root.text = "";
@@ -929,8 +935,11 @@ export component MainWindow inherits Window {
     in-out property <float> snap_tolerance;
     in-out property <float> zoom_level;
     in-out property <[string]> command_history;
+    in-out property <[string]> command_suggestions;
     in-out property <string> command_text;
     in-out property <string> input_value;
+
+    callback command_text_changed(string);
 
     callback command_entered(string);
     callback input_entered(string);
@@ -1255,6 +1264,7 @@ export component MainWindow inherits Window {
         command_line := CommandLine {
             width: 100%;
             history <=> root.command_history;
+            suggestions <=> root.command_suggestions;
             text <=> root.command_text;
             entered(cmd) => { root.command_entered(cmd); }
         }

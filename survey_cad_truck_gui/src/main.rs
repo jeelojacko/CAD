@@ -297,6 +297,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let macro_recorder = Rc::new(RefCell::new(MacroRecorder::default()));
     let macro_playing = Rc::new(RefCell::new(MacroPlaying::default()));
     let command_history = Rc::new(VecModel::<SharedString>::from(Vec::new()));
+    let command_suggestions = Rc::new(VecModel::<SharedString>::from(Vec::new()));
     let line_type_names = Rc::new(VecModel::from(vec![
         SharedString::from("Solid"),
         SharedString::from("Dashed"),
@@ -476,6 +477,7 @@ fn main() -> Result<(), slint::PlatformError> {
     app.set_workspace_mode(0); // start with 2D mode
     app.set_show_point_numbers(true);
     app.set_command_history(command_history.clone().into());
+    app.set_command_suggestions(command_suggestions.clone().into());
     app.set_command_text(SharedString::from(""));
     app.set_input_value(SharedString::from(""));
 
@@ -1229,70 +1231,118 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let history_model = command_history.clone();
+        let suggestions_model = command_suggestions.clone();
+        let weak = app.as_weak();
+        app.on_command_text_changed(move |txt| {
+            let mut list = Vec::new();
+            if !txt.is_empty() {
+                for i in (0..history_model.row_count()).rev() {
+                    if let Some(e) = history_model.row_data(i) {
+                        if e.as_str().starts_with(txt.as_str()) {
+                            if !list.contains(&e) {
+                                list.push(e.clone());
+                            }
+                        }
+                        if list.len() >= 5 {
+                            break;
+                        }
+                    }
+                }
+            }
+            suggestions_model.set_vec(list.clone());
+            if let Some(app) = weak.upgrade() {
+                app.set_command_suggestions(Rc::new(VecModel::from(list)).into());
+            }
+        });
+    }
+
+    {
+        let history_model = command_history.clone();
         let command_stack = command_stack.clone();
         let point_db = point_db.clone();
         let point_style_indices = point_style_indices.clone();
         let lines = lines.clone();
         let line_style_indices = line_style_indices.clone();
+        let arcs = arcs.clone();
+        let workspace_crs_ref = workspace_crs.clone();
         let backend = backend.clone();
         let render_image = render_image.clone();
         let dimensions = dimensions.clone();
         let weak = app.as_weak();
         app.on_command_entered(move |cmd| {
             history_model.push(cmd.clone());
-            let parts = shell_words::split(&cmd).unwrap_or_default();
-            if parts.is_empty() {
-                return;
-            }
-            let ctx = Context {
-                points: &point_db,
-                point_styles: &point_style_indices,
-                lines: &lines,
-                line_styles: &line_style_indices,
-                dimensions: &dimensions,
-                backend: &backend,
-            };
-            match parts[0].as_str() {
-                "point" if parts.len() >= 3 => {
-                    if let (Ok(x), Ok(y)) = (parts[1].parse::<f64>(), parts[2].parse::<f64>()) {
-                        point_db.borrow_mut().push(Point::new(x, y));
-                        point_style_indices.borrow_mut().push(0);
-                        backend.borrow_mut().add_point(x, y, 0.0);
+            if let Some(parsed) = commands::parse_command(&cmd) {
+                let ctx = Context {
+                    points: &point_db,
+                    point_styles: &point_style_indices,
+                    lines: &lines,
+                    line_styles: &line_style_indices,
+                    dimensions: &dimensions,
+                    backend: &backend,
+                };
+                match parsed {
+                    commands::ParsedCommand::Point(p) => {
+                        spawn_point(&point_db, &point_style_indices, &backend, p);
                         command_stack.borrow_mut().push(Command::RemovePoint {
                             index: point_db.borrow().len() - 1,
-                            point: Point::new(x, y),
+                            point: p,
                         });
                     }
-                }
-                "line" if parts.len() >= 5 => {
-                    if let (Ok(x1), Ok(y1), Ok(x2), Ok(y2)) = (
-                        parts[1].parse::<f64>(),
-                        parts[2].parse::<f64>(),
-                        parts[3].parse::<f64>(),
-                        parts[4].parse::<f64>(),
-                    ) {
+                    commands::ParsedCommand::Line(a, b) => {
                         spawn_line(
                             &point_db,
                             &lines,
                             &point_style_indices,
                             &line_style_indices,
                             &backend,
-                            Point::new(x1, y1),
-                            Point::new(x2, y2),
+                            a,
+                            b,
                         );
                         command_stack.borrow_mut().push(Command::RemoveLine {
                             index: lines.borrow().len() - 1,
-                            line: (Point::new(x1, y1), Point::new(x2, y2)),
+                            line: (a, b),
                         });
                     }
+                    commands::ParsedCommand::Circle { center, radius } => {
+                        arcs.borrow_mut().push(Arc::new(center, radius, 0.0, 2.0 * std::f64::consts::PI));
+                    }
+                    commands::ParsedCommand::Arc { p1, p2, p3 } => {
+                        if let Some(a) = render::arc_from_three_points(p1, p2, p3) {
+                            arcs.borrow_mut().push(a);
+                        }
+                    }
+                    commands::ParsedCommand::Load(path) => {
+                        match read_points_list(&path, *workspace_crs_ref.borrow()) {
+                            Ok(pts) => {
+                                for p in pts {
+                                    spawn_point(&point_db, &point_style_indices, &backend, p);
+                                    command_stack.borrow_mut().push(Command::RemovePoint {
+                                        index: point_db.borrow().len() - 1,
+                                        point: p,
+                                    });
+                                }
+                            }
+                            Err(e) => {
+                                if let Some(app) = weak.upgrade() {
+                                    app.set_status(SharedString::from(format!("Failed to load: {e}")));
+                                }
+                            }
+                        }
+                    }
+                    commands::ParsedCommand::Export(path) => {
+                        if let Err(e) = survey_cad::io::write_points_geojson(&path, &point_db.borrow(), None, None) {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!("Failed to export: {e}")));
+                            }
+                        }
+                    }
+                    commands::ParsedCommand::Undo => {
+                        command_stack.borrow_mut().undo(&ctx);
+                    }
+                    commands::ParsedCommand::Redo => {
+                        command_stack.borrow_mut().redo(&ctx);
+                    }
                 }
-                "undo" => {
-                    command_stack.borrow_mut().undo(&ctx);
-                }
-                "redo" => {
-                    command_stack.borrow_mut().redo(&ctx);
-                }
-                _ => {}
             }
             if let Some(app) = weak.upgrade() {
                 refresh_workspace(&app, &render_image, &backend);
