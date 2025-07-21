@@ -777,7 +777,8 @@ export component SettingsDialog inherits Window {
     in-out property <string> color_r;
     in-out property <string> color_g;
     in-out property <string> color_b;
-    in-out property <string> crs_epsg;
+    in-out property <[string]> crs_list;
+    in-out property <int> crs_index;
     in-out property <bool> show_grid;
     in-out property <bool> auto_tin;
     in-out property <int> profile_index;
@@ -802,8 +803,11 @@ export component SettingsDialog inherits Window {
         CheckBox { text: "Show Grid"; checked <=> root.show_grid; }
         CheckBox { text: "Create TIN after Import"; checked <=> root.auto_tin; }
         HorizontalBox {
-            Text { color: #FFFFFF; text: "EPSG:"; }
-            LineEdit { text <=> root.crs_epsg; width: 80px; }
+            Text { color: #FFFFFF; text: "CRS:"; }
+            ComboBox {
+                model: root.crs_list;
+                current-index <=> root.crs_index;
+            }
         }
         HorizontalBox {
             Text { color: #FFFFFF; text: "Profile:"; }

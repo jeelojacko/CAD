@@ -226,7 +226,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let zoom = Rc::new(RefCell::new(1.0_f32));
     let offset = Rc::new(RefCell::new(Vec2::default()));
     let grid_settings = Rc::new(RefCell::new(GridSettings::default()));
-    let workspace_crs = Rc::new(RefCell::new(4326u32));
+    let workspace_crs = Rc::new(RefCell::new(config.borrow().crs_epsg));
     let workspace_pixmap = Rc::new(RefCell::new(Pixmap::new(1, 1).unwrap()));
     let pan_2d_flag = Rc::new(RefCell::new(false));
     let last_pos_2d = Rc::new(RefCell::new((0.0_f64, 0.0_f64)));
@@ -543,6 +543,7 @@ fn main() -> Result<(), slint::PlatformError> {
         use slint::CloseRequestResponse;
         let timer_handle = timer.clone();
         let cfg = config.clone();
+        let crs_ref = workspace_crs.clone();
         let snap = snap_prefs.clone();
         let win = window_size.clone();
         let last_dir = last_folder.clone();
@@ -554,6 +555,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 c.window_height = win.borrow().height;
                 c.last_open_dir = last_dir.borrow().clone();
                 c.snap = snap.borrow().clone();
+                c.crs_epsg = *crs_ref.borrow();
                 save_config(&c);
             }
             CloseRequestResponse::HideWindow
@@ -1402,11 +1404,14 @@ fn main() -> Result<(), slint::PlatformError> {
     {
         let workspace_crs = workspace_crs.clone();
         let crs_entries_rc = crs_entries_rc.clone();
+        let cfg_ref = config.clone();
         app.on_crs_changed(move |idx| {
             if let Some(entry) = crs_entries_rc.get(idx as usize) {
                 if let Some(code) = entry.code.split(':').nth(1) {
                     if let Ok(epsg) = code.parse::<u32>() {
                         *workspace_crs.borrow_mut() = epsg;
+                        cfg_ref.borrow_mut().crs_epsg = epsg;
+                        save_config(&cfg_ref.borrow());
                     }
                 }
             }
@@ -2275,6 +2280,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let selected_dimensions = selected_dimensions.clone();
         let workspace_crs = workspace_crs.clone();
         let crs_entries_rc = crs_entries_rc.clone();
+        let config_ref = config.clone();
         app.on_new_project(move || {
             point_db.borrow_mut().clear();
             lines.borrow_mut().clear();
@@ -2297,8 +2303,12 @@ fn main() -> Result<(), slint::PlatformError> {
             refresh_line_style_dialogs();
             if let Some(app) = weak.upgrade() {
                 app.set_status(SharedString::from("New project created"));
-                *workspace_crs.borrow_mut() = 4326;
-                if let Some(idx) = crs_entries_rc.iter().position(|e| e.code == "EPSG:4326") {
+                let epsg = config_ref.borrow().crs_epsg;
+                *workspace_crs.borrow_mut() = epsg;
+                if let Some(idx) = crs_entries_rc
+                    .iter()
+                    .position(|e| e.code == format!("EPSG:{}", epsg))
+                {
                     app.set_crs_index(idx as i32);
                 }
                 refresh_workspace(&app, &render_image, &backend_render);
@@ -2344,6 +2354,8 @@ fn main() -> Result<(), slint::PlatformError> {
                     match read_project_json(&p) {
                         Ok(proj) => {
                             *workspace_crs.borrow_mut() = proj.crs_epsg;
+                            config_rc.borrow_mut().crs_epsg = proj.crs_epsg;
+                            save_config(&config_rc.borrow());
                             if let Some(idx) = crs_entries_rc
                                 .iter()
                                 .position(|e| e.code == format!("EPSG:{}", proj.crs_epsg))
@@ -5017,6 +5029,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polylines_ref = polylines.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_import_polylines_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -5025,7 +5038,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
                     match survey_cad::io::shp::read_polylines_shp(p) {
-                        Ok((pls, _)) => {
+                        Ok((mut pls, _)) => {
+                            let dst = *workspace_crs.borrow();
+                            let src = survey_cad::crs::Crs::from_epsg(4326);
+                            let dst_crs = survey_cad::crs::Crs::from_epsg(dst);
+                            for pl in &mut pls {
+                                for v in &mut pl.vertices {
+                                    if let Some((x, y)) = src.transform_point(&dst_crs, v.x, v.y) {
+                                        v.x = x;
+                                        v.y = y;
+                                    }
+                                }
+                            }
                             let mut lns = lines.borrow_mut();
                             let mut pls_vec = polylines_ref.borrow_mut();
                             lns.clear();
@@ -5073,6 +5097,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let polygons_ref = polygons.clone();
         let render_image = render_image.clone();
         let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
         app.on_import_polygons_shp(move || {
             if let Some(path) = rfd::FileDialog::new()
                 .add_filter("SHP", &["shp"])
@@ -5081,7 +5106,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 if let Some(p) = path.to_str() {
                     #[cfg(feature = "shapefile")]
                     match survey_cad::io::shp::read_polygons_shp(p) {
-                        Ok((polys, _)) => {
+                        Ok((mut polys, _)) => {
+                            let dst = *workspace_crs.borrow();
+                            let src = survey_cad::crs::Crs::from_epsg(4326);
+                            let dst_crs = survey_cad::crs::Crs::from_epsg(dst);
+                            for poly in &mut polys {
+                                for v in poly {
+                                    if let Some((x, y)) = src.transform_point(&dst_crs, v.x, v.y) {
+                                        v.x = x;
+                                        v.y = y;
+                                    }
+                                }
+                            }
                             let len = {
                                 let mut pg = polygons_ref.borrow_mut();
                                 pg.clear();
@@ -6784,7 +6820,17 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
             dlg.set_show_grid(gs.visible);
             dlg.set_auto_tin(config_ref.borrow().auto_tin);
-            dlg.set_crs_epsg(SharedString::from(workspace_crs.borrow().to_string()));
+            dlg.set_crs_list(Rc::new(VecModel::from(
+                crs_entries_rc
+                    .iter()
+                    .map(|e| SharedString::from(format!("{} - {}", e.code, e.name)))
+                    .collect::<Vec<_>>(),
+            )).into());
+            let crs_idx = crs_entries_rc
+                .iter()
+                .position(|e| e.code == format!("EPSG:{}", *workspace_crs.borrow()))
+                .unwrap_or(0);
+            dlg.set_crs_index(crs_idx as i32);
             dlg.set_profile_index(config_ref.borrow().profile as i32);
             dlg.set_theme_index(config_ref.borrow().theme as i32);
             let mut fonts: Vec<String> = Vec::new();
@@ -6820,6 +6866,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let backend_render = backend_render.clone();
             let crs_ref = workspace_crs.clone();
             let config_acc = config_ref.clone();
+            let crs_entries = crs_entries_rc.clone();
             dlg.on_accept(move || {
                 if let Some(d) = dlg_weak.upgrade() {
                     if let Ok(v) = d.get_spacing_value().parse::<f32>() {
@@ -6844,8 +6891,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     cfg.theme = theme;
                     cfg.font_path = fonts_cloned.get(d.get_font_index() as usize).cloned();
                     drop(cfg);
-                    if let Ok(epsg) = d.get_crs_epsg().parse::<u32>() {
-                        *crs_ref.borrow_mut() = epsg;
+                    if let Some(entry) = crs_entries.get(d.get_crs_index() as usize) {
+                        if let Some(code) = entry.code.split(':').nth(1) {
+                            if let Ok(epsg) = code.parse::<u32>() {
+                                *crs_ref.borrow_mut() = epsg;
+                                config_acc.borrow_mut().crs_epsg = epsg;
+                            }
+                        }
                     }
                     d.hide().unwrap();
                 }
