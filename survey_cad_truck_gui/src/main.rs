@@ -3517,6 +3517,71 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let surfaces_clone = surfaces.clone();
+        let alignments_clone = alignments.clone();
+        app.on_volume_analysis(move || {
+            let dlg = VolumeAnalysisDialog::new().unwrap();
+            dlg.set_width_value("10".into());
+            dlg.set_interval_value("10".into());
+            dlg.set_offset_step_value("1".into());
+            dlg.set_volumes_model(Rc::new(VecModel::<VolumeRow>::from(Vec::new())).into());
+            dlg.set_cut_value("".into());
+            dlg.set_fill_value("".into());
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            let surfs = surfaces_clone.clone();
+            let aligns = alignments_clone.clone();
+            dlg.on_compute(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let width = d.get_width_value().parse::<f64>().ok()?;
+                        let interval = d.get_interval_value().parse::<f64>().ok()?;
+                        let step = d.get_offset_step_value().parse::<f64>().ok()?;
+                        let surfs = surfs.borrow();
+                        let aligns = aligns.borrow();
+                        if surfs.len() < 2 || aligns.is_empty() {
+                            return None;
+                        }
+                        let design = &surfs[0];
+                        let ground = &surfs[1];
+                        let al = &aligns[0];
+                        let haul = corridor::corridor_mass_haul(design, ground, al, width, interval, step);
+                        let (cut, fill) = corridor::corridor_cut_fill(design, ground, al, width, interval, step);
+                        Some((haul, cut, fill))
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if let Some((haul, cut, fill)) = res {
+                            let model = Rc::new(VecModel::<VolumeRow>::from(
+                                haul
+                                    .iter()
+                                    .map(|(s, v)| VolumeRow {
+                                        station: SharedString::from(format!("{s:.2}")),
+                                        volume: SharedString::from(format!("{v:.3}")),
+                                    })
+                                    .collect::<Vec<_>>(),
+                            ));
+                            d.set_volumes_model(model.into());
+                            d.set_cut_value(SharedString::from(format!("{cut:.3}")));
+                            d.set_fill_value(SharedString::from(format!("{fill:.3}")));
+                            app.set_status(SharedString::from("Volume analysis complete"));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input or missing data"));
+                        }
+                    }
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_close(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let point_db = point_db.clone();
         let lines = lines.clone();
         let polygons = polygons.clone();

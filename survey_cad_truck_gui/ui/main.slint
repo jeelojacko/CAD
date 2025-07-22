@@ -429,6 +429,62 @@ export component CorridorVolumeDialog inherits Window {
     }
 }
 
+export struct VolumeRow {
+    station: string,
+    volume: string,
+}
+
+export component VolumeAnalysisDialog inherits Window {
+    in-out property <string> width_value;
+    in-out property <string> interval_value;
+    in-out property <string> offset_step_value;
+    in-out property <[VolumeRow]> volumes_model;
+    in-out property <string> cut_value;
+    in-out property <string> fill_value;
+    callback compute();
+    callback close();
+    title: "Volume Analysis";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Width:"; }
+            LineEdit { text <=> root.width_value; }
+        }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Interval:"; }
+            LineEdit { text <=> root.interval_value; }
+        }
+        HorizontalBox {
+            Text { color: #FFFFFF; text: "Offset Step:"; }
+            LineEdit { text <=> root.offset_step_value; }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "Compute"; clicked => { root.compute(); } }
+            Button { text: "Close"; clicked => { root.close(); } }
+        }
+        Rectangle {
+            width: 100%;
+            height: 150px;
+            ListView {
+                vertical-stretch: 1;
+                for row in root.volumes_model : HorizontalBox {
+                    spacing: 8px;
+                    Text { color: #FFFFFF; text: row.station; width: 80px; }
+                    Text { color: #FFFFFF; text: row.volume; width: 80px; }
+                }
+            }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Text { color: #FFFFFF; text: "Cut:"; }
+            Text { color: #FFFFFF; text: root.cut_value; }
+            Text { color: #FFFFFF; text: "Fill:"; }
+            Text { color: #FFFFFF; text: root.fill_value; }
+        }
+    }
+}
+
 export component DesignSectionDialog inherits Window {
     in-out property <string> start_station;
     in-out property <string> end_station;
@@ -1008,6 +1064,7 @@ export component MainWindow inherits Window {
     callback traverse_area();
     callback level_elevation_tool();
     callback corridor_volume();
+    callback volume_analysis();
     callback design_cross_sections();
     callback view_cross_sections();
     callback superelevation_editor();
@@ -1157,6 +1214,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); }}
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); }}
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); }}
+            MenuItem { title: "Volume Analysis"; activated => { root.volume_analysis(); }}
             MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); }}
             MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); }}
             MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); }}
