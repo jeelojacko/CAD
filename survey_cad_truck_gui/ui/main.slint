@@ -886,7 +886,7 @@ component SnapIcon {
     TouchArea { width: 100%; height: 100%; clicked => { root.active = !root.active; root.toggled(root.active); } }
 }
 
-export component SnapOverlay {
+export component SnapOverlay inherits Rectangle {
     in-out property <bool> snap_grid;
     in-out property <bool> snap_objects;
     in-out property <bool> snap_points;
