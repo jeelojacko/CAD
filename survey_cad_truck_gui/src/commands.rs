@@ -5,7 +5,6 @@ use std::rc::Rc;
 use survey_cad::geometry::{Point, LinearDimension};
 use survey_cad::point_database::PointDatabase;
 use truck_modeling::base::Point3;
-use shell_words;
 
 use crate::truck_backend::TruckBackend;
 
