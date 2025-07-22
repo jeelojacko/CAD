@@ -1238,10 +1238,8 @@ fn main() -> Result<(), slint::PlatformError> {
             if !txt.is_empty() {
                 for i in (0..history_model.row_count()).rev() {
                     if let Some(e) = history_model.row_data(i) {
-                        if e.as_str().starts_with(txt.as_str()) {
-                            if !list.contains(&e) {
-                                list.push(e.clone());
-                            }
+                        if e.as_str().starts_with(txt.as_str()) && !list.contains(&e) {
+                            list.push(e.clone());
                         }
                         if list.len() >= 5 {
                             break;
