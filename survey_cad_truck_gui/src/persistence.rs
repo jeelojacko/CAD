@@ -38,3 +38,11 @@ pub fn load_styles(path: &Path) -> Option<StyleSettings> {
     serde_json::from_str(&data).ok()
 }
 
+pub fn save_style_library(path: &Path, styles: &StyleSettings) -> std::io::Result<()> {
+    save_styles(path, styles)
+}
+
+pub fn load_style_library(path: &Path) -> Option<StyleSettings> {
+    load_styles(path)
+}
+
