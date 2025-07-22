@@ -37,7 +37,10 @@ const DEFAULT_MACRO_DIR: &str = "macros";
 mod truck_backend;
 use truck_backend::{HitObject, TruckBackend};
 mod persistence;
-use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
+use persistence::{
+    load_layers, load_styles, load_style_library, save_layers, save_styles,
+    save_style_library, StyleSettings,
+};
 mod commands;
 mod cross_section;
 mod error;
@@ -276,8 +279,8 @@ fn main() -> Result<(), slint::PlatformError> {
         .collect();
     let point_style_values: Vec<PointStyle> = point_styles.iter().map(|(_, s)| *s).collect();
 
-    let line_styles = style_settings.line_styles.clone();
-    let line_style_indices = Rc::new(RefCell::new(vec![0; line_styles.len()]));
+    let line_style_defs = Rc::new(RefCell::new(style_settings.line_styles.clone()));
+    let line_style_indices = Rc::new(RefCell::new(vec![0; line_style_defs.borrow().len()]));
 
     let polygon_styles = style_settings.polygon_styles.clone();
     let polygon_style_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
@@ -306,12 +309,16 @@ fn main() -> Result<(), slint::PlatformError> {
     let line_label_styles = style_settings.line_label_styles.clone();
     let point_label_styles = style_settings.point_label_styles.clone();
     let point_label_style = Rc::new(RefCell::new(point_label_styles[0].1.clone()));
-    let line_style_names: Rc<Vec<SharedString>> = Rc::new(
-        line_styles
+    let line_style_names: Rc<RefCell<Vec<SharedString>>> = Rc::new(RefCell::new(
+        line_style_defs
+            .borrow()
             .iter()
             .map(|(n, _)| SharedString::from(n.clone()))
             .collect(),
-    );
+    ));
+    let line_style_values: Rc<RefCell<Vec<LineStyle>>> = Rc::new(RefCell::new(
+        line_style_defs.borrow().iter().map(|(_, s)| *s).collect(),
+    ));
     let open_line_style_managers: Rc<RefCell<Vec<slint::Weak<LineStyleManager>>>> =
         Rc::new(RefCell::new(Vec::new()));
     let refresh_line_style_dialogs: Rc<dyn Fn()> = {
@@ -320,14 +327,14 @@ fn main() -> Result<(), slint::PlatformError> {
         let lines = lines.clone();
         let indices = line_style_indices.clone();
         Rc::new(move || {
-            let needed = style_names.len();
+            let needed = style_names.borrow().len();
             {
                 let mut idx = indices.borrow_mut();
                 if idx.len() < needed {
                     idx.resize(needed, 0);
                 }
             }
-            let style_model = Rc::new(VecModel::from((*style_names).clone()));
+            let style_model = Rc::new(VecModel::from(style_names.borrow().clone()));
             let current_indices = indices.borrow().clone();
             let current_lines = lines.borrow().clone();
             let rows = current_indices
@@ -365,8 +372,6 @@ fn main() -> Result<(), slint::PlatformError> {
             });
         })
     };
-    let line_style_values: Vec<LineStyle> = line_styles.iter().map(|(_, s)| *s).collect();
-
     let render_image = {
         let app_weak = app.as_weak();
         let point_db = point_db.clone();
@@ -441,7 +446,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 &RenderStyles {
                     point_styles: &point_styles,
                     style_indices: &style_indices,
-                    line_styles: &line_styles_vals,
+                    line_styles: &line_styles_vals.borrow(),
                     line_style_indices: &line_style_indices,
                     polygon_styles: &polygon_style_values,
                     polygon_style_indices: &polygon_style_indices,
@@ -993,7 +998,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         point_db: point_db.clone(),
                         point_styles: point_styles.clone(),
                         lines: lines_ref.clone(),
-                        line_styles: line_styles.clone(),
+                        line_styles: style_defs_save.borrow().clone(),
                         backend: backend_render.clone(),
                         render_image: Rc::new(render_image.clone()),
                         weak: weak.clone(),
@@ -2544,7 +2549,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let grid_settings = grid_settings.clone();
         let point_label_style = point_label_style.clone();
         let point_styles = point_styles.clone();
-        let line_styles = line_styles.clone();
+        let style_defs_save = line_style_defs.clone();
         let dimensions = dimensions.clone();
         let last_dir = last_folder.clone();
         let config_rc = config.clone();
@@ -2598,7 +2603,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let _ = save_layers(&base.with_extension("layers.json"), &layers_ref.borrow());
                     let style_settings = StyleSettings {
                         point_styles: point_styles.clone(),
-                        line_styles: line_styles.clone(),
+                        line_styles: style_defs_save.borrow().clone(),
                         polygon_styles: polygon_styles.clone(),
                         alignment_styles: alignment_styles.clone(),
                         line_label_styles: line_label_styles.clone(),
@@ -6310,11 +6315,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let line_style_names = line_style_names.clone();
         let render_image = render_image.clone();
         let dialogs = open_line_style_managers.clone();
+        let refresh_line_style_dialogs_ref = refresh_line_style_dialogs.clone();
         app.on_line_style_manager(move || {
+            let refresh_line_style_dialogs = refresh_line_style_dialogs_ref.clone();
             let dlg = LineStyleManager::new().unwrap();
             dialogs.borrow_mut().push(dlg.as_weak());
 
-            let needed = line_style_names.len();
+            let needed = line_style_names.borrow().len();
             {
                 let mut idx = line_style_indices.borrow_mut();
                 if idx.len() < needed {
@@ -6344,7 +6351,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .collect::<Vec<_>>();
             let model = Rc::new(VecModel::<LineRow>::from(rows));
             dlg.set_lines_model(model.clone().into());
-            dlg.set_styles_model(Rc::new(VecModel::from((*line_style_names).clone())).into());
+            dlg.set_styles_model(Rc::new(VecModel::from(line_style_names.borrow().clone())).into());
             dlg.set_selected_index(-1);
 
             {
@@ -6369,6 +6376,78 @@ fn main() -> Result<(), slint::PlatformError> {
                                 crate::set_workspace_image_result(&app, &render_image);
                                 app.window().request_redraw();
                             }
+                        }
+                    }
+                });
+            }
+
+            {
+                let style_defs = line_style_defs.clone();
+                let style_names = line_style_names.clone();
+                let style_values = line_style_values.clone();
+                let indices = line_style_indices.clone();
+                let refresh = refresh_line_style_dialogs.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                dlg.on_import_styles(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Styles", &["json"])
+                        .pick_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            if let Some(lib) = load_style_library(Path::new(p)) {
+                                {
+                                    let mut defs = style_defs.borrow_mut();
+                                    for (n, s) in lib.line_styles {
+                                        if let Some(ex) = defs.iter_mut().find(|(nm, _)| nm == &n) {
+                                            ex.1 = s;
+                                        } else {
+                                            defs.push((n, s));
+                                        }
+                                    }
+                                }
+                                *style_names.borrow_mut() = style_defs
+                                    .borrow()
+                                    .iter()
+                                    .map(|(n, _)| SharedString::from(n.clone()))
+                                    .collect();
+                                *style_values.borrow_mut() = style_defs
+                                    .borrow()
+                                    .iter()
+                                    .map(|(_, s)| *s)
+                                    .collect();
+                                let count = style_values.borrow().len();
+                                for idx in indices.borrow_mut().iter_mut() {
+                                    if *idx >= count {
+                                        *idx = 0;
+                                    }
+                                }
+                                refresh();
+                                if let Some(app) = weak.upgrade() {
+                                    if app.get_workspace_mode() == 0 {
+                                        crate::set_workspace_image_result(&app, &render_image);
+                                        app.window().request_redraw();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            {
+                let style_defs = line_style_defs.clone();
+                dlg.on_export_styles(move || {
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Styles", &["json"])
+                        .save_file()
+                    {
+                        if let Some(p) = path.to_str() {
+                            let settings = StyleSettings {
+                                line_styles: style_defs.borrow().clone(),
+                                ..Default::default()
+                            };
+                            let _ = save_style_library(Path::new(p), &settings);
                         }
                     }
                 });

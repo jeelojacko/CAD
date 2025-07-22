@@ -4,13 +4,15 @@ export struct PointLabelRow {
     style_index: int,
 }
 
-import { VerticalBox, HorizontalBox, ComboBox, ListView } from "std-widgets.slint";
+import { Button, VerticalBox, HorizontalBox, ComboBox, ListView } from "std-widgets.slint";
 
 export component PointLabelStyleManager inherits Window {
     in-out property <[PointLabelRow]> lines_model;
     in-out property <[string]> styles_model;
     in-out property <int> selected_index;
     callback style_changed(int, int);
+    callback import_styles();
+    callback export_styles();
     title: "Point Label Style Manager";
     width: 500px;
     height: 300px;
@@ -48,6 +50,11 @@ export component PointLabelStyleManager inherits Window {
                 }
                 TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
             }
+        }
+        HorizontalBox {
+            spacing: 6px;
+            Button { text: "Import"; clicked => { root.import_styles(); } }
+            Button { text: "Export"; clicked => { root.export_styles(); } }
         }
     }
 }
