@@ -2,7 +2,7 @@
 
 use i_slint_common::sharedfontdb;
 use slint::platform::PointerEventButton;
-use slint::{Model, PhysicalSize, SharedString, VecModel, Image};
+use slint::{Image, Model, PhysicalSize, SharedString, VecModel};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;
@@ -39,8 +39,8 @@ use truck_backend::{HitObject, TruckBackend};
 mod persistence;
 use persistence::{load_layers, load_styles, save_layers, save_styles, StyleSettings};
 mod commands;
-mod error;
 mod cross_section;
+mod error;
 mod inspector;
 mod io_utils;
 #[cfg(feature = "python")]
@@ -60,13 +60,14 @@ mod python {
         Err(GuiError::Msg("Python support disabled".into()))
     }
 }
-mod render;
-mod ui_state;
-mod workspace;
 mod dialogs;
 mod geometry;
 mod pipe_editor;
+mod render;
+mod ui_state;
+mod workspace;
 
+use crate::pipe_editor::{Pipe, PipeEditor, Structure};
 use commands::{
     record_macro, spawn_line, spawn_point, Command, CommandStack, Context, MacroPlaying,
     MacroRecorder,
@@ -75,11 +76,11 @@ pub use cross_section::{
     calc_section_params, grade_at, handle_positions, nearest_point, render_cross_section,
     screen_to_world, SectionParams,
 };
+use error::GuiError;
 pub use inspector::{
     has_selection, show_context_menu, show_inspector_for_point, show_inspector_for_polygon,
 };
 pub use io_utils::{read_arc_csv, read_line_csv, read_points_list};
-use crate::pipe_editor::{PipeEditor, Pipe, Structure};
 use once_cell::sync::Lazy;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -90,7 +91,6 @@ use render::{
     arc_from_start_end_radius, arc_from_three_points, polyline_to_solid, screen_to_workspace,
     workspace_to_screen, RenderState, RenderStyles, WorkspaceRenderData,
 };
-use error::GuiError;
 use rusttype::Font;
 use tiny_skia::Pixmap;
 use ui_state::{
@@ -1302,7 +1302,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         });
                     }
                     commands::ParsedCommand::Circle { center, radius } => {
-                        arcs.borrow_mut().push(Arc::new(center, radius, 0.0, 2.0 * std::f64::consts::PI));
+                        arcs.borrow_mut().push(Arc::new(
+                            center,
+                            radius,
+                            0.0,
+                            2.0 * std::f64::consts::PI,
+                        ));
                     }
                     commands::ParsedCommand::Arc { p1, p2, p3 } => {
                         if let Some(a) = render::arc_from_three_points(p1, p2, p3) {
@@ -1322,15 +1327,24 @@ fn main() -> Result<(), slint::PlatformError> {
                             }
                             Err(e) => {
                                 if let Some(app) = weak.upgrade() {
-                                    app.set_status(SharedString::from(format!("Failed to load: {e}")));
+                                    app.set_status(SharedString::from(format!(
+                                        "Failed to load: {e}"
+                                    )));
                                 }
                             }
                         }
                     }
                     commands::ParsedCommand::Export(path) => {
-                        if let Err(e) = survey_cad::io::write_points_geojson(&path, &point_db.borrow(), None, None) {
+                        if let Err(e) = survey_cad::io::write_points_geojson(
+                            &path,
+                            &point_db.borrow(),
+                            None,
+                            None,
+                        ) {
                             if let Some(app) = weak.upgrade() {
-                                app.set_status(SharedString::from(format!("Failed to export: {e}")));
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to export: {e}"
+                                )));
                             }
                         }
                     }
@@ -2110,7 +2124,6 @@ fn main() -> Result<(), slint::PlatformError> {
                         .screen_to_plane(x as f64, y as f64, pos.z);
                     if let Some(app_ref) = weak.upgrade() {
                         if app_ref.get_snap_to_entities() {
-                            let scene = backend_move.borrow().snap_scene();
                             let opts = snap::SnapOptions {
                                 snap_points: app_ref.get_snap_points(),
                                 snap_endpoints: app_ref.get_snap_endpoints(),
@@ -2120,9 +2133,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                 snap_surfaces: app_ref.get_snap_surfaces(),
                                 snap_solids: app_ref.get_snap_solids(),
                             };
-                            if let Some(sp) = snap::resolve_snap_3d(
+                            if let Some(sp) = backend_move.borrow_mut().resolve_snap_3d(
                                 new_p,
-                                &scene,
                                 app_ref.get_snap_tolerance() as f64,
                                 opts,
                             ) {
@@ -2393,7 +2405,9 @@ fn main() -> Result<(), slint::PlatformError> {
         let surface_groups = surface_groups.clone();
         let alignment_groups = alignment_groups.clone();
         app.on_open_project(move || {
-            if let Some(path) = dialogs::open_project_file(last_dir.borrow().as_deref().map(Path::new)) {
+            if let Some(path) =
+                dialogs::open_project_file(last_dir.borrow().as_deref().map(Path::new))
+            {
                 *last_dir.borrow_mut() = path.parent().map(|p| p.to_string_lossy().to_string());
                 config_rc.borrow_mut().last_open_dir = last_dir.borrow().clone();
                 save_config(&config_rc.borrow());
@@ -4006,8 +4020,18 @@ fn main() -> Result<(), slint::PlatformError> {
                 dlg_s.on_add_structure(move || {
                     let mut editor = pipe_editor.borrow_mut();
                     let id = format!("S{}", editor.network.structures.len() + 1);
-                    editor.network.structures.push(Structure { id: id.clone(), x: 0.0, y: 0.0, z: 0.0 });
-                    struct_model.push(StructureRow { id: id.into(), x: "0".into(), y: "0".into(), z: "0".into() });
+                    editor.network.structures.push(Structure {
+                        id: id.clone(),
+                        x: 0.0,
+                        y: 0.0,
+                        z: 0.0,
+                    });
+                    struct_model.push(StructureRow {
+                        id: id.into(),
+                        x: "0".into(),
+                        y: "0".into(),
+                        z: "0".into(),
+                    });
                     editor.refresh_render();
                 });
             }
@@ -4029,7 +4053,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 let pipe_editor = pipe_editor.clone();
                 dlg_s.on_edit_id(move |idx, text| {
                     if idx >= 0 {
-                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                        if let Some(s) = pipe_editor
+                            .borrow_mut()
+                            .network
+                            .structures
+                            .get_mut(idx as usize)
+                        {
                             s.id = text.to_string();
                         }
                     }
@@ -4039,7 +4068,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 let pipe_editor = pipe_editor.clone();
                 dlg_s.on_edit_x(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
-                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                        if let Some(s) = pipe_editor
+                            .borrow_mut()
+                            .network
+                            .structures
+                            .get_mut(idx as usize)
+                        {
                             s.x = v;
                             pipe_editor.borrow_mut().refresh_render();
                         }
@@ -4050,7 +4084,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 let pipe_editor = pipe_editor.clone();
                 dlg_s.on_edit_y(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
-                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                        if let Some(s) = pipe_editor
+                            .borrow_mut()
+                            .network
+                            .structures
+                            .get_mut(idx as usize)
+                        {
                             s.y = v;
                             pipe_editor.borrow_mut().refresh_render();
                         }
@@ -4061,7 +4100,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 let pipe_editor = pipe_editor.clone();
                 dlg_s.on_edit_z(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
-                        if let Some(s) = pipe_editor.borrow_mut().network.structures.get_mut(idx as usize) {
+                        if let Some(s) = pipe_editor
+                            .borrow_mut()
+                            .network
+                            .structures
+                            .get_mut(idx as usize)
+                        {
                             s.z = v;
                             pipe_editor.borrow_mut().refresh_render();
                         }
@@ -4075,7 +4119,12 @@ fn main() -> Result<(), slint::PlatformError> {
                 dlg_p.on_add_pipe(move || {
                     let mut editor = pipe_editor.borrow_mut();
                     let id = format!("P{}", editor.network.pipes.len() + 1);
-                    let from = editor.network.structures.first().map(|s| s.id.clone()).unwrap_or_default();
+                    let from = editor
+                        .network
+                        .structures
+                        .first()
+                        .map(|s| s.id.clone())
+                        .unwrap_or_default();
                     let to = from.clone();
                     editor.network.pipes.push(Pipe {
                         id: id.clone(),
@@ -4087,7 +4136,12 @@ fn main() -> Result<(), slint::PlatformError> {
                         end_invert: 0.0,
                         design_flow: 0.0,
                     });
-                    pipe_model.push(PipeRow { id: id.into(), from: from.into(), to: to.into(), diameter: "0.3".into() });
+                    pipe_model.push(PipeRow {
+                        id: id.into(),
+                        from: from.into(),
+                        to: to.into(),
+                        diameter: "0.3".into(),
+                    });
                     editor.refresh_render();
                 });
             }
@@ -4135,7 +4189,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 let pipe_editor = pipe_editor.clone();
                 dlg_p.on_edit_diameter(move |idx, text| {
                     if let Ok(v) = text.parse::<f64>() {
-                        if let Some(p) = pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize) {
+                        if let Some(p) =
+                            pipe_editor.borrow_mut().network.pipes.get_mut(idx as usize)
+                        {
                             p.diameter = v;
                             pipe_editor.borrow_mut().refresh_render();
                         }
@@ -4216,10 +4272,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
                                 v.set_section_image(img);
                             }
-                            let handles: Vec<HandlePoint> = handle_positions(&secs_b[i], 600.0, 300.0)
-                                .into_iter()
-                                .map(|(x, y)| HandlePoint { x, y })
-                                .collect();
+                            let handles: Vec<HandlePoint> =
+                                handle_positions(&secs_b[i], 600.0, 300.0)
+                                    .into_iter()
+                                    .map(|(x, y)| HandlePoint { x, y })
+                                    .collect();
                             v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
                     }
@@ -4342,14 +4399,11 @@ fn main() -> Result<(), slint::PlatformError> {
                             surfaces_r.borrow_mut()[0] = tin;
                         }
                         if let Some(v) = viewer_weak.upgrade() {
-                            let handles: Vec<HandlePoint> = handle_positions(
-                                &secs_r.borrow()[*current.borrow()],
-                                600.0,
-                                300.0,
-                            )
-                            .into_iter()
-                            .map(|(hx, hy)| HandlePoint { x: hx, y: hy })
-                            .collect();
+                            let handles: Vec<HandlePoint> =
+                                handle_positions(&secs_r.borrow()[*current.borrow()], 600.0, 300.0)
+                                    .into_iter()
+                                    .map(|(hx, hy)| HandlePoint { x: hx, y: hy })
+                                    .collect();
                             v.set_handles_model(Rc::new(VecModel::from(handles)).into());
                         }
                     }
@@ -5782,9 +5836,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     let pts = point_db.borrow().points().to_vec();
                     let als = alignments.borrow().clone();
                     let surfs = surfaces.borrow().clone();
-                    if let Err(e) =
-                        survey_cad::io::landxml::write_landxml(p, &pts, &als, &surfs)
-                    {
+                    if let Err(e) = survey_cad::io::landxml::write_landxml(p, &pts, &als, &surfs) {
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!("Failed to export: {e}")));
                         }
@@ -6868,12 +6920,15 @@ fn main() -> Result<(), slint::PlatformError> {
             dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
             dlg.set_show_grid(gs.visible);
             dlg.set_auto_tin(config_ref.borrow().auto_tin);
-            dlg.set_crs_list(Rc::new(VecModel::from(
-                crs_entries_rc
-                    .iter()
-                    .map(|e| SharedString::from(format!("{} - {}", e.code, e.name)))
-                    .collect::<Vec<_>>(),
-            )).into());
+            dlg.set_crs_list(
+                Rc::new(VecModel::from(
+                    crs_entries_rc
+                        .iter()
+                        .map(|e| SharedString::from(format!("{} - {}", e.code, e.name)))
+                        .collect::<Vec<_>>(),
+                ))
+                .into(),
+            );
             let crs_idx = crs_entries_rc
                 .iter()
                 .position(|e| e.code == format!("EPSG:{}", *workspace_crs.borrow()))
@@ -6895,8 +6950,10 @@ fn main() -> Result<(), slint::PlatformError> {
                     fonts.push(fp);
                 }
             }
-            let font_items: Vec<SharedString> =
-                fonts.iter().map(|s| SharedString::from(s.as_str())).collect();
+            let font_items: Vec<SharedString> = fonts
+                .iter()
+                .map(|s| SharedString::from(s.as_str()))
+                .collect();
             dlg.set_font_list(Rc::new(VecModel::from(font_items)).into());
             let current_idx = config_ref
                 .borrow()

@@ -877,6 +877,37 @@ export component SnapSettingsDialog inherits Window {
     }
 }
 
+component SnapIcon {
+    in-out property <bool> active;
+    in property <string> tip;
+    callback toggled(bool);
+    width: 24px; height: 24px;
+    Image { source: @image-url("../assets/icons/snap.png"); colorize: root.active ? #FFFFFF : #777777; width: 100%; height: 100%; }
+    TouchArea { width: 100%; height: 100%; clicked => { root.active = !root.active; root.toggled(root.active); } }
+}
+
+export component SnapOverlay {
+    in-out property <bool> snap_grid;
+    in-out property <bool> snap_objects;
+    in-out property <bool> snap_points;
+    in-out property <bool> snap_endpoints;
+    in-out property <bool> snap_intersections;
+    callback snap_grid_changed(bool);
+    callback snap_objects_changed(bool);
+    callback snap_points_changed(bool);
+    callback snap_endpoints_changed(bool);
+    callback snap_intersections_changed(bool);
+    HorizontalBox {
+        spacing: 4px;
+        SnapIcon { tip: "Grid"; active <=> root.snap_grid; toggled(b) => { root.snap_grid_changed(b); } }
+        SnapIcon { tip: "Objects"; active <=> root.snap_objects; toggled(b) => { root.snap_objects_changed(b); } }
+        SnapIcon { tip: "Points"; active <=> root.snap_points; toggled(b) => { root.snap_points_changed(b); } }
+        SnapIcon { tip: "Ends"; active <=> root.snap_endpoints; toggled(b) => { root.snap_endpoints_changed(b); } }
+        SnapIcon { tip: "Intersections"; active <=> root.snap_intersections; toggled(b) => { root.snap_intersections_changed(b); } }
+    }
+    background: transparent;
+}
+
 export component MacroListDialog inherits Window {
     in-out property <[string]> files;
     in-out property <int> selected_index;
@@ -1259,7 +1290,20 @@ export component MainWindow inherits Window {
                 pointer_released() => { root.workspace_pointer_released(); }
                 scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
             }
-        } 
+            SnapOverlay {
+                x: 4px; y: 4px;
+                snap_grid <=> root.snap_to_grid;
+                snap_objects <=> root.snap_to_entities;
+                snap_points <=> root.snap_points;
+                snap_endpoints <=> root.snap_endpoints;
+                snap_intersections <=> root.snap_intersections;
+                snap_grid_changed(b) => { root.snap_grid_changed(b); }
+                snap_objects_changed(b) => { root.snap_objects_changed(b); }
+                snap_points_changed(b) => { root.snap_points_changed(b); }
+                snap_endpoints_changed(b) => { root.snap_endpoints_changed(b); }
+                snap_intersections_changed(b) => { root.snap_intersections_changed(b); }
+            }
+        }
 
         command_line := CommandLine {
             width: 100%;

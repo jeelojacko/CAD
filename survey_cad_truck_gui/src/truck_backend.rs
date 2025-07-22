@@ -46,7 +46,9 @@ struct SpatialItem {
 
 impl RTreeObject for SpatialItem {
     type Envelope = AABB<[f64; 3]>;
-    fn envelope(&self) -> Self::Envelope { self.bbox }
+    fn envelope(&self) -> Self::Envelope {
+        self.bbox
+    }
 }
 
 pub struct TruckBackend {
@@ -60,6 +62,7 @@ pub struct TruckBackend {
     hover_surface: Option<usize>,
     hover_handle: Option<usize>,
     spatial_index: RTree<SpatialItem>,
+    snap_point: Option<Point3>,
 }
 
 impl TruckBackend {
@@ -77,6 +80,7 @@ impl TruckBackend {
             hover_surface: None,
             hover_handle: None,
             spatial_index: RTree::new(),
+            snap_point: None,
         };
         backend.rebuild_index();
         backend
@@ -103,12 +107,24 @@ impl TruckBackend {
                 let mut min = [first.x, first.y, first.z];
                 let mut max = min;
                 for v in &surf.vertices {
-                    if v.x < min[0] { min[0] = v.x; }
-                    if v.y < min[1] { min[1] = v.y; }
-                    if v.z < min[2] { min[2] = v.z; }
-                    if v.x > max[0] { max[0] = v.x; }
-                    if v.y > max[1] { max[1] = v.y; }
-                    if v.z > max[2] { max[2] = v.z; }
+                    if v.x < min[0] {
+                        min[0] = v.x;
+                    }
+                    if v.y < min[1] {
+                        min[1] = v.y;
+                    }
+                    if v.z < min[2] {
+                        min[2] = v.z;
+                    }
+                    if v.x > max[0] {
+                        max[0] = v.x;
+                    }
+                    if v.y > max[1] {
+                        max[1] = v.y;
+                    }
+                    if v.z > max[2] {
+                        max[2] = v.z;
+                    }
                 }
                 self.spatial_index.insert(SpatialItem {
                     bbox: AABB::from_corners(min, max),
@@ -174,14 +190,13 @@ impl TruckBackend {
         self.rebuild_index();
     }
 
-    pub fn add_line(
-        &mut self,
-        a: [f64; 3],
-        b: [f64; 3],
-        color: [f32; 4],
-        weight: f32,
-    ) -> usize {
-        let col = Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64);
+    pub fn add_line(&mut self, a: [f64; 3], b: [f64; 3], color: [f32; 4], weight: f32) -> usize {
+        let col = Vector4::new(
+            color[0] as f64,
+            color[1] as f64,
+            color[2] as f64,
+            color[3] as f64,
+        );
         let id = self.engine.add_line(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
@@ -213,7 +228,12 @@ impl TruckBackend {
                 *id,
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
-                Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+                Vector4::new(
+                    color[0] as f64,
+                    color[1] as f64,
+                    color[2] as f64,
+                    color[3] as f64,
+                ),
                 weight,
             );
         }
@@ -221,7 +241,12 @@ impl TruckBackend {
             idx,
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
-            Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+            Vector4::new(
+                color[0] as f64,
+                color[1] as f64,
+                color[2] as f64,
+                color[3] as f64,
+            ),
             weight,
         );
         self.rebuild_index();
@@ -240,7 +265,12 @@ impl TruckBackend {
     /// Add multiple lines at once.
     pub fn add_lines(&mut self, lines: &[LineInput]) {
         for (a, b, color, weight) in lines {
-            let col = Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64);
+            let col = Vector4::new(
+                color[0] as f64,
+                color[1] as f64,
+                color[2] as f64,
+                color[3] as f64,
+            );
             let id = self.engine.add_line(
                 Point3::new(a[0], a[1], a[2]),
                 Point3::new(b[0], b[1], b[2]),
@@ -259,18 +289,27 @@ impl TruckBackend {
     }
 
     /// Add a dimension represented as a simple line between two points.
-    pub fn add_dimension(&mut self, a: [f64; 3], b: [f64; 3], color: [f32; 4], weight: f32) -> usize {
+    pub fn add_dimension(
+        &mut self,
+        a: [f64; 3],
+        b: [f64; 3],
+        color: [f32; 4],
+        weight: f32,
+    ) -> usize {
         let id = self.engine.add_line(
             Point3::new(a[0], a[1], a[2]),
             Point3::new(b[0], b[1], b[2]),
-            Vector4::new(color[0] as f64, color[1] as f64, color[2] as f64, color[3] as f64),
+            Vector4::new(
+                color[0] as f64,
+                color[1] as f64,
+                color[2] as f64,
+                color[3] as f64,
+            ),
             weight,
         );
         self.dimension_ids.push(Some(id));
-        self.geometry.add_dimension(
-            Point3::new(a[0], a[1], a[2]),
-            Point3::new(b[0], b[1], b[2]),
-        )
+        self.geometry
+            .add_dimension(Point3::new(a[0], a[1], a[2]), Point3::new(b[0], b[1], b[2]))
     }
 
     /// Remove an existing dimension.
@@ -477,8 +516,16 @@ impl TruckBackend {
         let va = &align.vertical;
         if let Some(first) = va.elements.first() {
             let (s, z) = match first {
-                VerticalElement::Grade { start_station, start_elev, .. } => (*start_station, *start_elev),
-                VerticalElement::Parabola { start_station, start_elev, .. } => (*start_station, *start_elev),
+                VerticalElement::Grade {
+                    start_station,
+                    start_elev,
+                    ..
+                } => (*start_station, *start_elev),
+                VerticalElement::Parabola {
+                    start_station,
+                    start_elev,
+                    ..
+                } => (*start_station, *start_elev),
             };
             if let Some(p) = align.horizontal.point_at(s) {
                 ids.push(self.engine.add_point_marker(Point3::new(p.x, p.y, z)));
@@ -486,8 +533,18 @@ impl TruckBackend {
         }
         for e in &va.elements {
             let (s, z) = match e {
-                VerticalElement::Grade { end_station, end_elev, .. } => (*end_station, *end_elev),
-                VerticalElement::Parabola { start_station, end_station, start_elev, start_grade, end_grade } => {
+                VerticalElement::Grade {
+                    end_station,
+                    end_elev,
+                    ..
+                } => (*end_station, *end_elev),
+                VerticalElement::Parabola {
+                    start_station,
+                    end_station,
+                    start_elev,
+                    start_grade,
+                    end_grade,
+                } => {
                     let l = end_station - start_station;
                     let dz = start_grade * l + 0.5 * (end_grade - start_grade) * l;
                     (*end_station, start_elev + dz)
@@ -527,7 +584,8 @@ impl TruckBackend {
                     }
                 }
                 HandleTarget::Line(idx) => {
-                    let (p0, p1, col, weight) = if let Some(line) = self.geometry.lines.get_mut(idx) {
+                    let (p0, p1, col, weight) = if let Some(line) = self.geometry.lines.get_mut(idx)
+                    {
                         if handle_idx == 0 {
                             line.0 = new_pos;
                         } else if handle_idx == 1 {
@@ -552,7 +610,12 @@ impl TruckBackend {
     }
 
     /// Move a horizontal alignment PI handle.
-    pub fn move_alignment_pi_handle(&mut self, alignment: &mut Alignment, handle_idx: usize, pos: Point3) {
+    pub fn move_alignment_pi_handle(
+        &mut self,
+        alignment: &mut Alignment,
+        handle_idx: usize,
+        pos: Point3,
+    ) {
         use survey_cad::alignment::HorizontalElement;
         if let Some((HandleTarget::AlignmentPi, ref handles)) = self.handles {
             if let Some(id) = handles.get(handle_idx) {
@@ -561,12 +624,16 @@ impl TruckBackend {
         }
         let p = Point::new(pos.x, pos.y);
         if handle_idx == 0 {
-            if let Some(HorizontalElement::Tangent { start, .. }) = alignment.horizontal.elements.get_mut(0) {
+            if let Some(HorizontalElement::Tangent { start, .. }) =
+                alignment.horizontal.elements.get_mut(0)
+            {
                 *start = p;
             }
         }
         if handle_idx > 0 {
-            if let Some(HorizontalElement::Tangent { end, .. }) = alignment.horizontal.elements.get_mut(handle_idx - 1) {
+            if let Some(HorizontalElement::Tangent { end, .. }) =
+                alignment.horizontal.elements.get_mut(handle_idx - 1)
+            {
                 *end = p;
             }
         }
@@ -595,11 +662,19 @@ impl TruckBackend {
         let elev = pos.z;
         if idx == 0 {
             match &mut valign.elements[0] {
-                VerticalElement::Grade { start_station, start_elev, .. } => {
+                VerticalElement::Grade {
+                    start_station,
+                    start_elev,
+                    ..
+                } => {
                     *start_station = station;
                     *start_elev = elev;
                 }
-                VerticalElement::Parabola { start_station, start_elev, .. } => {
+                VerticalElement::Parabola {
+                    start_station,
+                    start_elev,
+                    ..
+                } => {
                     *start_station = station;
                     *start_elev = elev;
                 }
@@ -608,7 +683,11 @@ impl TruckBackend {
         if idx > 0 {
             if let Some(prev) = valign.elements.get_mut(idx - 1) {
                 match prev {
-                    VerticalElement::Grade { end_station, end_elev, .. } => {
+                    VerticalElement::Grade {
+                        end_station,
+                        end_elev,
+                        ..
+                    } => {
                         *end_station = station;
                         *end_elev = elev;
                     }
@@ -620,11 +699,19 @@ impl TruckBackend {
         }
         if let Some(cur) = valign.elements.get_mut(idx) {
             match cur {
-                VerticalElement::Grade { start_station, start_elev, .. } => {
+                VerticalElement::Grade {
+                    start_station,
+                    start_elev,
+                    ..
+                } => {
                     *start_station = station;
                     *start_elev = elev;
                 }
-                VerticalElement::Parabola { start_station, start_elev, .. } => {
+                VerticalElement::Parabola {
+                    start_station,
+                    start_elev,
+                    ..
+                } => {
                     *start_station = station;
                     *start_elev = elev;
                 }
@@ -732,6 +819,26 @@ impl TruckBackend {
         }
     }
 
+    pub fn resolve_snap_3d(
+        &mut self,
+        target: Point3,
+        tol: f64,
+        opts: crate::snap::SnapOptions,
+    ) -> Option<Point3> {
+        let scene = self.snap_scene();
+        let res = crate::snap::resolve_snap_3d(target, &scene, tol, opts);
+        self.snap_point = res;
+        res
+    }
+
+    pub fn snap_point(&self) -> Option<Point3> {
+        self.snap_point
+    }
+
+    pub fn clear_snap_point(&mut self) {
+        self.snap_point = None;
+    }
+
     pub fn hit_test(&mut self, x: f64, y: f64) -> Option<HitObject> {
         let mut result = None;
         let mut best_z = f64::INFINITY;
@@ -781,9 +888,15 @@ impl TruckBackend {
         let mut cand_surfaces = HashSet::new();
         for c in candidates {
             match c.elem {
-                SpatialElement::Point(i) => { cand_points.insert(i); }
-                SpatialElement::Line(i) => { cand_lines.insert(i); }
-                SpatialElement::Surface(i) => { cand_surfaces.insert(i); }
+                SpatialElement::Point(i) => {
+                    cand_points.insert(i);
+                }
+                SpatialElement::Line(i) => {
+                    cand_lines.insert(i);
+                }
+                SpatialElement::Surface(i) => {
+                    cand_surfaces.insert(i);
+                }
             }
         }
 
@@ -801,10 +914,9 @@ impl TruckBackend {
 
         for i in cand_lines {
             if let Some(&(a, b, _, _)) = self.geometry.lines.as_slice().get(i) {
-                if let (Some((ax, ay, az)), Some((bx, by, bz))) = (
-                    self.engine.project_point(a),
-                    self.engine.project_point(b),
-                ) {
+                if let (Some((ax, ay, az)), Some((bx, by, bz))) =
+                    (self.engine.project_point(a), self.engine.project_point(b))
+                {
                     let t = ((x - ax) * (bx - ax) + (y - ay) * (by - ay))
                         / ((bx - ax).powi(2) + (by - ay).powi(2));
                     if (0.0..=1.0).contains(&t) {
@@ -954,4 +1066,4 @@ impl TruckBackend {
 
         result
     }
-    }
+}

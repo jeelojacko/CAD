@@ -10,11 +10,11 @@ use survey_cad::geometry::{Line, LineAnnotation, LineType};
 use survey_cad::io::project::GridSettings;
 use survey_cad::styles::{format_dms, HatchPattern, LineLabelPosition};
 
+use crate::error::GuiError;
 use crate::render::{draw_text, RenderState, RenderStyles, WorkspaceRenderData};
 use crate::truck_backend::TruckBackend;
 use crate::ui_state::DrawingMode;
 use crate::{MainWindow, FONT};
-use crate::error::GuiError;
 
 pub fn render_workspace(
     data: &WorkspaceRenderData,
@@ -339,6 +339,29 @@ pub fn render_workspace(
         pb.line_to(cf.pos.0 + 5.0, cf.pos.1);
         pb.move_to(cf.pos.0, cf.pos.1 - 5.0);
         pb.line_to(cf.pos.0, cf.pos.1 + 5.0);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(
+                &path,
+                &paint,
+                &Stroke {
+                    width: 1.0,
+                    ..Stroke::default()
+                },
+                Transform::identity(),
+                None,
+            );
+        }
+    }
+
+    if let Some(sp) = *state.snap_target.borrow() {
+        paint.set_color(Color::from_rgba8(255, 255, 0, 255));
+        let sx = tx(sp.x as f32);
+        let sy = ty(sp.y as f32);
+        let mut pb = PathBuilder::new();
+        pb.move_to(sx - 4.0, sy);
+        pb.line_to(sx + 4.0, sy);
+        pb.move_to(sx, sy - 4.0);
+        pb.line_to(sx, sy + 4.0);
         if let Some(path) = pb.finish() {
             pixmap.stroke_path(
                 &path,
