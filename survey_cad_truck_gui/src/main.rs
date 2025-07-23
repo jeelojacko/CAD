@@ -998,7 +998,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         point_db: point_db.clone(),
                         point_styles: point_styles.clone(),
                         lines: lines_ref.clone(),
-                        line_styles: style_defs_save.borrow().clone(),
+                        line_styles: line_styles.clone(),
                         backend: backend_render.clone(),
                         render_image: Rc::new(render_image.clone()),
                         weak: weak.clone(),
