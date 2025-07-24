@@ -1,6 +1,9 @@
 use slint::Image;
 use log::error;
 
+use crate::render::draw_text;
+use crate::FONT;
+
 use crate::error::GuiError;
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
 
@@ -65,6 +68,8 @@ pub fn render_cross_section(
     section: &corridor::CrossSection,
     width: u32,
     height: u32,
+    grid_x: f32,
+    grid_y: f32,
 ) -> Result<Image, GuiError> {
     if width == 0 || height == 0 {
         return Ok(Image::default());
@@ -118,6 +123,97 @@ pub fn render_cross_section(
             ((width as f32 * 0.8) / (max_x - min_x)).min((height as f32 * 0.8) / (max_y - min_y));
         let ox = width as f32 / 2.0 - scale * (min_x + max_x) / 2.0;
         let oy = height as f32 / 2.0 + scale * (min_y + max_y) / 2.0;
+
+        // draw grid lines
+        let mut grid_paint = Paint::default();
+        grid_paint.set_color(Color::from_rgba8(60, 60, 60, 255));
+        grid_paint.anti_alias = true;
+        let grid_stroke = Stroke { width: 1.0, ..Stroke::default() };
+
+        let start_x = (min_x / grid_x).floor() as i32;
+        let end_x = (max_x / grid_x).ceil() as i32;
+        for i in start_x..=end_x {
+            let gx = i as f32 * grid_x;
+            let px = ox + gx * scale;
+            let mut pb = PathBuilder::new();
+            pb.move_to(px, 0.0);
+            pb.line_to(px, height as f32);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+            }
+        }
+
+        let start_y = (min_y / grid_y).floor() as i32;
+        let end_y = (max_y / grid_y).ceil() as i32;
+        for i in start_y..=end_y {
+            let gy = i as f32 * grid_y;
+            let py = oy - gy * scale;
+            let mut pb = PathBuilder::new();
+            pb.move_to(0.0, py);
+            pb.line_to(width as f32, py);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+            }
+        }
+
+        // axis lines
+        grid_paint.set_color(Color::from_rgba8(90, 90, 90, 255));
+        let mut pb = PathBuilder::new();
+        pb.move_to(ox, 0.0);
+        pb.line_to(ox, height as f32);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+        }
+        let mut pb = PathBuilder::new();
+        pb.move_to(0.0, oy);
+        pb.line_to(width as f32, oy);
+        if let Some(path) = pb.finish() {
+            pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+        }
+
+        // axis ticks and labels
+        for i in start_x..=end_x {
+            let gx = i as f32 * grid_x;
+            let px = ox + gx * scale;
+            let mut pb = PathBuilder::new();
+            pb.move_to(px, oy - 5.0);
+            pb.line_to(px, oy + 5.0);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+            }
+            let lbl = format!("{:.2}", gx);
+            draw_text(
+                &mut pixmap,
+                &lbl,
+                &FONT,
+                px + 2.0,
+                oy + 7.0,
+                Color::from_rgba8(200, 200, 200, 255),
+                12.0,
+            );
+        }
+        for i in start_y..=end_y {
+            let gy = i as f32 * grid_y;
+            let py = oy - gy * scale;
+            let mut pb = PathBuilder::new();
+            pb.move_to(ox - 5.0, py);
+            pb.line_to(ox + 5.0, py);
+            if let Some(path) = pb.finish() {
+                pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
+            }
+            let lbl = format!("{:.2}", gy);
+            draw_text(
+                &mut pixmap,
+                &lbl,
+                &FONT,
+                ox + 7.0,
+                py - 6.0,
+                Color::from_rgba8(200, 200, 200, 255),
+                12.0,
+            );
+        }
+
+        // section polyline
         let mut pb = PathBuilder::new();
         for (i, (x, y)) in pts.iter().enumerate() {
             let px = ox + *x * scale;
