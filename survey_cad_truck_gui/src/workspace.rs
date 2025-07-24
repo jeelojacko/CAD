@@ -170,7 +170,7 @@ pub fn render_workspace(
             if angle < 0.0 {
                 angle += 360.0;
             }
-            let text = format!("{:.2} m\n{}", ann.distance, format_dms(angle));
+            let text = format!("{distance:.2} m\n{}", format_dms(angle), distance = ann.distance);
             let mid = line.midpoint();
             let dx = e.x - s.x;
             let dy = e.y - s.y;

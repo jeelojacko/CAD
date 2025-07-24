@@ -181,7 +181,7 @@ pub fn render_cross_section(
             if let Some(path) = pb.finish() {
                 pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
             }
-            let lbl = format!("{:.2}", gx);
+            let lbl = format!("{gx:.2}");
             draw_text(
                 &mut pixmap,
                 &lbl,
@@ -201,7 +201,7 @@ pub fn render_cross_section(
             if let Some(path) = pb.finish() {
                 pixmap.stroke_path(&path, &grid_paint, &grid_stroke, Transform::identity(), None);
             }
-            let lbl = format!("{:.2}", gy);
+            let lbl = format!("{gy:.2}");
             draw_text(
                 &mut pixmap,
                 &lbl,
