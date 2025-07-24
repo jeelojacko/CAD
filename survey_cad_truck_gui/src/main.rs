@@ -4309,7 +4309,13 @@ fn main() -> Result<(), slint::PlatformError> {
             let grade = grade_at(&al.vertical, sections[0].station).unwrap_or(0.0);
             viewer.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
             viewer.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-            if let Ok(img) = render_cross_section(&sections[0], 600, 300) {
+            if let Ok(img) = render_cross_section(
+                &sections[0],
+                600,
+                300,
+                viewer.get_horizontal_grid_spacing(),
+                viewer.get_vertical_grid_spacing(),
+            ) {
                 viewer.set_section_image(img);
             }
             let handles0: Vec<HandlePoint> = handle_positions(&sections[0], 600.0, 300.0)
@@ -4339,7 +4345,13 @@ fn main() -> Result<(), slint::PlatformError> {
                             let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
+                            if let Ok(img) = render_cross_section(
+                                &secs_b[i],
+                                600,
+                                300,
+                                v.get_horizontal_grid_spacing(),
+                                v.get_vertical_grid_spacing(),
+                            ) {
                                 v.set_section_image(img);
                             }
                             let handles: Vec<HandlePoint> =
@@ -4371,7 +4383,13 @@ fn main() -> Result<(), slint::PlatformError> {
                             let grade = grade_at(&al.vertical, secs_b[i].station).unwrap_or(0.0);
                             v.set_elevation_label(SharedString::from(format!("Elev: {elev:.2}")));
                             v.set_slope_label(SharedString::from(format!("Slope: {grade:.4}")));
-                            if let Ok(img) = render_cross_section(&secs_b[i], 600, 300) {
+                            if let Ok(img) = render_cross_section(
+                                &secs_b[i],
+                                600,
+                                300,
+                                v.get_horizontal_grid_spacing(),
+                                v.get_vertical_grid_spacing(),
+                            ) {
                                 v.set_section_image(img);
                             }
                         }
@@ -4412,6 +4430,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                     &secs_m.borrow()[*current_m.borrow()],
                                     600,
                                     300,
+                                    v.get_horizontal_grid_spacing(),
+                                    v.get_vertical_grid_spacing(),
                                 ) {
                                     v.set_section_image(img);
                                 }
