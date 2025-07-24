@@ -4059,9 +4059,9 @@ fn main() -> Result<(), slint::PlatformError> {
                 .iter()
                 .map(|s| StructureRow {
                     id: SharedString::from(s.id.clone()),
-                    x: SharedString::from(format!("{:.2}", s.x)),
-                    y: SharedString::from(format!("{:.2}", s.y)),
-                    z: SharedString::from(format!("{:.2}", s.z)),
+                    x: SharedString::from(format!("{x:.2}", x = s.x)),
+                    y: SharedString::from(format!("{y:.2}", y = s.y)),
+                    z: SharedString::from(format!("{z:.2}", z = s.z)),
                 })
                 .collect::<Vec<_>>();
             let struct_model = Rc::new(VecModel::from(structs));
@@ -4077,7 +4077,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     id: SharedString::from(p.id.clone()),
                     from: SharedString::from(p.from.clone()),
                     to: SharedString::from(p.to.clone()),
-                    diameter: SharedString::from(format!("{:.2}", p.diameter)),
+                    diameter: SharedString::from(format!("{diameter:.2}", diameter = p.diameter)),
                 })
                 .collect::<Vec<_>>();
             let pipe_model = Rc::new(VecModel::from(pipes));
@@ -6077,8 +6077,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         PointRow {
                             number: SharedString::from((i + 1).to_string()),
                             name: SharedString::from(""),
-                            x: SharedString::from(format!("{:.3}", p.x)),
-                            y: SharedString::from(format!("{:.3}", p.y)),
+                            x: SharedString::from(format!("{x:.3}", x = p.x)),
+                            y: SharedString::from(format!("{y:.3}", y = p.y)),
                             group_index: 0,
                             style_index: point_style_indices.borrow()[i] as i32,
                         }
@@ -6356,8 +6356,8 @@ fn main() -> Result<(), slint::PlatformError> {
                 .map(|(i, s_idx)| {
                     if let Some((s, e)) = current_lines.get(i) {
                         LineRow {
-                            start: SharedString::from(format!("{:.2},{:.2}", s.x, s.y)),
-                            end: SharedString::from(format!("{:.2},{:.2}", e.x, e.y)),
+                            start: SharedString::from(format!("{sx:.2},{sy:.2}", sx = s.x, sy = s.y)),
+                            end: SharedString::from(format!("{ex:.2},{ey:.2}", ex = e.x, ey = e.y)),
                             style_index: *s_idx as i32,
                         }
                     } else {
@@ -6512,7 +6512,7 @@ fn main() -> Result<(), slint::PlatformError> {
                             weight: SharedString::from(
                                 layer
                                     .line_weight
-                                    .map(|w| format!("{:.2}", w.0))
+                                    .map(|w| format!("{w:.2}", w = w.0))
                                     .unwrap_or_default(),
                             ),
                             text_style: SharedString::from(
@@ -6902,9 +6902,9 @@ fn main() -> Result<(), slint::PlatformError> {
                     .borrow()
                     .iter()
                     .map(|p| SuperelevationRow {
-                        station: SharedString::from(format!("{:.2}", p.station)),
-                        left: SharedString::from(format!("{:.4}", p.left_slope)),
-                        right: SharedString::from(format!("{:.4}", p.right_slope)),
+                        station: SharedString::from(format!("{station:.2}", station = p.station)),
+                        left: SharedString::from(format!("{left:.4}", left = p.left_slope)),
+                        right: SharedString::from(format!("{right:.4}", right = p.right_slope)),
                     })
                     .collect::<Vec<_>>(),
             ));
@@ -7078,7 +7078,7 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_settings(move || {
             let dlg = SettingsDialog::new().unwrap();
             let gs = grid_settings.borrow();
-            dlg.set_spacing_value(SharedString::from(format!("{:.1}", gs.spacing)));
+            dlg.set_spacing_value(SharedString::from(format!("{spacing:.1}", spacing = gs.spacing)));
             dlg.set_color_r(SharedString::from(gs.color[0].to_string()));
             dlg.set_color_g(SharedString::from(gs.color[1].to_string()));
             dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
@@ -7196,7 +7196,7 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_snap_settings(move || {
             let dlg = SnapSettingsDialog::new().unwrap();
             let prefs = snap_prefs_ref.borrow();
-            dlg.set_tolerance(SharedString::from(format!("{:.1}", prefs.snap_tolerance)));
+            dlg.set_tolerance(SharedString::from(format!("{tol:.1}", tol = prefs.snap_tolerance)));
             dlg.set_snap_points(prefs.snap_points);
             dlg.set_snap_endpoints(prefs.snap_endpoints);
             dlg.set_snap_midpoints(prefs.snap_midpoints);
