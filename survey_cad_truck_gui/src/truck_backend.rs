@@ -1,6 +1,6 @@
 use slint::Image;
 use truck_cad_engine::TruckCadEngine;
-use truck_modeling::base::{Point3, Vector4};
+use truck_modeling::base::{Point3, Vector3, Vector4, Matrix4, Rad, InnerSpace, Transform};
 use truck_modeling::topology::Solid;
 use truck_rendimpl::PolygonState;
 
@@ -14,6 +14,9 @@ type LineInput = ([f64; 3], [f64; 3], [f32; 4], f32);
 /// Surface definition used for batch additions.
 type SurfaceInput<'a> = (&'a [Point3], &'a [[usize; 3]]);
 
+const GIZMO_SIZE: f64 = 1.0;
+
+#[derive(Clone)]
 pub enum HitObject {
     Point(usize),
     Line(usize),
@@ -23,12 +26,21 @@ pub enum HitObject {
     Boundary,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GizmoMode {
+    Translate,
+    Rotate,
+    Scale,
+}
+
+#[derive(Clone)]
 enum HandleTarget {
     Point(usize),
     Line(usize),
     Surface(usize),
     AlignmentPi,
     VerticalVertex,
+    Gizmo(GizmoMode, HitObject),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -63,6 +75,7 @@ pub struct TruckBackend {
     hover_handle: Option<usize>,
     spatial_index: RTree<SpatialItem>,
     snap_point: Option<Point3>,
+    gizmo_origin: Option<Point3>,
 }
 
 impl TruckBackend {
@@ -81,6 +94,7 @@ impl TruckBackend {
             hover_handle: None,
             spatial_index: RTree::new(),
             snap_point: None,
+            gizmo_origin: None,
         };
         backend.rebuild_index();
         backend
@@ -557,6 +571,20 @@ impl TruckBackend {
         self.handles = Some((HandleTarget::VerticalVertex, ids));
     }
 
+    /// Show transformation gizmo for the selected object.
+    pub fn show_gizmo(&mut self, mode: GizmoMode, target: HitObject) {
+        self.hide_handles();
+        let origin = self.object_center(&target);
+        let ids = [
+            self.engine.add_point_marker(origin + Vector3::unit_x() * GIZMO_SIZE),
+            self.engine.add_point_marker(origin + Vector3::unit_y() * GIZMO_SIZE),
+            self.engine.add_point_marker(origin + Vector3::unit_z() * GIZMO_SIZE),
+        ]
+        .to_vec();
+        self.gizmo_origin = Some(origin);
+        self.handles = Some((HandleTarget::Gizmo(mode, target), ids));
+    }
+
     /// Remove all editing handles.
     pub fn hide_handles(&mut self) {
         if let Some((_, handles)) = self.handles.take() {
@@ -564,38 +592,36 @@ impl TruckBackend {
                 self.engine.remove_point_marker(id);
             }
         }
+        self.gizmo_origin = None;
     }
 
     /// Move a handle and the underlying vertex.
     #[allow(dead_code)]
     pub fn move_handle(&mut self, handle_idx: usize, new_pos: Point3) {
-        if let Some((ref target, ref mut handles)) = self.handles {
-            if handle_idx < handles.len() {
-                let id = handles[handle_idx];
-                self.engine.update_point_marker(id, new_pos);
+        let target = match self.handles.clone() {
+            Some((t, _)) => t,
+            None => return,
+        };
+        if let Some((_, ref mut handles)) = self.handles {
+            if let Some(id) = handles.get(handle_idx) {
+                self.engine.update_point_marker(*id, new_pos);
             }
-            match *target {
-                HandleTarget::Surface(idx) => {
-                    self.move_vertex(idx, handle_idx, new_pos);
+        }
+        match target {
+            HandleTarget::Surface(idx) => self.move_vertex(idx, handle_idx, new_pos),
+            HandleTarget::Point(idx) => {
+                if handle_idx == 0 {
+                    self.update_point(idx, new_pos.x, new_pos.y, new_pos.z);
                 }
-                HandleTarget::Point(idx) => {
+            }
+            HandleTarget::Line(idx) => {
+                if let Some(line) = self.geometry.lines.get_mut(idx) {
                     if handle_idx == 0 {
-                        self.update_point(idx, new_pos.x, new_pos.y, new_pos.z);
+                        line.0 = new_pos;
+                    } else if handle_idx == 1 {
+                        line.1 = new_pos;
                     }
-                }
-                HandleTarget::Line(idx) => {
-                    let (p0, p1, col, weight) = if let Some(line) = self.geometry.lines.get_mut(idx)
-                    {
-                        if handle_idx == 0 {
-                            line.0 = new_pos;
-                        } else if handle_idx == 1 {
-                            line.1 = new_pos;
-                        }
-                        (line.0, line.1, line.2, line.3)
-                    } else {
-                        return;
-                    };
-
+                    let (p0, p1, col, weight) = *line;
                     self.update_line(
                         idx,
                         [p0.x, p0.y, p0.z],
@@ -604,7 +630,52 @@ impl TruckBackend {
                         weight,
                     );
                 }
-                HandleTarget::AlignmentPi | HandleTarget::VerticalVertex => {}
+            }
+            HandleTarget::AlignmentPi | HandleTarget::VerticalVertex => {}
+            HandleTarget::Gizmo(mode, obj) => {
+                if let Some(origin) = self.gizmo_origin {
+                    let axis = match handle_idx {
+                        0 => Vector3::unit_x(),
+                        1 => Vector3::unit_y(),
+                        _ => Vector3::unit_z(),
+                    };
+                    match mode {
+                        GizmoMode::Translate => {
+                            let start = origin + axis * GIZMO_SIZE;
+                            let delta = (new_pos - start).dot(axis) * axis;
+                            self.translate_object(&obj, delta);
+                            self.gizmo_origin = Some(origin + delta);
+                        }
+                        GizmoMode::Rotate => {
+                            let start_vec = (axis * GIZMO_SIZE).normalize();
+                            let new_vec = (new_pos - origin).normalize();
+                            let angle = start_vec.angle(new_vec);
+                            let sign = if start_vec.cross(new_vec).dot(axis) < 0.0 { -1.0 } else { 1.0 };
+                            self.rotate_object(&obj, origin, axis, angle.0 * sign);
+                            self.gizmo_origin = Some(self.object_center(&obj));
+                        }
+                        GizmoMode::Scale => {
+                            let start_len = GIZMO_SIZE;
+                            let new_len = (new_pos - origin).dot(axis);
+                            let factor = if start_len.abs() < f64::EPSILON { 1.0 } else { new_len / start_len };
+                            self.scale_object(&obj, origin, factor);
+                            self.gizmo_origin = Some(self.object_center(&obj));
+                        }
+                    }
+                    if let Some((_, ref mut handles)) = self.handles {
+                        if let Some(o) = self.gizmo_origin {
+                            for (i, hid) in handles.iter().enumerate() {
+                                let ax = match i {
+                                    0 => Vector3::unit_x(),
+                                    1 => Vector3::unit_y(),
+                                    _ => Vector3::unit_z(),
+                                };
+                                let p = o + ax * GIZMO_SIZE;
+                                self.engine.update_point_marker(*hid, p);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -734,6 +805,103 @@ impl TruckBackend {
         }
     }
 
+    fn translate_object(&mut self, obj: &HitObject, delta: Vector3) {
+        match *obj {
+            HitObject::Point(i) => {
+                if let Some(p) = self.geometry.points.get(i).cloned() {
+                    self.update_point(i, p.x + delta.x, p.y + delta.y, p.z + delta.z);
+                }
+            }
+            HitObject::Line(i) => {
+                if let Some((a, b, col, weight)) = self.geometry.lines.get(i).cloned() {
+                    self.update_line(
+                        i,
+                        [a.x + delta.x, a.y + delta.y, a.z + delta.z],
+                        [b.x + delta.x, b.y + delta.y, b.z + delta.z],
+                        [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
+                        weight,
+                    );
+                }
+            }
+            HitObject::Surface(i) => {
+                if let Some(s) = self.geometry.surfaces.get(i).cloned() {
+                    for (vi, v) in s.vertices.iter().enumerate() {
+                        self.move_vertex(i, vi, *v + delta);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn rotate_object(&mut self, obj: &HitObject, origin: Point3, axis: Vector3, angle: f64) {
+        let rot = Matrix4::from_axis_angle(axis, Rad(angle));
+        match *obj {
+            HitObject::Point(i) => {
+                if let Some(p) = self.geometry.points.get(i).cloned() {
+                    let v = rot.transform_vector(p - origin);
+                    let np = origin + v;
+                    self.update_point(i, np.x, np.y, np.z);
+                }
+            }
+            HitObject::Line(i) => {
+                if let Some((a, b, col, weight)) = self.geometry.lines.get(i).cloned() {
+                    let na = origin + rot.transform_vector(a - origin);
+                    let nb = origin + rot.transform_vector(b - origin);
+                    self.update_line(
+                        i,
+                        [na.x, na.y, na.z],
+                        [nb.x, nb.y, nb.z],
+                        [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
+                        weight,
+                    );
+                }
+            }
+            HitObject::Surface(i) => {
+                if let Some(s) = self.geometry.surfaces.get(i).cloned() {
+                    for (vi, v) in s.vertices.iter().enumerate() {
+                        let nv = origin + rot.transform_vector(*v - origin);
+                        self.move_vertex(i, vi, nv);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn scale_object(&mut self, obj: &HitObject, origin: Point3, factor: f64) {
+        match *obj {
+            HitObject::Point(i) => {
+                if let Some(p) = self.geometry.points.get(i).cloned() {
+                    let v = origin + (p - origin) * factor;
+                    self.update_point(i, v.x, v.y, v.z);
+                }
+            }
+            HitObject::Line(i) => {
+                if let Some((a, b, col, weight)) = self.geometry.lines.get(i).cloned() {
+                    let na = origin + (a - origin) * factor;
+                    let nb = origin + (b - origin) * factor;
+                    self.update_line(
+                        i,
+                        [na.x, na.y, na.z],
+                        [nb.x, nb.y, nb.z],
+                        [col.x as f32, col.y as f32, col.z as f32, col.w as f32],
+                        weight,
+                    );
+                }
+            }
+            HitObject::Surface(i) => {
+                if let Some(s) = self.geometry.surfaces.get(i).cloned() {
+                    for (vi, v) in s.vertices.iter().enumerate() {
+                        let nv = origin + (*v - origin) * factor;
+                        self.move_vertex(i, vi, nv);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Get the world position of a handle.
     pub fn handle_position(&self, handle_idx: usize) -> Option<Point3> {
         if let Some((_, handles)) = self.handles.as_ref() {
@@ -816,6 +984,37 @@ impl TruckBackend {
             lines,
             surface_vertices,
             solid_vertices,
+        }
+    }
+
+    fn object_center(&self, obj: &HitObject) -> Point3 {
+        match *obj {
+            HitObject::Point(i) => self.geometry.points.get(i).cloned().unwrap_or(Point3::new(0.0, 0.0, 0.0)),
+            HitObject::Line(i) => {
+                if let Some((a, b, _, _)) = self.geometry.lines.get(i) {
+                    let v = Vector3::new(a.x + b.x, a.y + b.y, a.z + b.z) * 0.5;
+                    Point3::new(v.x, v.y, v.z)
+                } else {
+                    Point3::new(0.0, 0.0, 0.0)
+                }
+            }
+            HitObject::Surface(i) => {
+                if let Some(s) = self.geometry.surfaces.get(i) {
+                    let mut sum = Vector3::new(0.0, 0.0, 0.0);
+                    let len = s.vertices.len() as f64;
+                    if len > 0.0 {
+                        for v in &s.vertices {
+                            sum += Vector3::new(v.x, v.y, v.z);
+                        }
+                        Point3::new(sum.x / len, sum.y / len, sum.z / len)
+                    } else {
+                        Point3::new(0.0, 0.0, 0.0)
+                    }
+                } else {
+                    Point3::new(0.0, 0.0, 0.0)
+                }
+            }
+            _ => Point3::new(0.0, 0.0, 0.0),
         }
     }
 
