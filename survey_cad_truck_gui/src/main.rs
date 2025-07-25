@@ -35,7 +35,7 @@ use truck_modeling::base::Vector3;
 const DEFAULT_MACRO_DIR: &str = "macros";
 
 mod truck_backend;
-use truck_backend::{HitObject, TruckBackend};
+use truck_backend::{HitObject, GizmoMode, TruckBackend};
 mod persistence;
 use persistence::{
     load_layers, load_styles, load_style_library, save_layers, save_styles,
@@ -2067,13 +2067,13 @@ fn main() -> Result<(), slint::PlatformError> {
                                         backend_inner.borrow_mut().highlight_surface(prev, false);
                                     }
                                     backend_inner.borrow_mut().highlight_surface(i, true);
-                                    backend_inner.borrow_mut().show_surface_handles(i);
+                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Surface(i));
                                 }
                                 HitObject::Point(i) => {
-                                    backend_inner.borrow_mut().show_point_handles(i);
+                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Point(i));
                                 }
                                 HitObject::Line(i) => {
-                                    backend_inner.borrow_mut().show_line_handles(i);
+                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Line(i));
                                 }
                                 _ => {
                                     if let Some(prev) = selected_surface_ref.take() {
