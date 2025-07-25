@@ -31,3 +31,12 @@ fn point_offset_basic() {
     assert!((p.x - 5.0).abs() < 1e-6);
     assert!((p.y - 2.0).abs() < 1e-6);
 }
+
+#[test]
+fn bearing_bearing_basic() {
+    let a = Point::new(0.0, 0.0);
+    let b = Point::new(1.0, 1.0);
+    let pt = bearing_bearing_intersection(a, 0.0, b, -std::f64::consts::FRAC_PI_2).unwrap();
+    assert!((pt.x - 1.0).abs() < 1e-6);
+    assert!(pt.y.abs() < 1e-6);
+}
