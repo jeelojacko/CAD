@@ -35,11 +35,11 @@ use truck_modeling::base::Vector3;
 const DEFAULT_MACRO_DIR: &str = "macros";
 
 mod truck_backend;
-use truck_backend::{HitObject, GizmoMode, TruckBackend};
+use truck_backend::{GizmoMode, HitObject, TruckBackend};
 mod persistence;
 use persistence::{
-    load_layers, load_styles, load_style_library, save_layers, save_styles,
-    save_style_library, StyleSettings,
+    load_layers, load_style_library, load_styles, save_layers, save_style_library, save_styles,
+    StyleSettings,
 };
 mod commands;
 mod cross_section;
@@ -518,11 +518,19 @@ fn main() -> Result<(), slint::PlatformError> {
                         let x2 = d.get_x2().parse::<f64>().ok()?;
                         let y2 = d.get_y2().parse::<f64>().ok()?;
                         let b2 = d.get_b2().parse::<f64>().ok()?;
-                        survey_cad::surveying::bearing_bearing_intersection(Point::new(x1, y1), b1, Point::new(x2, y2), b2)
+                        survey_cad::surveying::bearing_bearing_intersection(
+                            Point::new(x1, y1),
+                            b1,
+                            Point::new(x2, y2),
+                            b2,
+                        )
                     })();
                     if let Some(pt) = res {
                         spawn_point(&db, &styles, &be, pt);
-                        stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                        stack.borrow_mut().push(Command::RemovePoint {
+                            index: db.borrow().len() - 1,
+                            point: pt,
+                        });
                     } else if let Some(app) = weak2.upgrade() {
                         app.set_status(SharedString::from("No intersection"));
                     }
@@ -530,7 +538,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
             dlg.show().unwrap();
         });
     }
@@ -558,12 +570,20 @@ fn main() -> Result<(), slint::PlatformError> {
                         let x2 = d.get_x2().parse::<f64>().ok()?;
                         let y2 = d.get_y2().parse::<f64>().ok()?;
                         let d2 = d.get_d2().parse::<f64>().ok()?;
-                        survey_cad::surveying::bearing_distance_intersection(Point::new(x1, y1), b1, Point::new(x2, y2), d2)
+                        survey_cad::surveying::bearing_distance_intersection(
+                            Point::new(x1, y1),
+                            b1,
+                            Point::new(x2, y2),
+                            d2,
+                        )
                     })();
                     if let Some(pts) = res {
                         for pt in pts {
                             spawn_point(&db, &styles, &be, pt);
-                            stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                            stack.borrow_mut().push(Command::RemovePoint {
+                                index: db.borrow().len() - 1,
+                                point: pt,
+                            });
                         }
                     } else if let Some(app) = weak2.upgrade() {
                         app.set_status(SharedString::from("No intersection"));
@@ -572,7 +592,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
             dlg.show().unwrap();
         });
     }
@@ -592,7 +616,11 @@ fn main() -> Result<(), slint::PlatformError> {
                         let y2 = d.get_y2().parse::<f64>().ok()?;
                         let x3 = d.get_x3().parse::<f64>().ok()?;
                         let y3 = d.get_y3().parse::<f64>().ok()?;
-                        Some(survey_cad::surveying::deflection_angle(Point::new(x1, y1), Point::new(x2, y2), Point::new(x3, y3)))
+                        Some(survey_cad::surveying::deflection_angle(
+                            Point::new(x1, y1),
+                            Point::new(x2, y2),
+                            Point::new(x3, y3),
+                        ))
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(a) = res {
@@ -605,7 +633,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
             dlg.show().unwrap();
         });
     }
@@ -633,11 +665,19 @@ fn main() -> Result<(), slint::PlatformError> {
                         let y2 = d.get_y2().parse::<f64>().ok()?;
                         let dist = d.get_distance().parse::<f64>().ok()?;
                         let off = d.get_offset().parse::<f64>().ok()?;
-                        Some(survey_cad::surveying::point_offset(Point::new(x1, y1), Point::new(x2, y2), dist, off))
+                        Some(survey_cad::surveying::point_offset(
+                            Point::new(x1, y1),
+                            Point::new(x2, y2),
+                            dist,
+                            off,
+                        ))
                     })();
                     if let Some(pt) = res {
                         spawn_point(&db, &styles, &be, pt);
-                        stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                        stack.borrow_mut().push(Command::RemovePoint {
+                            index: db.borrow().len() - 1,
+                            point: pt,
+                        });
                     } else if let Some(app) = weak2.upgrade() {
                         app.set_status(SharedString::from("Invalid input"));
                     }
@@ -645,7 +685,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 }
             });
             let dlg_weak2 = dlg.as_weak();
-            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.on_cancel(move || {
+                if let Some(d) = dlg_weak2.upgrade() {
+                    let _ = d.hide();
+                }
+            });
             dlg.show().unwrap();
         });
     }
@@ -1473,6 +1517,56 @@ fn main() -> Result<(), slint::PlatformError> {
                             arcs.borrow_mut().push(a);
                         }
                     }
+                    commands::ParsedCommand::BearingBearing { p1, b1, p2, b2 } => {
+                        if let Some(pt) =
+                            survey_cad::surveying::bearing_bearing_intersection(p1, b1, p2, b2)
+                        {
+                            spawn_point(&point_db, &point_style_indices, &backend, pt);
+                            command_stack.borrow_mut().push(Command::RemovePoint {
+                                index: point_db.borrow().len() - 1,
+                                point: pt,
+                            });
+                        } else if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from("No intersection"));
+                        }
+                    }
+                    commands::ParsedCommand::BearingDistance { p1, b1, p2, d2 } => {
+                        if let Some(pts) =
+                            survey_cad::surveying::bearing_distance_intersection(p1, b1, p2, d2)
+                        {
+                            for pt in pts {
+                                spawn_point(&point_db, &point_style_indices, &backend, pt);
+                                command_stack.borrow_mut().push(Command::RemovePoint {
+                                    index: point_db.borrow().len() - 1,
+                                    point: pt,
+                                });
+                            }
+                        } else if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from("No intersection"));
+                        }
+                    }
+                    commands::ParsedCommand::Deflection { a, b, c } => {
+                        let ang = survey_cad::surveying::deflection_angle(a, b, c);
+                        if let Some(app) = weak.upgrade() {
+                            app.set_status(SharedString::from(format!(
+                                "Deflection: {:.3} rad",
+                                ang
+                            )));
+                        }
+                    }
+                    commands::ParsedCommand::PointOffset {
+                        a,
+                        b,
+                        distance,
+                        offset,
+                    } => {
+                        let pt = survey_cad::surveying::point_offset(a, b, distance, offset);
+                        spawn_point(&point_db, &point_style_indices, &backend, pt);
+                        command_stack.borrow_mut().push(Command::RemovePoint {
+                            index: point_db.borrow().len() - 1,
+                            point: pt,
+                        });
+                    }
                     commands::ParsedCommand::Load(path) => {
                         match read_points_list(&path, *workspace_crs_ref.borrow()) {
                             Ok(pts) => {
@@ -2221,13 +2315,19 @@ fn main() -> Result<(), slint::PlatformError> {
                                         backend_inner.borrow_mut().highlight_surface(prev, false);
                                     }
                                     backend_inner.borrow_mut().highlight_surface(i, true);
-                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Surface(i));
+                                    backend_inner
+                                        .borrow_mut()
+                                        .show_gizmo(GizmoMode::Translate, HitObject::Surface(i));
                                 }
                                 HitObject::Point(i) => {
-                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Point(i));
+                                    backend_inner
+                                        .borrow_mut()
+                                        .show_gizmo(GizmoMode::Translate, HitObject::Point(i));
                                 }
                                 HitObject::Line(i) => {
-                                    backend_inner.borrow_mut().show_gizmo(GizmoMode::Translate, HitObject::Line(i));
+                                    backend_inner
+                                        .borrow_mut()
+                                        .show_gizmo(GizmoMode::Translate, HitObject::Line(i));
                                 }
                                 _ => {
                                     if let Some(prev) = selected_surface_ref.take() {
@@ -3704,15 +3804,16 @@ fn main() -> Result<(), slint::PlatformError> {
                         let design = &surfs[0];
                         let ground = &surfs[1];
                         let al = &aligns[0];
-                        let haul = corridor::corridor_mass_haul(design, ground, al, width, interval, step);
-                        let (cut, fill) = corridor::corridor_cut_fill(design, ground, al, width, interval, step);
+                        let haul =
+                            corridor::corridor_mass_haul(design, ground, al, width, interval, step);
+                        let (cut, fill) =
+                            corridor::corridor_cut_fill(design, ground, al, width, interval, step);
                         Some((haul, cut, fill))
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some((haul, cut, fill)) = res {
                             let model = Rc::new(VecModel::<VolumeRow>::from(
-                                haul
-                                    .iter()
+                                haul.iter()
                                     .map(|(s, v)| VolumeRow {
                                         station: SharedString::from(format!("{s:.2}")),
                                         volume: SharedString::from(format!("{v:.3}")),
@@ -6510,7 +6611,11 @@ fn main() -> Result<(), slint::PlatformError> {
                 .map(|(i, s_idx)| {
                     if let Some((s, e)) = current_lines.get(i) {
                         LineRow {
-                            start: SharedString::from(format!("{sx:.2},{sy:.2}", sx = s.x, sy = s.y)),
+                            start: SharedString::from(format!(
+                                "{sx:.2},{sy:.2}",
+                                sx = s.x,
+                                sy = s.y
+                            )),
                             end: SharedString::from(format!("{ex:.2},{ey:.2}", ex = e.x, ey = e.y)),
                             style_index: *s_idx as i32,
                         }
@@ -6585,11 +6690,8 @@ fn main() -> Result<(), slint::PlatformError> {
                                     .iter()
                                     .map(|(n, _)| SharedString::from(n.clone()))
                                     .collect();
-                                *style_values.borrow_mut() = style_defs
-                                    .borrow()
-                                    .iter()
-                                    .map(|(_, s)| *s)
-                                    .collect();
+                                *style_values.borrow_mut() =
+                                    style_defs.borrow().iter().map(|(_, s)| *s).collect();
                                 let count = style_values.borrow().len();
                                 for idx in indices.borrow_mut().iter_mut() {
                                     if *idx >= count {
@@ -7232,7 +7334,10 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_settings(move || {
             let dlg = SettingsDialog::new().unwrap();
             let gs = grid_settings.borrow();
-            dlg.set_spacing_value(SharedString::from(format!("{spacing:.1}", spacing = gs.spacing)));
+            dlg.set_spacing_value(SharedString::from(format!(
+                "{spacing:.1}",
+                spacing = gs.spacing
+            )));
             dlg.set_color_r(SharedString::from(gs.color[0].to_string()));
             dlg.set_color_g(SharedString::from(gs.color[1].to_string()));
             dlg.set_color_b(SharedString::from(gs.color[2].to_string()));
@@ -7350,7 +7455,10 @@ fn main() -> Result<(), slint::PlatformError> {
         app.on_snap_settings(move || {
             let dlg = SnapSettingsDialog::new().unwrap();
             let prefs = snap_prefs_ref.borrow();
-            dlg.set_tolerance(SharedString::from(format!("{tol:.1}", tol = prefs.snap_tolerance)));
+            dlg.set_tolerance(SharedString::from(format!(
+                "{tol:.1}",
+                tol = prefs.snap_tolerance
+            )));
             dlg.set_snap_points(prefs.snap_points);
             dlg.set_snap_endpoints(prefs.snap_endpoints);
             dlg.set_snap_midpoints(prefs.snap_midpoints);
