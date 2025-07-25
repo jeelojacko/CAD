@@ -3,7 +3,16 @@
 use crate::geometry::{self, Point};
 
 pub mod cogo;
-pub use cogo::{bearing, forward, line_intersection};
+pub use cogo::{
+    bearing,
+    forward,
+    line_intersection,
+    line_bearing_intersection,
+    bearing_bearing_intersection,
+    bearing_distance_intersection,
+    deflection_angle,
+    point_offset,
+};
 
 pub mod adjustment;
 pub use adjustment::{

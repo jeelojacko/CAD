@@ -52,6 +52,61 @@ pub fn bearing_bearing_intersection(p1: Point, b1: f64, p2: Point, b2: f64) -> O
     line_intersection(p1, p1_end, p2, p2_end)
 }
 
+pub fn bearing_distance_intersection(
+    start: Point,
+    bearing: f64,
+    center: Point,
+    radius: f64,
+) -> Option<Vec<Point>> {
+    let dx = bearing.cos();
+    let dy = bearing.sin();
+    let fx = start.x - center.x;
+    let fy = start.y - center.y;
+    let b = fx * dx + fy * dy;
+    let c = fx * fx + fy * fy - radius * radius;
+    let disc = b * b - c;
+    if disc < 0.0 {
+        return None;
+    }
+    let sqrt_disc = disc.sqrt();
+    let mut pts = Vec::new();
+    for t in [-b - sqrt_disc, -b + sqrt_disc] {
+        if disc.abs() < f64::EPSILON && !pts.is_empty() {
+            break;
+        }
+        pts.push(Point::new(start.x + t * dx, start.y + t * dy));
+    }
+    Some(pts)
+}
+
+pub fn deflection_angle(a: Point, b: Point, c: Point) -> f64 {
+    let ang1 = bearing(b, a);
+    let ang2 = bearing(b, c);
+    let mut phi = ang2 - ang1;
+    while phi <= -std::f64::consts::PI {
+        phi += 2.0 * std::f64::consts::PI;
+    }
+    while phi > std::f64::consts::PI {
+        phi -= 2.0 * std::f64::consts::PI;
+    }
+    phi
+}
+
+pub fn point_offset(start: Point, end: Point, distance: f64, offset: f64) -> Point {
+    let dx = end.x - start.x;
+    let dy = end.y - start.y;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len.abs() < f64::EPSILON {
+        return start;
+    }
+    let t = distance / len;
+    let x = start.x + t * dx;
+    let y = start.y + t * dy;
+    let nx = -dy / len;
+    let ny = dx / len;
+    Point::new(x + offset * nx, y + offset * ny)
+}
+
 /// Calculates the intersection points of two circles. Each circle is defined by
 /// its center and radius. Returns `None` if the circles do not intersect or are
 /// coincident.
