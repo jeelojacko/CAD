@@ -51,6 +51,10 @@ pub enum ParsedCommand {
     Line(Point, Point),
     Circle { center: Point, radius: f64 },
     Arc { p1: Point, p2: Point, p3: Point },
+    BearingBearing { p1: Point, b1: f64, p2: Point, b2: f64 },
+    BearingDistance { p1: Point, b1: f64, p2: Point, d2: f64 },
+    Deflection { a: Point, b: Point, c: Point },
+    PointOffset { a: Point, b: Point, distance: f64, offset: f64 },
     Load(String),
     Export(String),
     Undo,
@@ -93,6 +97,42 @@ pub fn parse_command(cmd: &str) -> Option<ParsedCommand> {
                 p2: Point::new(x2, y2),
                 p3: Point::new(x3, y3),
             })
+        }
+        "bb" if parts.len() >= 7 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let b1 = parts[3].parse().ok()?;
+            let x2 = parts[4].parse().ok()?;
+            let y2 = parts[5].parse().ok()?;
+            let b2 = parts[6].parse().ok()?;
+            Some(ParsedCommand::BearingBearing { p1: Point::new(x1, y1), b1, p2: Point::new(x2, y2), b2 })
+        }
+        "bd" if parts.len() >= 7 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let b1 = parts[3].parse().ok()?;
+            let x2 = parts[4].parse().ok()?;
+            let y2 = parts[5].parse().ok()?;
+            let d2 = parts[6].parse().ok()?;
+            Some(ParsedCommand::BearingDistance { p1: Point::new(x1, y1), b1, p2: Point::new(x2, y2), d2 })
+        }
+        "defl" if parts.len() >= 7 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let x2 = parts[3].parse().ok()?;
+            let y2 = parts[4].parse().ok()?;
+            let x3 = parts[5].parse().ok()?;
+            let y3 = parts[6].parse().ok()?;
+            Some(ParsedCommand::Deflection { a: Point::new(x1, y1), b: Point::new(x2, y2), c: Point::new(x3, y3) })
+        }
+        "offset" if parts.len() >= 7 => {
+            let x1 = parts[1].parse().ok()?;
+            let y1 = parts[2].parse().ok()?;
+            let x2 = parts[3].parse().ok()?;
+            let y2 = parts[4].parse().ok()?;
+            let dist = parts[5].parse().ok()?;
+            let off = parts[6].parse().ok()?;
+            Some(ParsedCommand::PointOffset { a: Point::new(x1, y1), b: Point::new(x2, y2), distance: dist, offset: off })
         }
         "load" if parts.len() >= 2 => {
             Some(ParsedCommand::Load(parts[1..].join(" ")))

@@ -9368,6 +9368,7 @@ dependencies = [
  "log",
  "once_cell",
  "open",
+ "pipe_network",
  "pyo3",
  "pyo3-build-config",
  "rfd",
@@ -9385,6 +9386,7 @@ dependencies = [
  "tiny-skia",
  "truck-meshalgo",
  "truck-modeling",
+ "truck-rendimpl",
  "truck_cad_engine",
 ]
 

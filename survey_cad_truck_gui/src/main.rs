@@ -497,6 +497,160 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let point_styles = point_style_indices.clone();
+        let backend = backend.clone();
+        let command_stack = command_stack.clone();
+        app.on_bearing_bearing(move || {
+            let dlg = BearingBearingDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let db = point_db.clone();
+            let styles = point_styles.clone();
+            let be = backend.clone();
+            let stack = command_stack.clone();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let x1 = d.get_x1().parse::<f64>().ok()?;
+                        let y1 = d.get_y1().parse::<f64>().ok()?;
+                        let b1 = d.get_b1().parse::<f64>().ok()?;
+                        let x2 = d.get_x2().parse::<f64>().ok()?;
+                        let y2 = d.get_y2().parse::<f64>().ok()?;
+                        let b2 = d.get_b2().parse::<f64>().ok()?;
+                        survey_cad::surveying::bearing_bearing_intersection(Point::new(x1, y1), b1, Point::new(x2, y2), b2)
+                    })();
+                    if let Some(pt) = res {
+                        spawn_point(&db, &styles, &be, pt);
+                        stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                    } else if let Some(app) = weak2.upgrade() {
+                        app.set_status(SharedString::from("No intersection"));
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let point_styles = point_style_indices.clone();
+        let backend = backend.clone();
+        let command_stack = command_stack.clone();
+        app.on_bearing_distance(move || {
+            let dlg = BearingDistanceDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let db = point_db.clone();
+            let styles = point_styles.clone();
+            let be = backend.clone();
+            let stack = command_stack.clone();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let x1 = d.get_x1().parse::<f64>().ok()?;
+                        let y1 = d.get_y1().parse::<f64>().ok()?;
+                        let b1 = d.get_b1().parse::<f64>().ok()?;
+                        let x2 = d.get_x2().parse::<f64>().ok()?;
+                        let y2 = d.get_y2().parse::<f64>().ok()?;
+                        let d2 = d.get_d2().parse::<f64>().ok()?;
+                        survey_cad::surveying::bearing_distance_intersection(Point::new(x1, y1), b1, Point::new(x2, y2), d2)
+                    })();
+                    if let Some(pts) = res {
+                        for pt in pts {
+                            spawn_point(&db, &styles, &be, pt);
+                            stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                        }
+                    } else if let Some(app) = weak2.upgrade() {
+                        app.set_status(SharedString::from("No intersection"));
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        app.on_deflection_angle_tool(move || {
+            let dlg = DeflectionAngleDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let x1 = d.get_x1().parse::<f64>().ok()?;
+                        let y1 = d.get_y1().parse::<f64>().ok()?;
+                        let x2 = d.get_x2().parse::<f64>().ok()?;
+                        let y2 = d.get_y2().parse::<f64>().ok()?;
+                        let x3 = d.get_x3().parse::<f64>().ok()?;
+                        let y3 = d.get_y3().parse::<f64>().ok()?;
+                        Some(survey_cad::surveying::deflection_angle(Point::new(x1, y1), Point::new(x2, y2), Point::new(x3, y3)))
+                    })();
+                    if let Some(app) = weak2.upgrade() {
+                        if let Some(a) = res {
+                            app.set_status(SharedString::from(format!("Deflection: {:.3} rad", a)));
+                        } else {
+                            app.set_status(SharedString::from("Invalid input"));
+                        }
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let point_styles = point_style_indices.clone();
+        let backend = backend.clone();
+        let command_stack = command_stack.clone();
+        app.on_point_offset_tool(move || {
+            let dlg = PointOffsetDialog::new().unwrap();
+            let dlg_weak = dlg.as_weak();
+            let db = point_db.clone();
+            let styles = point_styles.clone();
+            let be = backend.clone();
+            let stack = command_stack.clone();
+            let weak2 = weak.clone();
+            dlg.on_accept(move || {
+                if let Some(d) = dlg_weak.upgrade() {
+                    let res = (|| {
+                        let x1 = d.get_x1().parse::<f64>().ok()?;
+                        let y1 = d.get_y1().parse::<f64>().ok()?;
+                        let x2 = d.get_x2().parse::<f64>().ok()?;
+                        let y2 = d.get_y2().parse::<f64>().ok()?;
+                        let dist = d.get_distance().parse::<f64>().ok()?;
+                        let off = d.get_offset().parse::<f64>().ok()?;
+                        Some(survey_cad::surveying::point_offset(Point::new(x1, y1), Point::new(x2, y2), dist, off))
+                    })();
+                    if let Some(pt) = res {
+                        spawn_point(&db, &styles, &be, pt);
+                        stack.borrow_mut().push(Command::RemovePoint { index: db.borrow().len() - 1, point: pt });
+                    } else if let Some(app) = weak2.upgrade() {
+                        app.set_status(SharedString::from("Invalid input"));
+                    }
+                    let _ = d.hide();
+                }
+            });
+            let dlg_weak2 = dlg.as_weak();
+            dlg.on_cancel(move || { if let Some(d) = dlg_weak2.upgrade() { let _ = d.hide(); } });
+            dlg.show().unwrap();
+        });
+    }
+    {
+        let weak = app.as_weak();
         app.on_menu_hovered(move |txt| {
             if let Some(app) = weak.upgrade() {
                 app.set_status(txt.clone());

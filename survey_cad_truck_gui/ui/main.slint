@@ -485,6 +485,94 @@ export component VolumeAnalysisDialog inherits Window {
     }
 }
 
+export component BearingBearingDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> b1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    in-out property <string> b2;
+    callback accept();
+    callback cancel();
+    title: "Bearing/Bearing";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "X1:"; } LineEdit { text <=> root.x1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y1:"; } LineEdit { text <=> root.y1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "B1:"; } LineEdit { text <=> root.b1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X2:"; } LineEdit { text <=> root.x2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y2:"; } LineEdit { text <=> root.y2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "B2:"; } LineEdit { text <=> root.b2; } }
+        HorizontalBox { spacing: 6px; Button { text: "OK"; clicked => { root.accept(); } } Button { text: "Cancel"; clicked => { root.cancel(); } } }
+    }
+}
+
+export component BearingDistanceDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> b1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    in-out property <string> d2;
+    callback accept();
+    callback cancel();
+    title: "Bearing/Distance";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "X1:"; } LineEdit { text <=> root.x1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y1:"; } LineEdit { text <=> root.y1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "B1:"; } LineEdit { text <=> root.b1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X2:"; } LineEdit { text <=> root.x2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y2:"; } LineEdit { text <=> root.y2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "D2:"; } LineEdit { text <=> root.d2; } }
+        HorizontalBox { spacing: 6px; Button { text: "OK"; clicked => { root.accept(); } } Button { text: "Cancel"; clicked => { root.cancel(); } } }
+    }
+}
+
+export component DeflectionAngleDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    in-out property <string> x3;
+    in-out property <string> y3;
+    callback accept();
+    callback cancel();
+    title: "Deflection Angle";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "X1:"; } LineEdit { text <=> root.x1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y1:"; } LineEdit { text <=> root.y1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X2:"; } LineEdit { text <=> root.x2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y2:"; } LineEdit { text <=> root.y2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X3:"; } LineEdit { text <=> root.x3; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y3:"; } LineEdit { text <=> root.y3; } }
+        HorizontalBox { spacing: 6px; Button { text: "OK"; clicked => { root.accept(); } } Button { text: "Cancel"; clicked => { root.cancel(); } } }
+    }
+}
+
+export component PointOffsetDialog inherits Window {
+    in-out property <string> x1;
+    in-out property <string> y1;
+    in-out property <string> x2;
+    in-out property <string> y2;
+    in-out property <string> distance;
+    in-out property <string> offset;
+    callback accept();
+    callback cancel();
+    title: "Point Offset";
+    VerticalBox {
+        spacing: 6px;
+        HorizontalBox { Text { color: #FFFFFF; text: "X1:"; } LineEdit { text <=> root.x1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y1:"; } LineEdit { text <=> root.y1; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "X2:"; } LineEdit { text <=> root.x2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Y2:"; } LineEdit { text <=> root.y2; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Dist:"; } LineEdit { text <=> root.distance; } }
+        HorizontalBox { Text { color: #FFFFFF; text: "Off:"; } LineEdit { text <=> root.offset; } }
+        HorizontalBox { spacing: 6px; Button { text: "OK"; clicked => { root.accept(); } } Button { text: "Cancel"; clicked => { root.cancel(); } } }
+    }
+}
+
 export component DesignSectionDialog inherits Window {
     in-out property <string> start_station;
     in-out property <string> end_station;
@@ -1065,6 +1153,10 @@ export component MainWindow inherits Window {
     callback level_elevation_tool();
     callback corridor_volume();
     callback volume_analysis();
+    callback bearing_bearing();
+    callback bearing_distance();
+    callback deflection_angle_tool();
+    callback point_offset_tool();
     callback design_cross_sections();
     callback view_cross_sections();
     callback superelevation_editor();
@@ -1213,6 +1305,10 @@ export component MainWindow inherits Window {
             MenuItem { title: "Station Distance"; activated => { root.station_distance(); }}
             MenuItem { title: "Traverse Area"; activated => { root.traverse_area(); }}
             MenuItem { title: "Level Elevation"; activated => { root.level_elevation_tool(); }}
+            MenuItem { title: "Bearing/Bearing"; activated => { root.bearing_bearing(); }}
+            MenuItem { title: "Bearing/Distance"; activated => { root.bearing_distance(); }}
+            MenuItem { title: "Deflection Angle"; activated => { root.deflection_angle_tool(); }}
+            MenuItem { title: "Point Offset"; activated => { root.point_offset_tool(); }}
             MenuItem { title: "Corridor Volume"; activated => { root.corridor_volume(); }}
             MenuItem { title: "Volume Analysis"; activated => { root.volume_analysis(); }}
             MenuItem { title: "Superelevation..."; activated => { root.superelevation_editor(); }}
