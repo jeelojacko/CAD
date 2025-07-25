@@ -624,7 +624,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     })();
                     if let Some(app) = weak2.upgrade() {
                         if let Some(a) = res {
-                            app.set_status(SharedString::from(format!("Deflection: {:.3} rad", a)));
+                            app.set_status(SharedString::from(format!("Deflection: {a:.3} rad")));
                         } else {
                             app.set_status(SharedString::from("Invalid input"));
                         }
@@ -1549,8 +1549,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         let ang = survey_cad::surveying::deflection_angle(a, b, c);
                         if let Some(app) = weak.upgrade() {
                             app.set_status(SharedString::from(format!(
-                                "Deflection: {:.3} rad",
-                                ang
+                                "Deflection: {ang:.3} rad"
                             )));
                         }
                     }
