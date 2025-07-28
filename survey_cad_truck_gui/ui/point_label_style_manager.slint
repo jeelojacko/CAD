@@ -2,6 +2,7 @@ export struct PointLabelRow {
     start: string,
     end: string,
     style_index: int,
+    preview: image,
 }
 
 import { Button, VerticalBox, HorizontalBox, ComboBox, ListView } from "std-widgets.slint";
@@ -29,6 +30,7 @@ export component PointLabelStyleManager inherits Window {
                 Text { color: #FFFFFF; text: "Start"; width: 140px; }
                 Text { color: #FFFFFF; text: "End"; width: 140px; }
                 Text { color: #FFFFFF; text: "Style"; width: 80px; }
+                Text { color: #FFFFFF; text: "Preview"; width: 40px; }
             }
         }
         ListView {
@@ -47,6 +49,7 @@ export component PointLabelStyleManager inherits Window {
                         selected => { root.style_changed(i, self.current-index); }
                         width: 80px;
                     }
+                    Image { source: row.preview; width: 40px; height: 20px; }
                 }
                 TouchArea { width: 100%; height: 100%; clicked => { root.selected_index = i; } }
             }

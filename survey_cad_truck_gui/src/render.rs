@@ -2,18 +2,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use rusttype::{point, Font, Scale};
-use tiny_skia::{Color, Pixmap};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, Stroke, Transform};
+use slint::Image;
 
 use survey_cad::alignment::Alignment;
 use survey_cad::dtm::Tin;
-use survey_cad::geometry::{Arc, LineStyle, LinearDimension, Point, Polyline};
+use survey_cad::geometry::{Arc, LineStyle, LinearDimension, LineType, Point, Polyline};
 use survey_cad::geometry::point::PointStyle;
-use survey_cad::styles::{LineLabelStyle, PointLabelStyle};
+use survey_cad::styles::{LineLabelPosition, LineLabelStyle, PointLabelStyle};
 use truck_modeling::base::{Point3, Vector3};
 use truck_modeling::builder;
 use truck_modeling::topology::{Solid, Wire};
 
 use crate::ui_state::{CursorFeedback, DragSelect, Vec2};
+use crate::FONT;
 
 pub struct WorkspaceRenderData<'a> {
     pub points: &'a [Point],
@@ -206,4 +208,92 @@ pub fn polyline_to_solid(pl: &Polyline, vector: Vector3) -> Option<Solid> {
     let face = builder::try_attach_plane(&[wire]).ok()?;
     let solid: Solid = builder::tsweep(&face, vector);
     Some(solid)
+}
+
+pub fn line_style_preview(style: LineStyle, width: u32, height: u32) -> Image {
+    let mut pixmap = Pixmap::new(width, height).unwrap();
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(
+        style.color[0],
+        style.color[1],
+        style.color[2],
+        255,
+    ));
+    paint.anti_alias = true;
+    let mut stroke = Stroke { width: style.weight.0, ..Stroke::default() };
+    use tiny_skia::StrokeDash;
+    match style.line_type {
+        LineType::Dashed => stroke.dash = StrokeDash::new(vec![10.0, 10.0], 0.0),
+        LineType::Dotted => stroke.dash = StrokeDash::new(vec![2.0, 6.0], 0.0),
+        _ => {}
+    }
+    let mut pb = PathBuilder::new();
+    pb.move_to(2.0, height as f32 / 2.0);
+    pb.line_to(width as f32 - 2.0, height as f32 / 2.0);
+    if let Some(path) = pb.finish() {
+        pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        pixmap.data(),
+        width,
+        height,
+    );
+    Image::from_rgba8_premultiplied(buffer)
+}
+
+pub fn line_label_style_preview(style: LineLabelStyle, width: u32, height: u32) -> Image {
+    let mut pixmap = Pixmap::new(width, height).unwrap();
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    let mut paint = Paint::default();
+    paint.set_color(Color::from_rgba8(200, 200, 200, 255));
+    paint.anti_alias = true;
+    let stroke = Stroke { width: 1.0, ..Stroke::default() };
+    let mut pb = PathBuilder::new();
+    pb.move_to(2.0, height as f32 / 2.0);
+    pb.line_to(width as f32 - 2.0, height as f32 / 2.0);
+    if let Some(path) = pb.finish() {
+        pixmap.stroke_path(&path, &paint, &stroke, Transform::identity(), None);
+    }
+    let mut y = height as f32 / 2.0;
+    if matches!(style.position, LineLabelPosition::Above) {
+        y -= style.text_style.height as f32;
+    } else if matches!(style.position, LineLabelPosition::Below) {
+        y += style.text_style.height as f32 / 2.0;
+    }
+    draw_text(
+        &mut pixmap,
+        "Aa",
+        &FONT,
+        width as f32 / 2.0 - 6.0,
+        y,
+        Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255),
+        style.text_style.height as f32,
+    );
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        pixmap.data(),
+        width,
+        height,
+    );
+    Image::from_rgba8_premultiplied(buffer)
+}
+
+pub fn point_label_style_preview(style: PointLabelStyle, width: u32, height: u32) -> Image {
+    let mut pixmap = Pixmap::new(width, height).unwrap();
+    pixmap.fill(Color::from_rgba8(32, 32, 32, 255));
+    draw_text(
+        &mut pixmap,
+        "Pt",
+        &FONT,
+        (width as f32) / 2.0 + style.offset[0],
+        (height as f32) / 2.0 - style.offset[1],
+        Color::from_rgba8(style.color[0], style.color[1], style.color[2], 255),
+        style.text_style.height as f32,
+    );
+    let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+        pixmap.data(),
+        width,
+        height,
+    );
+    Image::from_rgba8_premultiplied(buffer)
 }

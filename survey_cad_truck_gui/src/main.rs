@@ -341,6 +341,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let style_names = line_style_names.clone();
         let lines = lines.clone();
         let indices = line_style_indices.clone();
+        let style_values = line_style_values.clone();
         Rc::new(move || {
             let needed = style_names.borrow().len();
             {
@@ -352,6 +353,7 @@ fn main() -> Result<(), slint::PlatformError> {
             let style_model = Rc::new(VecModel::from(style_names.borrow().clone()));
             let current_indices = indices.borrow().clone();
             let current_lines = lines.borrow().clone();
+            let styles = style_values.borrow();
             let rows = current_indices
                 .iter()
                 .enumerate()
@@ -365,12 +367,22 @@ fn main() -> Result<(), slint::PlatformError> {
                             )),
                             end: SharedString::from(format!("{ex:.2},{ey:.2}", ex = e.x, ey = e.y)),
                             style_index: *s_idx as i32,
+                            preview: crate::render::line_style_preview(
+                                *styles.get(*s_idx).unwrap_or(&LineStyle::default()),
+                                40,
+                                20,
+                            ),
                         }
                     } else {
                         LineRow {
                             start: SharedString::from(""),
                             end: SharedString::from(""),
                             style_index: *s_idx as i32,
+                            preview: crate::render::line_style_preview(
+                                *styles.get(*s_idx).unwrap_or(&LineStyle::default()),
+                                40,
+                                20,
+                            ),
                         }
                     }
                 })
@@ -6600,6 +6612,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let lines = lines.clone();
         let line_style_indices = line_style_indices.clone();
         let line_style_names = line_style_names.clone();
+        let line_style_values = line_style_values.clone();
         let render_image = render_image.clone();
         let dialogs = open_line_style_managers.clone();
         let refresh_line_style_dialogs_ref = refresh_line_style_dialogs.clone();
@@ -6617,6 +6630,7 @@ fn main() -> Result<(), slint::PlatformError> {
             }
             let current_indices = line_style_indices.borrow().clone();
             let current_lines = lines.borrow().clone();
+            let styles = line_style_values.borrow();
             let rows = current_indices
                 .iter()
                 .enumerate()
@@ -6630,12 +6644,22 @@ fn main() -> Result<(), slint::PlatformError> {
                             )),
                             end: SharedString::from(format!("{ex:.2},{ey:.2}", ex = e.x, ey = e.y)),
                             style_index: *s_idx as i32,
+                            preview: crate::render::line_style_preview(
+                                *styles.get(*s_idx).unwrap_or(&LineStyle::default()),
+                                40,
+                                20,
+                            ),
                         }
                     } else {
                         LineRow {
                             start: SharedString::from(""),
                             end: SharedString::from(""),
                             style_index: *s_idx as i32,
+                            preview: crate::render::line_style_preview(
+                                *styles.get(*s_idx).unwrap_or(&LineStyle::default()),
+                                40,
+                                20,
+                            ),
                         }
                     }
                 })
@@ -6648,12 +6672,21 @@ fn main() -> Result<(), slint::PlatformError> {
             {
                 let model = model.clone();
                 let indices = line_style_indices.clone();
+                let styles = line_style_values.clone();
                 let weak = weak.clone();
                 let render_image = render_image.clone();
                 dlg.on_style_changed(move |idx, style_idx| {
                     if let Some(row) = model.row_data(idx as usize) {
                         let mut r = row.clone();
                         r.style_index = style_idx;
+                        r.preview = crate::render::line_style_preview(
+                            *styles
+                                .borrow()
+                                .get(style_idx as usize)
+                                .unwrap_or(&LineStyle::default()),
+                            40,
+                            20,
+                        );
                         model.set_row_data(idx as usize, r);
                         {
                             let mut iref = indices.borrow_mut();
