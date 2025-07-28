@@ -522,25 +522,21 @@ impl TruckCadEngine {
 
     fn update_lod(&mut self) {
         if !self.lod_enabled {
-            for surf in &mut self.surfaces {
-                if let Some(s) = surf {
-                    if !s.visible {
-                        self.scene.set_visibility(&s.instance, true);
-                        s.visible = true;
-                    }
+            for s in self.surfaces.iter_mut().flatten() {
+                if !s.visible {
+                    self.scene.set_visibility(&s.instance, true);
+                    s.visible = true;
                 }
             }
             return;
         }
         let cam_pos = self.camera().position();
-        for surf in &mut self.surfaces {
-            if let Some(s) = surf {
-                let dist = (s.center - cam_pos).magnitude();
-                let vis = dist < self.lod_distance;
-                if vis != s.visible {
-                    self.scene.set_visibility(&s.instance, vis);
-                    s.visible = vis;
-                }
+        for s in self.surfaces.iter_mut().flatten() {
+            let dist = (s.center - cam_pos).magnitude();
+            let vis = dist < self.lod_distance;
+            if vis != s.visible {
+                self.scene.set_visibility(&s.instance, vis);
+                s.visible = vis;
             }
         }
     }
