@@ -1,6 +1,6 @@
 use slint::Image;
 use truck_cad_engine::TruckCadEngine;
-use truck_modeling::base::{Point3, Vector3, Vector4, Matrix4, Rad, InnerSpace, Transform};
+use truck_modeling::base::{InnerSpace, Matrix4, Point3, Rad, Transform, Vector3, Vector4};
 use truck_modeling::topology::Solid;
 use truck_rendimpl::PolygonState;
 
@@ -150,6 +150,14 @@ impl TruckBackend {
 
     pub fn render(&mut self) -> Image {
         self.engine.render_to_image()
+    }
+
+    pub fn set_lod(&mut self, enabled: bool, distance: f64) {
+        if enabled {
+            self.engine.enable_lod(distance);
+        } else {
+            self.engine.disable_lod();
+        }
     }
 
     pub fn rotate(&mut self, dx: f64, dy: f64) {
@@ -576,9 +584,12 @@ impl TruckBackend {
         self.hide_handles();
         let origin = self.object_center(&target);
         let ids = [
-            self.engine.add_point_marker(origin + Vector3::unit_x() * GIZMO_SIZE),
-            self.engine.add_point_marker(origin + Vector3::unit_y() * GIZMO_SIZE),
-            self.engine.add_point_marker(origin + Vector3::unit_z() * GIZMO_SIZE),
+            self.engine
+                .add_point_marker(origin + Vector3::unit_x() * GIZMO_SIZE),
+            self.engine
+                .add_point_marker(origin + Vector3::unit_y() * GIZMO_SIZE),
+            self.engine
+                .add_point_marker(origin + Vector3::unit_z() * GIZMO_SIZE),
         ]
         .to_vec();
         self.gizmo_origin = Some(origin);
@@ -650,14 +661,22 @@ impl TruckBackend {
                             let start_vec = (axis * GIZMO_SIZE).normalize();
                             let new_vec = (new_pos - origin).normalize();
                             let angle = start_vec.angle(new_vec);
-                            let sign = if start_vec.cross(new_vec).dot(axis) < 0.0 { -1.0 } else { 1.0 };
+                            let sign = if start_vec.cross(new_vec).dot(axis) < 0.0 {
+                                -1.0
+                            } else {
+                                1.0
+                            };
                             self.rotate_object(&obj, origin, axis, angle.0 * sign);
                             self.gizmo_origin = Some(self.object_center(&obj));
                         }
                         GizmoMode::Scale => {
                             let start_len = GIZMO_SIZE;
                             let new_len = (new_pos - origin).dot(axis);
-                            let factor = if start_len.abs() < f64::EPSILON { 1.0 } else { new_len / start_len };
+                            let factor = if start_len.abs() < f64::EPSILON {
+                                1.0
+                            } else {
+                                new_len / start_len
+                            };
                             self.scale_object(&obj, origin, factor);
                             self.gizmo_origin = Some(self.object_center(&obj));
                         }
@@ -989,7 +1008,12 @@ impl TruckBackend {
 
     fn object_center(&self, obj: &HitObject) -> Point3 {
         match *obj {
-            HitObject::Point(i) => self.geometry.points.get(i).cloned().unwrap_or(Point3::new(0.0, 0.0, 0.0)),
+            HitObject::Point(i) => self
+                .geometry
+                .points
+                .get(i)
+                .cloned()
+                .unwrap_or(Point3::new(0.0, 0.0, 0.0)),
             HitObject::Line(i) => {
                 if let Some((a, b, _, _)) = self.geometry.lines.get(i) {
                     let v = Vector3::new(a.x + b.x, a.y + b.y, a.z + b.z) * 0.5;

@@ -26,15 +26,32 @@ pub struct CursorFeedback {
 pub enum DrawingMode {
     #[default]
     None,
-    Line { start: Option<Point> },
-    Polygon { vertices: Vec<Point> },
+    Line {
+        start: Option<Point>,
+    },
+    Polygon {
+        vertices: Vec<Point>,
+    },
     /// Center, start and end order
-    ArcCenter { center: Option<Point>, radius: Option<f64>, start_angle: Option<f64> },
+    ArcCenter {
+        center: Option<Point>,
+        radius: Option<f64>,
+        start_angle: Option<f64>,
+    },
     /// Three point arc
-    ArcThreePoint { p1: Option<Point>, p2: Option<Point> },
+    ArcThreePoint {
+        p1: Option<Point>,
+        p2: Option<Point>,
+    },
     /// Start, end, then radius via third click
-    ArcStartEndRadius { start: Option<Point>, end: Option<Point>, radius: Option<f64> },
-    Dimension { start: Option<Point> },
+    ArcStartEndRadius {
+        start: Option<Point>,
+        end: Option<Point>,
+        radius: Option<f64>,
+    },
+    Dimension {
+        start: Option<Point>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug, Default)]
@@ -94,6 +111,8 @@ pub struct Config {
     #[serde(default)]
     pub macro_dir: Option<String>,
     #[serde(default)]
+    pub lod_distance: Option<f64>,
+    #[serde(default)]
     pub crs_epsg: u32,
 }
 
@@ -110,6 +129,7 @@ impl Default for Config {
             theme: Theme::default(),
             font_path: None,
             macro_dir: None,
+            lod_distance: None,
             crs_epsg: 4326,
         }
     }

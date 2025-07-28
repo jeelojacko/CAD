@@ -113,6 +113,7 @@ static FONT: Lazy<Font<'static>> = Lazy::new(|| Font::try_from_bytes(FONT_DATA).
 fn main() -> Result<(), slint::PlatformError> {
     let mut cmd_font: Option<String> = None;
     let mut cmd_macro_dir: Option<String> = None;
+    let mut cmd_lod: Option<f64> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -126,6 +127,13 @@ fn main() -> Result<(), slint::PlatformError> {
                     cmd_macro_dir = Some(p);
                 }
             }
+            "--lod" => {
+                if let Some(v) = args.next() {
+                    if let Ok(d) = v.parse::<f64>() {
+                        cmd_lod = Some(d);
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -137,6 +145,10 @@ fn main() -> Result<(), slint::PlatformError> {
     }
     if let Some(p) = cmd_macro_dir {
         cfg.macro_dir = Some(p);
+        save_config(&cfg);
+    }
+    if let Some(d) = cmd_lod {
+        cfg.lod_distance = Some(d);
         save_config(&cfg);
     }
     let config = Rc::new(RefCell::new(cfg));
@@ -154,6 +166,9 @@ fn main() -> Result<(), slint::PlatformError> {
         config.borrow().window_width,
         config.borrow().window_height,
     )));
+    if let Some(d) = config.borrow().lod_distance {
+        backend.borrow_mut().set_lod(true, d);
+    }
     // Always populate the font database with the system fonts first so that the
     // embedded font can complement, rather than replace, them. This ensures
     // that built-in controls can resolve their default fonts while we still
@@ -1548,9 +1563,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     commands::ParsedCommand::Deflection { a, b, c } => {
                         let ang = survey_cad::surveying::deflection_angle(a, b, c);
                         if let Some(app) = weak.upgrade() {
-                            app.set_status(SharedString::from(format!(
-                                "Deflection: {ang:.3} rad"
-                            )));
+                            app.set_status(SharedString::from(format!("Deflection: {ang:.3} rad")));
                         }
                     }
                     commands::ParsedCommand::PointOffset {

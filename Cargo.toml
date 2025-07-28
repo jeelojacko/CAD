@@ -16,3 +16,6 @@ resolver = "2"
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
+
+[workspace.dev-dependencies]
+criterion = "0.5"

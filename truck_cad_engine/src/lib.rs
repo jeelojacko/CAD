@@ -14,18 +14,41 @@ pub struct TruckCadEngine {
     point_markers: Vec<Option<PolygonInstance>>,
     lines: Vec<Option<WireFrameInstance>>,
     surfaces: Vec<Option<Surface>>,
+    lod_enabled: bool,
+    lod_distance: f64,
 }
 
 struct Surface {
     instance: PolygonInstance,
     vertices: Vec<truck::base::Point3>,
     triangles: Vec<[usize; 3]>,
+    center: truck::base::Point3,
+    radius: f64,
+    visible: bool,
 }
 
 impl TruckCadEngine {
+    fn compute_bounds(verts: &[truck::base::Point3]) -> (truck::base::Point3, f64) {
+        if verts.is_empty() {
+            return (truck::base::Point3::new(0.0, 0.0, 0.0), 0.0);
+        }
+        let mut sum = truck::base::Vector3::new(0.0, 0.0, 0.0);
+        for v in verts {
+            sum += v.to_vec();
+        }
+        let center = truck::base::Point3::from_vec(sum / verts.len() as f64);
+        let mut radius = 0.0;
+        for v in verts {
+            let d = (*v - center).magnitude();
+            if d > radius {
+                radius = d;
+            }
+        }
+        (center, radius)
+    }
+
     fn rebuild_surface_internal(&mut self, surface_id: usize) {
         if let Some(Some(surface)) = self.surfaces.get_mut(surface_id) {
-            self.scene.remove_object(&surface.instance);
             let attrs = StandardAttributes {
                 positions: surface.vertices.clone(),
                 ..Default::default()
@@ -55,11 +78,14 @@ impl TruckCadEngine {
                 .collect();
             let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
             let mesh = PolygonMesh::new(attrs, faces);
-            let new_inst = self
+            let mut new_inst = self
                 .creator
                 .create_instance(&mesh, &PolygonState::default());
-            self.scene.add_object(&new_inst);
-            surface.instance = new_inst;
+            surface.instance.swap_vertex(&mut new_inst);
+            self.scene.update_vertex_buffer(&surface.instance);
+            let (c, r) = Self::compute_bounds(&surface.vertices);
+            surface.center = c;
+            surface.radius = r;
         }
     }
 }
@@ -84,6 +110,8 @@ impl TruckCadEngine {
             point_markers: Vec::new(),
             lines: Vec::new(),
             surfaces: Vec::new(),
+            lod_enabled: false,
+            lod_distance: 100.0,
         }
     }
 
@@ -117,7 +145,10 @@ impl TruckCadEngine {
         for (verts, tris) in meshes {
             let offset = vertices.len();
             vertices.extend_from_slice(verts);
-            triangles.extend(tris.iter().map(|t| [t[0] + offset, t[1] + offset, t[2] + offset]));
+            triangles.extend(
+                tris.iter()
+                    .map(|t| [t[0] + offset, t[1] + offset, t[2] + offset]),
+            );
         }
         if vertices.is_empty() {
             return;
@@ -130,9 +161,21 @@ impl TruckCadEngine {
             .iter()
             .map(|t| {
                 [
-                    StandardVertex { pos: t[0], uv: None, nor: None },
-                    StandardVertex { pos: t[1], uv: None, nor: None },
-                    StandardVertex { pos: t[2], uv: None, nor: None },
+                    StandardVertex {
+                        pos: t[0],
+                        uv: None,
+                        nor: None,
+                    },
+                    StandardVertex {
+                        pos: t[1],
+                        uv: None,
+                        nor: None,
+                    },
+                    StandardVertex {
+                        pos: t[2],
+                        uv: None,
+                        nor: None,
+                    },
                 ]
             })
             .collect();
@@ -266,10 +309,14 @@ impl TruckCadEngine {
             .creator
             .create_instance(&mesh, &PolygonState::default());
         self.scene.add_object(&instance);
+        let (c, r) = Self::compute_bounds(vertices);
         self.surfaces.push(Some(Surface {
             instance,
             vertices: vertices.to_vec(),
             triangles: triangles.to_vec(),
+            center: c,
+            radius: r,
+            visible: true,
         }));
         self.surfaces.len() - 1
     }
@@ -282,7 +329,6 @@ impl TruckCadEngine {
         triangles: &[[usize; 3]],
     ) {
         if let Some(Some(surface)) = self.surfaces.get_mut(id) {
-            self.scene.remove_object(&surface.instance);
             let attrs = StandardAttributes {
                 positions: vertices.to_vec(),
                 ..Default::default()
@@ -311,13 +357,16 @@ impl TruckCadEngine {
                 .collect();
             let faces = Faces::from_tri_and_quad_faces(tri_faces, Vec::new());
             let mesh = PolygonMesh::new(attrs, faces);
-            let new_inst = self
+            let mut new_inst = self
                 .creator
                 .create_instance(&mesh, &PolygonState::default());
-            self.scene.add_object(&new_inst);
-            surface.instance = new_inst;
+            surface.instance.swap_vertex(&mut new_inst);
+            self.scene.update_vertex_buffer(&surface.instance);
             surface.vertices = vertices.to_vec();
             surface.triangles = triangles.to_vec();
+            let (c, r) = Self::compute_bounds(vertices);
+            surface.center = c;
+            surface.radius = r;
         }
     }
 
@@ -410,6 +459,7 @@ impl TruckCadEngine {
 
     /// Render the scene into a [`slint::Image`].
     pub fn render_to_image(&mut self) -> Image {
+        self.update_lod();
         let bytes = block_on(self.scene.render_to_buffer());
         let (w, h) = self.scene.descriptor().render_texture.canvas_size;
         let buffer = SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(&bytes, w, h);
@@ -445,6 +495,15 @@ impl TruckCadEngine {
         camera.matrix = Matrix4::from_translation(dir * (delta * 0.002)) * camera.matrix;
     }
 
+    pub fn enable_lod(&mut self, distance: f64) {
+        self.lod_enabled = true;
+        self.lod_distance = distance;
+    }
+
+    pub fn disable_lod(&mut self) {
+        self.lod_enabled = false;
+    }
+
     /// Resize the render target.
     pub fn resize(&mut self, width: u32, height: u32) {
         let mut desc = self.scene.descriptor_mut();
@@ -459,6 +518,31 @@ impl TruckCadEngine {
     /// Returns the size of the render target.
     pub fn canvas_size(&self) -> (u32, u32) {
         self.scene.descriptor().render_texture.canvas_size
+    }
+
+    fn update_lod(&mut self) {
+        if !self.lod_enabled {
+            for surf in &mut self.surfaces {
+                if let Some(s) = surf {
+                    if !s.visible {
+                        self.scene.set_visibility(&s.instance, true);
+                        s.visible = true;
+                    }
+                }
+            }
+            return;
+        }
+        let cam_pos = self.camera().position();
+        for surf in &mut self.surfaces {
+            if let Some(s) = surf {
+                let dist = (s.center - cam_pos).magnitude();
+                let vis = dist < self.lod_distance;
+                if vis != s.visible {
+                    self.scene.set_visibility(&s.instance, vis);
+                    s.visible = vis;
+                }
+            }
+        }
     }
 
     /// Project a 3D point to screen coordinates (pixels).
