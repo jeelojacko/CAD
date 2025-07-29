@@ -323,6 +323,8 @@ fn main() -> Result<(), slint::PlatformError> {
     ]));
     let line_label_styles = style_settings.line_label_styles.clone();
     let point_label_styles = style_settings.point_label_styles.clone();
+    let line_label_style = Rc::new(RefCell::new(line_label_styles[0].1.clone()));
+    let line_label_style_index = Rc::new(RefCell::new(0usize));
     let point_label_style = Rc::new(RefCell::new(point_label_styles[0].1.clone()));
     let line_style_names: Rc<RefCell<Vec<SharedString>>> = Rc::new(RefCell::new(
         line_style_defs
@@ -430,7 +432,7 @@ fn main() -> Result<(), slint::PlatformError> {
         let cursor_feedback = cursor_feedback.clone();
         let snap_target = snap_target.clone();
         let drawing_mode = drawing_mode.clone();
-        let label_style = line_label_styles[0].1.clone();
+        let line_label_style = line_label_style.clone();
         let point_label_style = point_label_style.clone();
         let grid_settings_ref = grid_settings.clone();
         move || {
@@ -479,7 +481,7 @@ fn main() -> Result<(), slint::PlatformError> {
                     polygon_style_indices: &polygon_style_indices,
                     alignment_style: &alignment_style,
                     show_labels: true,
-                    label_style: &label_style,
+                    label_style: &line_label_style.borrow(),
                     point_label_style: &point_label_style.borrow(),
                     show_point_numbers: show_numbers,
                 },
@@ -6769,6 +6771,121 @@ fn main() -> Result<(), slint::PlatformError> {
                                 ..Default::default()
                             };
                             let _ = save_style_library(Path::new(p), &settings);
+                        }
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let line_label_style = line_label_style.clone();
+        let line_label_style_index = line_label_style_index.clone();
+        let render_image = render_image.clone();
+        let style_defs = line_label_styles.clone();
+        app.on_line_label_style_manager(move || {
+            let dlg = LineLabelStyleManager::new().unwrap();
+            let style_names: Vec<SharedString> =
+                style_defs.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+            dlg.set_styles_model(Rc::new(VecModel::from(style_names)).into());
+            let preview = crate::render::line_label_style_preview(
+                line_label_style.borrow().clone(),
+                40,
+                20,
+            );
+            let rows = vec![LineLabelRow {
+                start: SharedString::from(""),
+                end: SharedString::from(""),
+                style_index: *line_label_style_index.borrow() as i32,
+                preview,
+            }];
+            let model = Rc::new(VecModel::<LineLabelRow>::from(rows));
+            dlg.set_lines_model(model.clone().into());
+            dlg.set_selected_index(0);
+
+            {
+                let model = model.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let style_defs = style_defs.clone();
+                let line_label_style = line_label_style.clone();
+                let line_label_style_index = line_label_style_index.clone();
+                dlg.on_style_changed(move |_idx, style_idx| {
+                    *line_label_style_index.borrow_mut() = style_idx as usize;
+                    if let Some(row) = model.row_data(0) {
+                        let mut r = row.clone();
+                        r.style_index = style_idx;
+                        r.preview = crate::render::line_label_style_preview(
+                            style_defs[style_idx as usize].1.clone(),
+                            40,
+                            20,
+                        );
+                        model.set_row_data(0, r);
+                    }
+                    *line_label_style.borrow_mut() = style_defs[style_idx as usize].1.clone();
+                    if let Some(app) = weak.upgrade() {
+                        if app.get_workspace_mode() == 0 {
+                            crate::set_workspace_image_result(&app, &render_image);
+                            app.window().request_redraw();
+                        }
+                    }
+                });
+            }
+
+            dlg.show().unwrap();
+        });
+    }
+
+    {
+        let weak = app.as_weak();
+        let point_label_style = point_label_style.clone();
+        let render_image = render_image.clone();
+        let style_defs = point_label_styles.clone();
+        app.on_point_label_style_manager(move || {
+            let dlg = PointLabelStyleManager::new().unwrap();
+            let style_names: Vec<SharedString> =
+                style_defs.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+            dlg.set_styles_model(Rc::new(VecModel::from(style_names)).into());
+            let preview = crate::render::point_label_style_preview(
+                point_label_style.borrow().clone(),
+                40,
+                20,
+            );
+            let rows = vec![PointLabelRow {
+                start: SharedString::from(""),
+                end: SharedString::from(""),
+                style_index: 0,
+                preview,
+            }];
+            let model = Rc::new(VecModel::<PointLabelRow>::from(rows));
+            dlg.set_lines_model(model.clone().into());
+            dlg.set_selected_index(0);
+
+            {
+                let model = model.clone();
+                let weak = weak.clone();
+                let render_image = render_image.clone();
+                let style_defs = style_defs.clone();
+                let point_label_style = point_label_style.clone();
+                dlg.on_style_changed(move |_idx, style_idx| {
+                    if let Some(row) = model.row_data(0) {
+                        let mut r = row.clone();
+                        r.style_index = style_idx;
+                        r.preview = crate::render::point_label_style_preview(
+                            style_defs[style_idx as usize].1.clone(),
+                            40,
+                            20,
+                        );
+                        model.set_row_data(0, r);
+                    }
+                    *point_label_style.borrow_mut() = style_defs[style_idx as usize].1.clone();
+                    if let Some(app) = weak.upgrade() {
+                        if app.get_workspace_mode() == 0 {
+                            crate::set_workspace_image_result(&app, &render_image);
+                            app.window().request_redraw();
                         }
                     }
                 });
