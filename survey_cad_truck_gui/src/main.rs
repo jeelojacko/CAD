@@ -2841,6 +2841,8 @@ fn main() -> Result<(), slint::PlatformError> {
         let alignments_save = alignments.clone();
         let alignment_groups_save = alignment_groups.clone();
         let layer_names_save = layer_names.clone();
+        let line_label_styles_save = line_label_styles.clone();
+        let point_label_styles_save = point_label_styles.clone();
         app.on_save_project(move || {
             let mut dialog = rfd::FileDialog::new();
             if let Some(dir) = last_dir.borrow().as_ref() {
@@ -2886,8 +2888,8 @@ fn main() -> Result<(), slint::PlatformError> {
                         line_styles: style_defs_save.borrow().clone(),
                         polygon_styles: polygon_styles.clone(),
                         alignment_styles: alignment_styles.clone(),
-                        line_label_styles: line_label_styles.clone(),
-                        point_label_styles: point_label_styles.clone(),
+                        line_label_styles: line_label_styles_save.clone(),
+                        point_label_styles: point_label_styles_save.clone(),
                     };
                     let _ = save_styles(&base.with_extension("styles.json"), &style_settings);
 
@@ -6342,8 +6344,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_style_names = point_style_names.clone();
         let render_image_pm = render_image.clone();
         let backend_render = backend.clone();
+        let point_label_style_pm = point_label_style.clone();
         app.on_point_manager(move || {
             let render_image = render_image_pm.clone();
+            let point_label_style = point_label_style_pm.clone();
             let dlg = PointManager::new().unwrap();
             let dlg_weak = dlg.as_weak();
             let model = Rc::new(VecModel::<PointRow>::from(
