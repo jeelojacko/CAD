@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::error::GuiError;
 
-use slint::{ComponentHandle, Image, SharedString, VecModel};
+use slint::{Image, SharedString, VecModel};
 
 use survey_cad::geometry::Point;
 
@@ -88,7 +88,6 @@ pub fn show_inspector_for_point(
     measurement: &Rc<RefCell<Vec<String>>>,
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
-    inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
     render_image: Rc<dyn Fn() -> Result<Image, GuiError>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
@@ -127,31 +126,24 @@ pub fn show_inspector_for_point(
             .collect::<Vec<_>>(),
     ));
 
-    let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
-        w
-    } else {
-        let d = EntityInspector::new().unwrap();
-        *inspector.borrow_mut() = Some(d.as_weak());
-        d
-    };
-
-    dlg.set_layers_model(layer_model.into());
-    dlg.set_styles_model(style_model.into());
-    dlg.set_data_set_model(data_set_model.into());
-    dlg.set_entity_type(SharedString::from("Point"));
-    dlg.set_layer_index(layers.borrow()[idx] as i32);
-    dlg.set_style_index(styles.borrow()[idx] as i32);
-    dlg.set_metadata(SharedString::from(metadata.borrow()[idx].as_str()));
-    dlg.set_elevation(SharedString::from(elevation.borrow()[idx].as_str()));
-    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
-    dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
+    app.set_inspector_layers_model(layer_model.into());
+    app.set_inspector_styles_model(style_model.into());
+    app.set_inspector_hatch_model(Rc::new(VecModel::from(Vec::<SharedString>::new())).into());
+    app.set_inspector_data_set_model(data_set_model.into());
+    app.set_inspector_entity_type(SharedString::from("Point"));
+    app.set_inspector_layer_index(layers.borrow()[idx] as i32);
+    app.set_inspector_style_index(styles.borrow()[idx] as i32);
+    app.set_inspector_metadata(SharedString::from(metadata.borrow()[idx].as_str()));
+    app.set_inspector_elevation(SharedString::from(elevation.borrow()[idx].as_str()));
+    app.set_inspector_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
+    app.set_inspector_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
         let layers = layers.clone();
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_layer_changed(move |val| {
+        app.on_inspector_layer_index_changed(move |val| {
             if let Some(l) = layers.borrow_mut().get_mut(idx) {
                 *l = val as usize;
             }
@@ -166,7 +158,7 @@ pub fn show_inspector_for_point(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_style_changed(move |val| {
+        app.on_inspector_style_index_changed(move |val| {
             if let Some(s) = styles_ref.borrow_mut().get_mut(idx) {
                 *s = val as usize;
             }
@@ -181,7 +173,7 @@ pub fn show_inspector_for_point(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_metadata_changed(move |text| {
+        app.on_inspector_metadata_changed(move |text| {
             if let Some(m) = meta_ref.borrow_mut().get_mut(idx) {
                 *m = text.to_string();
             }
@@ -196,7 +188,7 @@ pub fn show_inspector_for_point(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_elevation_changed(move |text| {
+        app.on_inspector_elevation_changed(move |text| {
             if let Some(e) = elev_ref.borrow_mut().get_mut(idx) {
                 *e = text.to_string();
             }
@@ -211,7 +203,7 @@ pub fn show_inspector_for_point(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_measurement_changed(move |text| {
+        app.on_inspector_measurement_changed(move |text| {
             if let Some(m) = meas_ref.borrow_mut().get_mut(idx) {
                 *m = text.to_string();
             }
@@ -226,7 +218,7 @@ pub fn show_inspector_for_point(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_data_set_changed(move |val| {
+        app.on_inspector_data_set_index_changed(move |val| {
             if let Some(d) = ds_ref.borrow_mut().get_mut(idx) {
                 *d = val as usize;
             }
@@ -236,7 +228,7 @@ pub fn show_inspector_for_point(
         });
     }
 
-    dlg.show().unwrap();
+    app.set_inspector_visible(true);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -250,7 +242,6 @@ pub fn show_inspector_for_polygon(
     measurement: &Rc<RefCell<Vec<String>>>,
     data_sets: &Rc<RefCell<Vec<usize>>>,
     data_set_names: &Rc<RefCell<Vec<String>>>,
-    inspector: &Rc<RefCell<Option<slint::Weak<EntityInspector>>>>,
     render_image: Rc<dyn Fn() -> Result<Image, GuiError>>,
     backend: &Rc<RefCell<TruckBackend>>,
 ) {
@@ -283,24 +274,16 @@ pub fn show_inspector_for_polygon(
             .collect::<Vec<_>>(),
     ));
 
-    let dlg = if let Some(w) = inspector.borrow().as_ref().and_then(|w| w.upgrade()) {
-        w
-    } else {
-        let d = EntityInspector::new().unwrap();
-        *inspector.borrow_mut() = Some(d.as_weak());
-        d
-    };
-
-    dlg.set_layers_model(layer_model.into());
-    dlg.set_styles_model(Rc::new(VecModel::from(Vec::<SharedString>::new())).into());
-    dlg.set_hatch_model(hatch_model.into());
-    dlg.set_data_set_model(data_set_model.into());
-    dlg.set_entity_type(SharedString::from("Polygon"));
-    dlg.set_layer_index(layers.borrow()[idx] as i32);
-    dlg.set_hatch_index(hatches.borrow()[idx] as i32);
-    dlg.set_metadata(SharedString::from(""));
-    dlg.set_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
-    dlg.set_data_set_index(data_sets.borrow()[idx] as i32);
+    app.set_inspector_layers_model(layer_model.into());
+    app.set_inspector_styles_model(Rc::new(VecModel::from(Vec::<SharedString>::new())).into());
+    app.set_inspector_hatch_model(hatch_model.into());
+    app.set_inspector_data_set_model(data_set_model.into());
+    app.set_inspector_entity_type(SharedString::from("Polygon"));
+    app.set_inspector_layer_index(layers.borrow()[idx] as i32);
+    app.set_inspector_hatch_index(hatches.borrow()[idx] as i32);
+    app.set_inspector_metadata(SharedString::from(""));
+    app.set_inspector_measurement(SharedString::from(measurement.borrow()[idx].as_str()));
+    app.set_inspector_data_set_index(data_sets.borrow()[idx] as i32);
 
     {
         let layers = layers.clone();
@@ -322,7 +305,7 @@ pub fn show_inspector_for_polygon(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_hatch_changed(move |val| {
+        app.on_inspector_hatch_index_changed(move |val| {
             if let Some(h) = h_ref.borrow_mut().get_mut(idx) {
                 *h = val as usize;
             }
@@ -337,7 +320,7 @@ pub fn show_inspector_for_polygon(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_measurement_changed(move |text| {
+        app.on_inspector_measurement_changed(move |text| {
             if let Some(m) = meas_ref.borrow_mut().get_mut(idx) {
                 *m = text.to_string();
             }
@@ -352,7 +335,7 @@ pub fn show_inspector_for_polygon(
         let app_weak = app.as_weak();
         let backend = backend.clone();
         let render_image = render_image.clone();
-        dlg.on_data_set_changed(move |val| {
+        app.on_inspector_data_set_index_changed(move |val| {
             if let Some(d) = ds_ref.borrow_mut().get_mut(idx) {
                 *d = val as usize;
             }
@@ -362,5 +345,5 @@ pub fn show_inspector_for_polygon(
         });
     }
 
-    dlg.show().unwrap();
+    app.set_inspector_visible(true);
 }
