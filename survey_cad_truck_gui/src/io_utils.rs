@@ -1,5 +1,11 @@
 use survey_cad::geometry::{Arc, Point};
 
+/// Type alias for a single line represented by its start and end points.
+type Line = (Point, Point);
+
+/// Return type for [`read_field_book_csv`].
+type PointsAndLines = (Vec<Point>, Vec<Line>);
+
 pub fn read_line_csv(path: &str, dst_epsg: u32) -> std::io::Result<(Point, Point)> {
     let pts = survey_cad::io::read_points_csv(path, Some(4326), Some(dst_epsg))?;
     if pts.len() != 2 {
@@ -60,7 +66,7 @@ use survey_cad::surveying::field_code::{CodeAction, FieldCode};
 pub fn read_field_book_csv(
     path: &str,
     dst_epsg: u32,
-) -> std::io::Result<(Vec<Point>, Vec<(Point, Point)>)> {
+) -> std::io::Result<PointsAndLines> {
     let lines = survey_cad::io::read_lines(path)?;
     if lines.is_empty() {
         return Ok((Vec::new(), Vec::new()));
@@ -122,7 +128,7 @@ pub fn read_field_book_csv(
     let mut out_lines = Vec::new();
     for (pt, codes) in &pts_codes {
         for raw in codes
-            .split(|c: char| c == ' ' || c == ';')
+            .split([' ', ';'])
             .filter(|s| !s.is_empty())
         {
             let fc = FieldCode::parse(raw);
