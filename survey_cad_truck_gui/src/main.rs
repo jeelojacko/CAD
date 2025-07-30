@@ -34,6 +34,32 @@ use truck_modeling::base::Vector3;
 /// `macro_dir` entry in the saved configuration.
 const DEFAULT_MACRO_DIR: &str = "macros";
 
+fn collect_scripts(dir: &Path, exts: &[&str]) -> Vec<String> {
+    fn scan(current: &Path, base: &Path, exts: &[&str], out: &mut Vec<String>) {
+        if let Ok(rd) = fs::read_dir(current) {
+            for ent in rd.flatten() {
+                let path = ent.path();
+                if path.is_dir() {
+                    let new_base = base.join(ent.file_name());
+                    scan(&path, &new_base, exts, out);
+                } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    if exts.iter().any(|x| x == &ext) {
+                        let rel = base.join(ent.file_name());
+                        if let Some(s) = rel.to_str() {
+                            out.push(s.replace('\u{5c}', "/"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let mut list = Vec::new();
+    scan(dir, Path::new(""), exts, &mut list);
+    list.sort();
+    list
+}
+
 mod truck_backend;
 use truck_backend::{GizmoMode, HitObject, TruckBackend};
 mod persistence;
@@ -998,21 +1024,11 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset_ml = offset.clone();
         let zoom_ml = zoom.clone();
         app.on_show_macro_list(move || {
-            let mut items = Vec::new();
-            if let Ok(rd) = fs::read_dir(&*macro_dir) {
-                for ent in rd.flatten() {
-                    if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
-                        if ext == "txt" || ext == "py" {
-                            if let Some(n) = ent.file_name().to_str() {
-                                items.push(SharedString::from(n.to_string()));
-                            }
-                        }
-                    }
-                }
-            }
+            let items: Vec<String> = collect_scripts(Path::new(&*macro_dir), &["txt", "py"]);
+            let items_ss: Vec<SharedString> = items.iter().map(|s| SharedString::from(s.clone())).collect();
 
             let dlg = MacroListDialog::new().unwrap();
-            dlg.set_files(Rc::new(VecModel::from(items.clone())).into());
+            dlg.set_files(Rc::new(VecModel::from(items_ss.clone())).into());
             dlg.set_selected_index(0);
             let dlg_weak_run = dlg.as_weak();
             let weak_run = weak.clone();
@@ -1112,36 +1128,67 @@ fn main() -> Result<(), slint::PlatformError> {
         let offset_ref = offset.clone();
         let zoom_ref = zoom.clone();
         let macro_dir = macro_dir.clone();
+        let cfg = config.clone();
         app.on_open_script_panel(move || {
-            let mut items = Vec::new();
-            if let Ok(rd) = fs::read_dir(&*macro_dir) {
-                for ent in rd.flatten() {
-                    if let Some(ext) = ent.path().extension().and_then(|e| e.to_str()) {
-                        if ext == "py" {
-                            if let Some(n) = ent.file_name().to_str() {
-                                items.push(SharedString::from(n.to_string()));
-                            }
-                        }
-                    }
-                }
-            }
+            let items: Vec<String> = collect_scripts(Path::new(&*macro_dir), &["py"]);
+            let favorites: Vec<String> = cfg.borrow().quick_scripts.clone();
 
             let panel = ScriptPanel::new().unwrap();
-            panel.set_files(Rc::new(VecModel::from(items.clone())).into());
+            let filter = Rc::new(RefCell::new(String::new()));
+            let items_rc = Rc::new(items);
+            let favorites_rc = Rc::new(RefCell::new(favorites));
+            let refresh_panel: Rc<dyn Fn()> = {
+                let panel = panel.as_weak();
+                let items_rc = items_rc.clone();
+                let favorites_rc = favorites_rc.clone();
+                let filter = filter.clone();
+                Rc::new(move || {
+                    let filt = filter.borrow().to_lowercase();
+                    let items = items_rc.as_ref();
+                    let filtered: Vec<String> = items
+                        .iter()
+                        .filter(|s| s.to_lowercase().contains(&filt))
+                        .cloned()
+                        .collect();
+                    let favs: Vec<bool> = filtered
+                        .iter()
+                        .map(|s| favorites_rc.borrow().iter().any(|f| f == s))
+                        .collect();
+                    if let Some(p) = panel.upgrade() {
+                        let fs: Vec<SharedString> = filtered
+                            .iter()
+                            .map(|s| SharedString::from(s.clone()))
+                            .collect();
+                        p.set_files(Rc::new(VecModel::from(fs)).into());
+                        p.set_favorites(Rc::new(VecModel::from(favs)).into());
+                    }
+                })
+            };
+
+            refresh_panel();
             panel.set_selected_index(0);
             let weak_run = weak.clone();
             let point_db_run = point_db.clone();
             let lines_run = lines_ref.clone();
             let surfaces_run = surfaces_ref.clone();
             let panel_weak = panel.as_weak();
-            let items_run = items.clone();
+            let items_all = items_rc.clone();
+            let items_all_toggle = items_rc.clone();
             let selected_indices_run = selected_indices_ref.clone();
             let selected_lines_run = selected_lines_ref.clone();
             let offset_run = offset_ref.clone();
             let zoom_run = zoom_ref.clone();
             let macro_dir = macro_dir.clone();
+            let filter_run = filter.clone();
+            let refresh_panel_run = refresh_panel.clone();
             panel.on_run(move |idx| {
-                if let Some(name) = items_run.get(idx as usize) {
+                let filt = filter_run.borrow().to_lowercase();
+                let filtered: Vec<String> = items_all
+                    .iter()
+                    .filter(|s| s.to_lowercase().contains(&filt))
+                    .cloned()
+                    .collect();
+                if let Some(name) = filtered.get(idx as usize) {
                     let path = Path::new(&*macro_dir).join(name.as_str());
                     #[cfg(feature = "python")]
                     let ctx_py = PythonContext {
@@ -1162,6 +1209,40 @@ fn main() -> Result<(), slint::PlatformError> {
                         }
                     }
                 }
+                refresh_panel_run();
+            });
+
+            let cfg_toggle = cfg.clone();
+            let favorites_toggle = favorites_rc.clone();
+            let filter_toggle = filter.clone();
+            let refresh_panel_fav = refresh_panel.clone();
+            panel.on_toggle_favorite(move |idx| {
+                let mut cfg_borrow = cfg_toggle.borrow_mut();
+                let filt = filter_toggle.borrow().to_lowercase();
+                let items_vec = items_all_toggle.as_ref();
+                let filtered: Vec<String> = items_vec
+                    .iter()
+                    .filter(|s| s.to_lowercase().contains(&filt))
+                    .cloned()
+                    .collect();
+                if let Some(name) = filtered.get(idx as usize) {
+                    if let Some(pos) = favorites_toggle.borrow().iter().position(|s| s == name) {
+                        favorites_toggle.borrow_mut().remove(pos);
+                    } else {
+                        favorites_toggle.borrow_mut().push(name.clone());
+                    }
+                    cfg_borrow.quick_scripts = favorites_toggle.borrow().clone();
+                    save_config(&cfg_borrow);
+                }
+                drop(cfg_borrow);
+                refresh_panel_fav();
+            });
+
+            let filter_search = filter.clone();
+            let refresh_panel_search = refresh_panel.clone();
+            panel.on_search_changed(move |txt| {
+                *filter_search.borrow_mut() = txt.to_string();
+                refresh_panel_search();
             });
 
             panel.on_close(move || {
