@@ -303,8 +303,6 @@ fn main() -> Result<(), slint::PlatformError> {
     let point_measurement = Rc::new(RefCell::new(Vec::<String>::new()));
     let point_data_sets = Rc::new(RefCell::new(Vec::<usize>::new()));
     let data_set_names = Rc::new(RefCell::new(vec![String::from("Default")]));
-    let inspector_window: Rc<RefCell<Option<slint::Weak<EntityInspector>>>> =
-        Rc::new(RefCell::new(None));
     let style_settings = load_styles(Path::new("styles.json")).unwrap_or_else(|| StyleSettings {
         point_styles: survey_cad::styles::default_point_styles(),
         line_styles: survey_cad::styles::default_line_styles(),
@@ -1444,7 +1442,6 @@ fn main() -> Result<(), slint::PlatformError> {
         let point_layers = point_layers.clone();
         let point_style_indices = point_style_indices.clone();
         let point_metadata = point_metadata.clone();
-        let inspector_ref = inspector_window.clone();
         let selected_indices = selected_indices.clone();
         let selected_polygons = selected_polygons.clone();
         let polygon_style_names = polygon_style_names.clone();
@@ -1454,6 +1451,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let backend_render = backend.clone();
         app.on_inspector(move || {
             if let Some(app) = weak.upgrade() {
+                if app.get_inspector_visible() {
+                    app.set_inspector_visible(false);
+                    return;
+                }
                 if let Some(idx) = selected_indices.borrow().first().copied() {
                     show_inspector_for_point(
                         idx,
@@ -1467,7 +1468,6 @@ fn main() -> Result<(), slint::PlatformError> {
                         &point_measurement,
                         &point_data_sets,
                         &data_set_names,
-                        &inspector_ref,
                         Rc::new(render_image.clone()),
                         &backend_render,
                     );
@@ -1482,7 +1482,6 @@ fn main() -> Result<(), slint::PlatformError> {
                         &point_measurement,
                         &point_data_sets,
                         &data_set_names,
-                        &inspector_ref,
                         Rc::new(render_image.clone()),
                         &backend_render,
                     );

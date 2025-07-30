@@ -1097,6 +1097,19 @@ export component MainWindow inherits Window {
     in-out property <image> workspace_image;
     in-out property <image> workspace_texture;
     in-out property <bool> workspace_click_mode;
+    in-out property <bool> inspector_visible: false;
+    in-out property <[string]> inspector_layers_model;
+    in-out property <[string]> inspector_styles_model;
+    in-out property <[string]> inspector_hatch_model;
+    in-out property <[string]> inspector_data_set_model;
+    in-out property <int> inspector_layer_index;
+    in-out property <int> inspector_style_index;
+    in-out property <int> inspector_hatch_index;
+    in-out property <int> inspector_data_set_index;
+    in-out property <string> inspector_metadata;
+    in-out property <string> inspector_elevation;
+    in-out property <string> inspector_measurement;
+    in-out property <string> inspector_entity_type;
     in-out property <bool> snap_to_grid;
     in-out property <bool> snap_to_entities;
     in-out property <bool> show_point_numbers;
@@ -1420,44 +1433,69 @@ export component MainWindow inherits Window {
             button_hovered(t) => { root.button_hovered(t); }
         }
 
-        Rectangle {
-            width: 100%;
+        HorizontalBox {
             vertical-stretch: 1;
-            min-height: 0px;
+            Rectangle {
+                width: 100%;
+                vertical-stretch: 1;
+                min-height: 0px;
 
-            if root.workspace_mode == 0 : Workspace2D {
-                x: 0; y: 0; width: 100%; height: 100%;
-                image <=> root.workspace_image;
-                click_mode <=> root.workspace_click_mode;
-                clicked(x, y) => { root.workspace_clicked(x, y); }
-                mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
-                pointer_pressed(x, y, ev) => { root.workspace_pointer_pressed(x, y, ev); }
-                pointer_released() => { root.workspace_pointer_released(); }
-                scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
+                if root.workspace_mode == 0 : Workspace2D {
+                    x: 0; y: 0; width: 100%; height: 100%;
+                    image <=> root.workspace_image;
+                    click_mode <=> root.workspace_click_mode;
+                    clicked(x, y) => { root.workspace_clicked(x, y); }
+                    mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+                    pointer_pressed(x, y, ev) => { root.workspace_pointer_pressed(x, y, ev); }
+                    pointer_released() => { root.workspace_pointer_released(); }
+                    scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
+                }
+                if root.workspace_mode == 1 : Workspace3D {
+                    x: 0; y: 0; width: 100%; height: 100%;
+                    texture <=> root.workspace_texture;
+                    mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
+                    mouse_exited() => { root.workspace_mouse_exited(); }
+                    left_pressed(x, y) => { root.workspace_left_pressed(x, y); }
+                    right_pressed(x, y) => { root.workspace_right_pressed(x, y); }
+                    middle_pressed(x, y) => { root.workspace_middle_pressed(x, y); }
+                    pointer_released() => { root.workspace_pointer_released(); }
+                    scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
+                }
+                SnapOverlay {
+                    x: 4px; y: 4px;
+                    snap_grid <=> root.snap_to_grid;
+                    snap_objects <=> root.snap_to_entities;
+                    snap_points <=> root.snap_points;
+                    snap_endpoints <=> root.snap_endpoints;
+                    snap_intersections <=> root.snap_intersections;
+                    snap_grid_changed(b) => { root.snap_grid_changed(b); }
+                    snap_objects_changed(b) => { root.snap_objects_changed(b); }
+                    snap_points_changed(b) => { root.snap_points_changed(b); }
+                    snap_endpoints_changed(b) => { root.snap_endpoints_changed(b); }
+                    snap_intersections_changed(b) => { root.snap_intersections_changed(b); }
+                }
             }
-            if root.workspace_mode == 1 : Workspace3D {
-                x: 0; y: 0; width: 100%; height: 100%;
-                texture <=> root.workspace_texture;
-                mouse_moved(x, y) => { root.workspace_mouse_moved(x, y); }
-                mouse_exited() => { root.workspace_mouse_exited(); }
-                left_pressed(x, y) => { root.workspace_left_pressed(x, y); }
-                right_pressed(x, y) => { root.workspace_right_pressed(x, y); }
-                middle_pressed(x, y) => { root.workspace_middle_pressed(x, y); }
-                pointer_released() => { root.workspace_pointer_released(); }
-                scrolled(dx, dy) => { root.workspace_scrolled(dx, dy); }
-            }
-            SnapOverlay {
-                x: 4px; y: 4px;
-                snap_grid <=> root.snap_to_grid;
-                snap_objects <=> root.snap_to_entities;
-                snap_points <=> root.snap_points;
-                snap_endpoints <=> root.snap_endpoints;
-                snap_intersections <=> root.snap_intersections;
-                snap_grid_changed(b) => { root.snap_grid_changed(b); }
-                snap_objects_changed(b) => { root.snap_objects_changed(b); }
-                snap_points_changed(b) => { root.snap_points_changed(b); }
-                snap_endpoints_changed(b) => { root.snap_endpoints_changed(b); }
-                snap_intersections_changed(b) => { root.snap_intersections_changed(b); }
+            inspector := EntityInspector {
+                visible: root.inspector_visible;
+                layers_model <=> root.inspector_layers_model;
+                styles_model <=> root.inspector_styles_model;
+                hatch_model <=> root.inspector_hatch_model;
+                data_set_model <=> root.inspector_data_set_model;
+                layer_index <=> root.inspector_layer_index;
+                style_index <=> root.inspector_style_index;
+                hatch_index <=> root.inspector_hatch_index;
+                data_set_index <=> root.inspector_data_set_index;
+                metadata <=> root.inspector_metadata;
+                elevation <=> root.inspector_elevation;
+                measurement <=> root.inspector_measurement;
+                entity_type <=> root.inspector_entity_type;
+                layer_changed(i) => { root.inspector_layer_index = i; }
+                style_changed(i) => { root.inspector_style_index = i; }
+                hatch_changed(i) => { root.inspector_hatch_index = i; }
+                data_set_changed(i) => { root.inspector_data_set_index = i; }
+                metadata_changed(s) => { root.inspector_metadata = s; }
+                elevation_changed(s) => { root.inspector_elevation = s; }
+                measurement_changed(s) => { root.inspector_measurement = s; }
             }
         }
 
