@@ -1204,6 +1204,7 @@ export component MainWindow inherits Window {
     callback export_landxml_sections();
     callback import_landxml_surface();
     callback import_landxml_alignment();
+    callback import_field_book();
     callback tin_add_vertex();
     callback tin_move_vertex();
     callback tin_delete_vertex();
@@ -1315,6 +1316,7 @@ export component MainWindow inherits Window {
             MenuItem { title: "Design Sections"; activated => { root.design_cross_sections(); }}
             MenuItem { title: "Cross Sections"; activated => { root.view_cross_sections(); }}
             MenuItem { title: "Extrude Polyline"; activated => { root.extrude_polyline(); }}
+            MenuItem { title: "Import Field Book"; activated => { root.import_field_book(); }}
         }
         Menu {
             title: "TIN";

@@ -109,7 +109,7 @@ use error::GuiError;
 pub use inspector::{
     has_selection, show_context_menu, show_inspector_for_point, show_inspector_for_polygon,
 };
-pub use io_utils::{read_arc_csv, read_line_csv, read_points_list};
+pub use io_utils::{read_arc_csv, read_field_book_csv, read_line_csv, read_points_list};
 use once_cell::sync::Lazy;
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
@@ -1025,7 +1025,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let zoom_ml = zoom.clone();
         app.on_show_macro_list(move || {
             let items: Vec<String> = collect_scripts(Path::new(&*macro_dir), &["txt", "py"]);
-            let items_ss: Vec<SharedString> = items.iter().map(|s| SharedString::from(s.clone())).collect();
+            let items_ss: Vec<SharedString> = items
+                .iter()
+                .map(|s| SharedString::from(s.clone()))
+                .collect();
 
             let dlg = MacroListDialog::new().unwrap();
             dlg.set_files(Rc::new(VecModel::from(items_ss.clone())).into());
@@ -4332,6 +4335,68 @@ fn main() -> Result<(), slint::PlatformError> {
 
     {
         let weak = app.as_weak();
+        let point_db = point_db.clone();
+        let lines_ref = lines.clone();
+        let render_image = render_image.clone();
+        let backend_render = backend.clone();
+        let workspace_crs = workspace_crs.clone();
+        app.on_import_field_book(move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("CSV", &["csv"])
+                .pick_file()
+            {
+                if let Some(p) = path.to_str() {
+                    match read_field_book_csv(p, *workspace_crs.borrow()) {
+                        Ok((pts, lns)) => {
+                            let len = {
+                                let mut db = point_db.borrow_mut();
+                                db.clear();
+                                db.extend(pts);
+                                let mut li = lines_ref.borrow_mut();
+                                li.clear();
+                                li.extend(lns);
+                                backend_render.borrow_mut().clear();
+                                for pt in db.iter() {
+                                    backend_render.borrow_mut().add_point(pt.x, pt.y, 0.0);
+                                }
+                                for (s, e) in li.iter() {
+                                    backend_render.borrow_mut().add_line(
+                                        [s.x, s.y, 0.0],
+                                        [e.x, e.y, 0.0],
+                                        [1.0, 1.0, 1.0, 1.0],
+                                        1.0,
+                                    );
+                                }
+                                db.len()
+                            };
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Imported {len} points"
+                                )));
+                                if app.get_workspace_mode() == 0 {
+                                    crate::set_workspace_image_result(&app, &render_image);
+                                } else {
+                                    let image = backend_render.borrow_mut().render();
+                                    app.set_workspace_texture(image);
+                                }
+                                app.window().request_redraw();
+                            }
+                        }
+                        Err(e) => {
+                            if let Some(app) = weak.upgrade() {
+                                app.set_status(SharedString::from(format!(
+                                    "Failed to import: {e}"
+                                )));
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let weak = app.as_weak();
         let alignments = alignments.clone();
         let backend = backend.clone();
         app.on_design_cross_sections(move || {
@@ -6873,14 +6938,13 @@ fn main() -> Result<(), slint::PlatformError> {
         let style_defs = line_label_styles.clone();
         app.on_line_label_style_manager(move || {
             let dlg = LineLabelStyleManager::new().unwrap();
-            let style_names: Vec<SharedString> =
-                style_defs.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+            let style_names: Vec<SharedString> = style_defs
+                .iter()
+                .map(|(n, _)| SharedString::from(n.clone()))
+                .collect();
             dlg.set_styles_model(Rc::new(VecModel::from(style_names)).into());
-            let preview = crate::render::line_label_style_preview(
-                line_label_style.borrow().clone(),
-                40,
-                20,
-            );
+            let preview =
+                crate::render::line_label_style_preview(line_label_style.borrow().clone(), 40, 20);
             let rows = vec![LineLabelRow {
                 start: SharedString::from(""),
                 end: SharedString::from(""),
@@ -6931,8 +6995,10 @@ fn main() -> Result<(), slint::PlatformError> {
         let style_defs = point_label_styles.clone();
         app.on_point_label_style_manager(move || {
             let dlg = PointLabelStyleManager::new().unwrap();
-            let style_names: Vec<SharedString> =
-                style_defs.iter().map(|(n, _)| SharedString::from(n.clone())).collect();
+            let style_names: Vec<SharedString> = style_defs
+                .iter()
+                .map(|(n, _)| SharedString::from(n.clone()))
+                .collect();
             dlg.set_styles_model(Rc::new(VecModel::from(style_names)).into());
             let preview = crate::render::point_label_style_preview(
                 point_label_style.borrow().clone(),
